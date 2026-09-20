@@ -2098,7 +2098,11 @@
   // ---- Geri tuşu: önce açık modal/drawer'ı kapatır, sonra ekran geçmişinde yukarı çıkar, en sonunda ana sayfaya gelir; ana sayfada üst üste iki basınca uygulamadan gerçekten çıkılır ----
   let lastBackPressAt = 0;
   function armBackTrap() { try { history.pushState({ app: true }, '', location.pathname + location.search + '#app'); } catch (e) {} }
-  armBackTrap(); // Sayfa yüklenir yüklenmez tuzağı kur — giriş ekranındayken bile geri tuşu uygulamayı direkt kapatmasın
+  // Android'in bazı tarayıcı/WebView sürümlerinde, "geçmişte gidilecek yer kalmadı" kararı JS'in
+  // popstate'e tepki verip yeni bir kayıt eklemesinden ÖNCE (aynı anda) veriliyor — tek bir tuzak
+  // kaydı bu yarışı bazen kaybediyor ve ilk basışta uygulama kapanabiliyor. Yükte tek değil birkaç
+  // kayıt önceden itilerek bir tampon oluşturuluyor; bu yarışa karşı bilinen en etkili önlem.
+  for (let i = 0; i < 3; i++) armBackTrap();
   function showBackToast(msg) {
     const el = document.getElementById('backToast');
     el.textContent = msg;
