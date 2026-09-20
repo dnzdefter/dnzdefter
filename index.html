@@ -3057,9 +3057,6 @@
       const isHizmet = (s.kind || 'urun') === 'hizmet';
       const isKritik = !isHizmet && s.minStock > 0 && s.quantity > 0 && s.quantity <= s.minStock;
       const isBitti = !isHizmet && s.quantity <= 0;
-      const etiketler = s.etiketler || [];
-      // Satır çok kalabalıklaşmasın diye en fazla 3 etiket rozet olarak gösterilir, fazlası "+N" ile özetlenir.
-      const etiketBadges = etiketler.slice(0, 3).map((t) => `<span class="badge zero">#${escapeHtml(t)}</span>`).join('') + (etiketler.length > 3 ? `<span class="badge zero">+${etiketler.length - 3}</span>` : '');
       return `
       <div class="card" style="padding:0;margin-bottom:9px">
       <div class="list-row" data-id="${s.id}" style="border-bottom:none;padding:10px 14px">
@@ -3067,11 +3064,12 @@
           ${!s.photo ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--glass-border)" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="M21 16l-5-5-4 4-3-3-6 6"/></svg>` : ''}
         </div>
         <div class="main">
-          <div class="title">${escapeHtml(s.name)}</div>
-          ${s.productCode ? `<span class="badge zero">${escapeHtml(s.productCode)}</span>` : ''}
-          ${isKritik ? `<span class="badge wait">Kritik seviye</span>` : ''}
-          ${etiketBadges}
-          <div class="sub">${escapeHtml(s.brand || s.category || (isHizmet ? 'Hizmet' : 'Ürün'))} · Satış: ${formatTL(s.sellPrice)} / ${escapeHtml(s.satisBirimi)}</div>
+          <div>
+            <span class="title" style="display:inline-block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom">${escapeHtml(s.name)}</span>
+            ${s.productCode ? ` <span class="badge zero">${escapeHtml(s.productCode)}</span>` : ''}
+            ${isKritik ? ` <span class="badge wait">Kritik seviye</span>` : ''}
+          </div>
+          <div class="sub">Satış: ${formatTL(s.sellPrice)} / ${escapeHtml(s.satisBirimi)}</div>
         </div>
         <div class="amt mono ${isBitti ? 'expense' : (isKritik ? '' : '')}" style="${isKritik ? 'color:var(--amber)' : ''}">${isHizmet ? '—' : s.quantity + ' ' + escapeHtml(s.satisBirimi)}</div>
       </div>
