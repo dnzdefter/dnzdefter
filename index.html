@@ -2103,6 +2103,14 @@
   // kaydı bu yarışı bazen kaybediyor ve ilk basışta uygulama kapanabiliyor. Yükte tek değil birkaç
   // kayıt önceden itilerek bir tampon oluşturuluyor; bu yarışa karşı bilinen en etkili önlem.
   for (let i = 0; i < 3; i++) armBackTrap();
+  // Tarayıcının (Android/Chrome) siteyi gerçek bir "yüklenebilir" PWA olarak tanıması için
+  // manifest.json tek başına yetmiyor — bir service worker da gerekiyor. Bu olmadan "Ana Ekrana
+  // Ekle" sadece bir kısayol oluşturuyor ve geri tuşu tarayıcının kendi kontrolünde kalıyor.
+  // sw.js, index.html ile AYNI klasörde durmalı (yoksa kayıt sessizce başarısız olur, uygulama
+  // yine de normal çalışmaya devam eder).
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+  }
   function showBackToast(msg) {
     const el = document.getElementById('backToast');
     el.textContent = msg;
