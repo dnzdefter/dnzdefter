@@ -2095,55 +2095,31 @@
     });
   });
 
-  // ---- Geri tuşu: önce açık modal/drawer'ı kapatır, sonra ekran geçmişinde yukarı çıkar, en sonunda ana sayfaya gelir; ana sayfada üst üste iki basınca uygulamadan gerçekten çıkılır ----
-  let lastBackPressAt = 0;
-  function armBackTrap() { try { history.pushState({ app: true }, '', location.pathname + location.search + '#app'); } catch (e) {} }
-  // Android'in bazı tarayıcı/WebView sürümlerinde, "geçmişte gidilecek yer kalmadı" kararı JS'in
-  // popstate'e tepki verip yeni bir kayıt eklemesinden ÖNCE (aynı anda) veriliyor — tek bir tuzak
-  // kaydı bu yarışı bazen kaybediyor ve ilk basışta uygulama kapanabiliyor. Yükte tek değil birkaç
-  // kayıt önceden itilerek bir tampon oluşturuluyor; bu yarışa karşı bilinen en etkili önlem.
-  for (let i = 0; i < 3; i++) armBackTrap();
-  // Tarayıcının (Android/Chrome) siteyi gerçek bir "yüklenebilir" PWA olarak tanıması için
-  // manifest.json tek başına yetmiyor — bir service worker da gerekiyor. Bu olmadan "Ana Ekrana
-  // Ekle" sadece bir kısayol oluşturuyor ve geri tuşu tarayıcının kendi kontrolünde kalıyor.
-  // sw.js, index.html ile AYNI klasörde durmalı (yoksa kayıt sessizce başarısız olur, uygulama
-  // yine de normal çalışmaya devam eder).
+  // ---- Geri tuşu: uygulama içinde gezinir (önce açık modal/drawer'ı kapatır, sonra bir üst
+  // ekrana çıkar, en sonunda ana sayfaya gelir), ana sayfadayken bir daha basınca hiçbir şey
+  // yapmaz — telefonun geri tuşu uygulamadan asla çıkmaz (çıkmak isteyen görev değiştirici ile
+  // uygulamayı kapatır, tıpkı diğer birçok mobil uygulamada olduğu gibi). Önceki, "art arda kaç
+  // kayıt itildi" hesabına dayanan karmaşık sürüm gerçek cihazlarda güvenilir çalışmıyordu; bu en
+  // yalın, en yaygın kullanılan sürüm.
+  function armBackTrap() { try { history.pushState(null, '', location.href); } catch (e) {} }
+  armBackTrap();
+  // Tarayıcının (Android/Chrome/Samsung Internet) siteyi gerçek bir "yüklenebilir" PWA olarak
+  // tanıması için manifest.json tek başına yetmiyor — bir service worker da gerekiyor. Bu olmadan
+  // "Ana Ekrana Ekle" sadece bir kısayol oluşturuyor ve geri tuşu tarayıcının kendi kontrolünde
+  // kalıyor. sw.js, index.html ile AYNI klasörde durmalı (yoksa kayıt sessizce başarısız olur,
+  // uygulama yine de normal çalışmaya devam eder).
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
   }
-  function showBackToast(msg) {
-    const el = document.getElementById('backToast');
-    el.textContent = msg;
-    el.classList.add('show');
-    clearTimeout(showBackToast._t);
-    showBackToast._t = setTimeout(() => el.classList.remove('show'), 1800);
-  }
   window.addEventListener('popstate', () => {
-    if (drawerOverlay.classList.contains('open')) { closeDrawer(); armBackTrap(); return; }
-    if (modalOverlay.classList.contains('open')) { closeModal(); armBackTrap(); return; }
-    if (document.getElementById('appRoot').style.display === 'none') { armBackTrap(); return; }
-    if (headerBack.style.display === 'flex' && typeof headerBack.onclick === 'function') {
-      headerBack.onclick();
-      armBackTrap();
-      return;
-    }
-    const activeView = document.querySelector('.view.active');
-    const isHome = activeView && activeView.id === 'view-ozet';
-    if (!isHome) {
-      enterOzet();
-      armBackTrap();
-      return;
-    }
-    const now = Date.now();
-    if (now - lastBackPressAt < 2000) {
-      // İkinci basış: tuzağı yeniden KURMA — bırak, tarayıcının doğal geri gitmesi gerçekleşsin.
-      // (Karmaşık "kaç kat tuzak kurdum, hepsini aş" hesaplaması gerçek cihazlarda güvenilir
-      // çalışmıyordu; bu daha basit yöntem tarayıcının kendi geçmiş mekanizmasına güveniyor.)
-      return;
-    }
-    lastBackPressAt = now;
     armBackTrap();
-    showBackToast('Çıkmak için tekrar basın');
+    if (drawerOverlay.classList.contains('open')) { closeDrawer(); return; }
+    if (modalOverlay.classList.contains('open')) { closeModal(); return; }
+    if (document.getElementById('appRoot').style.display === 'none') { return; }
+    if (headerBack.style.display === 'flex' && typeof headerBack.onclick === 'function') { headerBack.onclick(); return; }
+    const activeView = document.querySelector('.view.active');
+    if (activeView && activeView.id !== 'view-ozet') { enterOzet(); return; }
+    // Zaten ana sayfadayız: yapacak bir şey yok, tuzak zaten yeniden kuruldu.
   });
 
   // ---- Dokunma dalgalanma (ripple) efekti — tüm buton/chip/liste satırı/menü satırı/drawer öğeleri için ----
