@@ -1644,6 +1644,14 @@
     'view-takvim': 'Takvim', 'view-notlar': 'Notlar', 'view-fihrist': 'Fihrist'
   };
 
+  // Telefonun geri tuşu bu YOLU (viewPath) kullanır: her showView çağrısı gösterilen ekranı yola
+  // ekler. Yolda AYNI ekrana (aynı id'ye) TEKRAR dönülürse (ör. bir formu "Kaydet" edip ebeveyn
+  // ekrana dönünce), yoldaki o noktadan SONRAKİ her şey atılır — böylece "Kaydet" gibi bir eylem
+  // geri yığınında sahte/çelişkili bir tekrar bırakmaz; yol her zaman GERÇEK görsel derinliği
+  // yansıtır. Geri tuşuna (popstate) basılınca yoldan bir adım çıkarılıp bir önceki adımın
+  // "onBack" fonksiyonu çağrılır — bu da kullanıcıyı, girdiği sırayı TERSTEN izleyerek ana sayfaya
+  // kadar geri götürür.
+  let viewPath = [];
   function showView(id, opts) {
     opts = opts || {};
     document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
@@ -1651,6 +1659,10 @@
     appTitle.textContent = VIEW_TITLES[id] || 'DNZ Defter';
     headerBack.style.display = opts.showBack ? 'flex' : 'none';
     headerBack.onclick = opts.onBack || null;
+    const existingIdx = viewPath.findIndex((v) => v.id === id);
+    if (existingIdx !== -1) viewPath.length = existingIdx + 1;
+    else viewPath.push({ id: id });
+    viewPath[viewPath.length - 1].onBack = opts.onBack || null;
     setExcelExport(null); // Her ekran değişiminde önceki raporun Excel verisi/butonu sıfırlanır; ilgili renderRaporX kendi verisini tekrar kurar.
     viewport.scrollTop = 0;
   }
@@ -2116,10 +2128,19 @@
     if (drawerOverlay.classList.contains('open')) { closeDrawer(); return; }
     if (modalOverlay.classList.contains('open')) { closeModal(); return; }
     if (document.getElementById('appRoot').style.display === 'none') { return; }
-    if (headerBack.style.display === 'flex' && typeof headerBack.onclick === 'function') { headerBack.onclick(); return; }
+    // Şu an gösterilen ekranın kendi "geri" davranışı varsa (viewPath'in son adımı), o adımı
+    // yoldan düşürüp çağırıyoruz — bu, kullanıcıyı girdiği sırayı TERSTEN izleyerek geri götürür.
+    const current = viewPath[viewPath.length - 1];
+    if (current && current.onBack) {
+      viewPath.pop();
+      current.onBack();
+      return;
+    }
+    // Şu an "geri"si olmayan bir ekrandayız (çekmeceyle gelinmiş en üst seviye bir ekran). Ana
+    // sayfada değilsek ana sayfaya dön; zaten ana sayfadaysak hiçbir şey yapma — uygulama
+    // telefonun geri tuşuyla asla kapanmaz.
     const activeView = document.querySelector('.view.active');
-    if (activeView && activeView.id !== 'view-ozet') { enterOzet(); return; }
-    // Zaten ana sayfadayız: yapacak bir şey yok, tuzak zaten yeniden kuruldu.
+    if (activeView && activeView.id !== 'view-ozet') { enterOzet(); }
   });
 
   // ---- Dokunma dalgalanma (ripple) efekti — tüm buton/chip/liste satırı/menü satırı/drawer öğeleri için ----
