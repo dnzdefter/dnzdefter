@@ -449,9 +449,6 @@
     </div>
   </header>
   <div id="saveBanner"></div>
-  <button id="floatingBackBtn" style="display:none;position:fixed;left:16px;bottom:22px;z-index:60;width:50px;height:50px;border-radius:50%;border:none;background:var(--flame-deep);color:#fff;box-shadow:var(--shadow-md);align-items:center;justify-content:center;cursor:pointer">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M15 18l-6-6 6-6"/></svg>
-  </button>
 
   <main id="viewport">
 
@@ -1660,19 +1657,26 @@
     document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
     document.getElementById(id).classList.add('active');
     appTitle.textContent = VIEW_TITLES[id] || 'DNZ Defter';
-    headerBack.style.display = opts.showBack ? 'flex' : 'none';
-    headerBack.onclick = opts.onBack || null;
     const existingIdx = viewPath.findIndex((v) => v.id === id);
     if (existingIdx !== -1) viewPath.length = existingIdx + 1;
     else viewPath.push({ id: id });
     viewPath[viewPath.length - 1].onBack = opts.onBack || null;
+    // Sağ üstteki geri oku, geri gidilecek bir yer VARSA görünür ve her zaman stepBack()'i çağırır
+    // (hem "içeri gir" tipi ekranlarda hem de çekmeceyle gelinmiş üst seviye ekranlarda). Ana
+    // sayfadaysak (geri gidilecek yer yok) gizlenir.
+    headerBack.onclick = stepBack;
+    headerBack.style.display = canStepBack() ? 'flex' : 'none';
     setExcelExport(null); // Her ekran değişiminde önceki raporun Excel verisi/butonu sıfırlanır; ilgili renderRaporX kendi verisini tekrar kurar.
     viewport.scrollTop = 0;
-    updateFloatingBackBtn();
   }
-  // Telefonun geri tuşuna (popstate) VE her zaman ekranda duran sabit geri butonuna (floatingBackBtn)
-  // basılınca AYNI mantık çalışır: viewPath'in son adımının kendi "geri" davranışı varsa onu
-  // kullanır, yoksa (çekmeceyle gelinmiş üst seviye bir ekransa) ana sayfaya döner.
+  function canStepBack() {
+    const current = viewPath[viewPath.length - 1];
+    const activeView = document.querySelector('.view.active');
+    return !!(current && current.onBack) || (activeView && activeView.id !== 'view-ozet');
+  }
+  // Telefonun geri tuşuna (popstate) VE sağ üstteki geri okuna basılınca AYNI mantık çalışır:
+  // viewPath'in son adımının kendi "geri" davranışı varsa onu kullanır, yoksa (çekmeceyle gelinmiş
+  // üst seviye bir ekransa) ana sayfaya döner.
   function stepBack() {
     const current = viewPath[viewPath.length - 1];
     if (current && current.onBack) {
@@ -1683,16 +1687,6 @@
     const activeView = document.querySelector('.view.active');
     if (activeView && activeView.id !== 'view-ozet') { enterOzet(); }
   }
-  // Sabit geri butonu, geri gidilecek bir yer VARSA görünür (ana sayfadaysak gizlenir — orada
-  // "geri" gidilecek bir yer yok). Telefonun donanım geri tuşu tarayıcı politikaları yüzünden
-  // güvenilir çalışmayabildiği için, bu buton HER ZAMAN garantili çalışan bir alternatif sunar.
-  function updateFloatingBackBtn() {
-    const current = viewPath[viewPath.length - 1];
-    const activeView = document.querySelector('.view.active');
-    const canGoBack = !!(current && current.onBack) || (activeView && activeView.id !== 'view-ozet');
-    document.getElementById('floatingBackBtn').style.display = canGoBack ? 'flex' : 'none';
-  }
-  document.getElementById('floatingBackBtn').addEventListener('click', stepBack);
   // ---- Genel Excel'e Aktar altyapısı — her rapor/liste ekranı kendi verisini setExcelExport ile bildirir ----
   let currentExcelExport = null;
   function setExcelExport(filename, rows, viewId) {
