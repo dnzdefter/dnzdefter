@@ -426,9 +426,22 @@
   </div>
 </div>
 
+<div id="sirketSecScreen" class="auth-overlay" style="display:none">
+  <div class="auth-blob" style="width:340px;height:340px;background:#8FD1FF;top:-120px;left:-100px"></div>
+  <div class="auth-blob" style="width:300px;height:300px;background:#B9C8FF;bottom:-100px;right:-90px"></div>
+  <div class="auth-card" style="max-width:360px">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--flame)" stroke-width="1.6" style="margin-bottom:14px"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 8h2M14 8h2M8 12h2M14 12h2M8 16h2M14 16h2"/></svg>
+    <p class="auth-title" style="margin-bottom:14px;font-size:16px;color:var(--ink)">Hangi Firma?</p>
+    <div id="sirketSecList" style="width:100%;text-align:left;max-height:280px;overflow:auto"></div>
+    <button class="auth-login-btn" id="sirketYeniEkleBtn" style="margin-top:14px">+ Yeni Firma Ekle</button>
+    <button class="auth-login-btn" id="sirketSecCikisBtn" style="background:var(--ink-soft);margin-top:8px">Çıkış Yap</button>
+  </div>
+</div>
+
 <div class="blob blob1"></div>
 <div class="blob blob2"></div>
 <div class="blob blob3"></div>
+
 
 <div class="app" id="appRoot" style="display:none">
   <header class="appbar">
@@ -1204,6 +1217,7 @@
       <div class="menu-row-wrap">
         <div class="menu-row" data-a="sirket"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 8h2M14 8h2M8 12h2M14 12h2M8 16h2M14 16h2"/></svg></div><div><div class="title">Şirket Bilgileri</div><div class="sub">Fatura ve ekstrelerde görünen bilgiler</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-a="sablon"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></div><div><div class="title">Şablon Ayarları</div><div class="sub">Çıktılarda neyin görünüp görünmeyeceğini ayarla</div></div><span class="chev">›</span></div>
+        <div class="menu-row" data-a="firmadegistir"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 8h2M14 8h2M8 12h2M14 12h2M8 16h2M14 16h2"/></svg></div><div><div class="title">Firma Değiştir</div><div class="sub" id="ayarlarAktifFirmaAdi">Aktif firma</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-a="tanimlar"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div><div><div class="title">Tanımlar</div><div class="sub">Gelir/gider/masraf kategorileri, ödeme yöntemleri</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-a="veri"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 18v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg></div><div><div class="title">Veri Yönetimi</div><div class="sub">Yedek al, geri yükle, verileri sil</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-a="kullanicilar" id="ayarlarKullanicilarRow" style="display:none"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="9" cy="8" r="3.2"/><path d="M2 21c0-3.8 3-6 7-6s7 2.2 7 6"/><circle cx="17.5" cy="9" r="2.3"/><path d="M16 15.2c2.8.5 4.5 2.2 5 5.8"/></svg></div><div><div class="title">Kullanıcılar</div><div class="sub">Ekibine erişim ver ya da kaldır</div></div><span class="chev">›</span></div>
@@ -1309,11 +1323,14 @@
 
 <div class="drawer-overlay hidden" id="drawerOverlay">
   <nav class="drawer" id="drawer">
-    <div class="drawer-header">
-      <span class="logo-text">DNZ Defter</span>
-      <button class="icon-btn" id="drawerCloseBtn">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button>
+    <div class="drawer-header" style="flex-direction:column;align-items:flex-start;gap:2px">
+      <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
+        <span class="logo-text">DNZ Defter</span>
+        <button class="icon-btn" id="drawerCloseBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <span id="drawerAktifFirmaAdi" style="font-size:11.5px;color:var(--ink-soft);font-weight:600"></span>
     </div>
     <div class="drawer-items">
       <button class="drawer-item" data-nav="ozet">
@@ -1424,6 +1441,9 @@
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   let currentOwnerId = null;
   let currentUserRole = null;
+  let currentSirketId = null;
+  let currentSirketAdi = '';
+  let mySirketler = [];
   async function resolveMembership(userId) {
     try {
       const { data, error } = await sb.rpc('get_my_membership');
@@ -1432,13 +1452,21 @@
       return { ownerId: data[0].owner_id, role: data[0].role };
     } catch (e) { console.error('Üyelik bulunamadı', e); return null; }
   }
+  // Kullanıcının erişebildiği TÜM şirketleri getirir (çoklu firma desteği).
+  async function resolveSirketler() {
+    try {
+      const { data, error } = await sb.rpc('get_my_sirketler');
+      if (error) throw error;
+      return data || [];
+    } catch (e) { console.error('Şirketler alınamadı', e); return []; }
+  }
   let state = { transactions: [], cariler: [], stok: [], faturalar: [], hesaplar: [], cekSenet: [], calisanlar: [], hatirlatmalar: [], notlar: [], stokHareketleri: [], kurlar: {}, kategoriler: [], markalar: [], depolar: [], krediler: [], demirbaslar: [], projeler: [], fiyatListeleri: [], sirketBilgileri: {}, tanimlar: {}, tekrarlamaSablonlari: [] };
   function emptyState() { return { transactions: [], cariler: [], stok: [], faturalar: [], hesaplar: [], cekSenet: [], calisanlar: [], hatirlatmalar: [], notlar: [], stokHareketleri: [], kurlar: {}, kategoriler: [], markalar: [], depolar: [], krediler: [], demirbaslar: [], projeler: [], fiyatListeleri: [], sirketBilgileri: {}, tanimlar: {}, tekrarlamaSablonlari: [] }; }
 
   async function loadState() {
     try {
-      if (!currentOwnerId) { state = emptyState(); migrateState(); return; }
-      const { data, error } = await sb.from('defter_state').select('data').eq('user_id', currentOwnerId).maybeSingle();
+      if (!currentSirketId) { state = emptyState(); migrateState(); return; }
+      const { data, error } = await sb.from('defter_state').select('data').eq('sirket_id', currentSirketId).maybeSingle();
       if (error) throw error;
       state = (data && data.data && Object.keys(data.data).length) ? data.data : emptyState();
     } catch (e) { console.error('Yüklenemedi', e); state = emptyState(); }
@@ -1558,8 +1586,8 @@
     pendingSaves++;
     setSaveBanner('Kaydediliyor…', 'saving');
     try {
-      if (!currentOwnerId) { setSaveBanner('', null); return; }
-      const { error } = await sb.from('defter_state').upsert({ user_id: currentOwnerId, data: state, updated_at: new Date().toISOString() });
+      if (!currentSirketId) { setSaveBanner('', null); return; }
+      const { error } = await sb.from('defter_state').upsert({ sirket_id: currentSirketId, user_id: currentOwnerId, data: state, updated_at: new Date().toISOString() });
       if (error) throw error;
       const statusEl = document.getElementById('veriStatus');
       if (statusEl) statusEl.textContent = '';
@@ -7115,6 +7143,7 @@
       const a = row.dataset.a;
       if (a === 'sirket') enterSirketBilgileri();
       else if (a === 'sablon') enterSablonAyarlari();
+      else if (a === 'firmadegistir') enterFirmaDegistir();
       else if (a === 'tanimlar') enterTanimlar();
       else if (a === 'veri') enterVeriYonetimi();
       else if (a === 'kullanicilar') enterKullanicilar();
@@ -7331,20 +7360,75 @@
   async function showApp() {
     document.getElementById('authScreen').style.display = 'none';
     document.getElementById('pendingScreen').style.display = 'none';
+    document.getElementById('sirketSecScreen').style.display = 'none';
     document.getElementById('appRoot').style.display = '';
     document.getElementById('ayarlarKullanicilarRow').style.display = currentUserRole === 'yonetici' ? 'flex' : 'none';
+    document.getElementById('drawerAktifFirmaAdi').textContent = currentSirketAdi;
+    document.getElementById('ayarlarAktifFirmaAdi').textContent = currentSirketAdi || 'Aktif firma';
     await loadState();
     renderAll();
     setDrawerActive('ozet');
   }
   function showPendingScreen() {
     document.getElementById('authScreen').style.display = 'none';
+    document.getElementById('sirketSecScreen').style.display = 'none';
     document.getElementById('appRoot').style.display = 'none';
     document.getElementById('pendingScreen').style.display = 'flex';
+  }
+  // Kullanıcının erişebildiği firma sayısına göre: tek firma varsa otomatik seçilip doğrudan
+  // uygulamaya girilir; birden fazla varsa (ya da hiç yoksa, ör. yeni kayıt) bu ekran gösterilir.
+  function renderSirketSecList() {
+    const list = document.getElementById('sirketSecList');
+    if (!mySirketler.length) { list.innerHTML = '<p style="font-size:13px;color:var(--ink-soft);text-align:center;margin-bottom:4px">Henüz bir firman yok. Aşağıdan ilkini oluştur.</p>'; return; }
+    list.innerHTML = mySirketler.map((s) => `
+      <div class="list-row sirket-sec-row" data-id="${s.sirket_id}" data-ad="${escapeHtml(s.sirket_adi)}" style="cursor:pointer">
+        <div class="main"><div class="title">${escapeHtml(s.sirket_adi)}</div></div>
+        <span class="chev">›</span>
+      </div>
+    `).join('');
+  }
+  function showSirketSecScreen() {
+    document.getElementById('authScreen').style.display = 'none';
+    document.getElementById('pendingScreen').style.display = 'none';
+    document.getElementById('appRoot').style.display = 'none';
+    document.getElementById('sirketSecScreen').style.display = 'flex';
+    renderSirketSecList();
+  }
+  async function selectSirketAndEnter(sirketId, sirketAdi) {
+    currentSirketId = sirketId;
+    currentSirketAdi = sirketAdi;
+    await showApp();
+  }
+  document.getElementById('sirketSecList').addEventListener('click', (e) => {
+    const row = e.target.closest('.sirket-sec-row'); if (!row) return;
+    selectSirketAndEnter(row.dataset.id, row.dataset.ad);
+  });
+  document.getElementById('sirketYeniEkleBtn').addEventListener('click', async () => {
+    const ad = prompt('Yeni firmanın adı:');
+    if (!ad || !ad.trim()) return;
+    const btn = document.getElementById('sirketYeniEkleBtn');
+    btn.disabled = true; btn.textContent = 'Oluşturuluyor…';
+    try {
+      const { data, error } = await sb.rpc('create_sirket', { p_ad: ad.trim() });
+      if (error) throw error;
+      await selectSirketAndEnter(data, ad.trim());
+    } catch (e) {
+      alert('Firma oluşturulamadı: ' + (e.message || 'bağlantı sorunu'));
+    } finally {
+      btn.disabled = false; btn.textContent = '+ Yeni Firma Ekle';
+    }
+  });
+  document.getElementById('sirketSecCikisBtn').addEventListener('click', () => sb.auth.signOut());
+  // Ayarlar'dan (uygulama İÇİNDEN) firma değiştirme: mevcut oturumu korur, sadece hangi firmanın
+  // verisiyle çalışıldığını değiştirir.
+  async function enterFirmaDegistir() {
+    mySirketler = await resolveSirketler();
+    showSirketSecScreen();
   }
   function showAuthScreen() {
     document.getElementById('authScreen').style.display = 'flex';
     document.getElementById('pendingScreen').style.display = 'none';
+    document.getElementById('sirketSecScreen').style.display = 'none';
     document.getElementById('appRoot').style.display = 'none';
     document.getElementById('authStatus').textContent = '';
     document.getElementById('authStatus').classList.remove('error');
@@ -7406,14 +7490,26 @@
       if (appStarted) return;
       appStarted = true;
       const membership = await resolveMembership(session.user.id);
-      if (!membership) { appStarted = false; showPendingScreen(); return; }
-      currentOwnerId = membership.ownerId;
-      currentUserRole = membership.role;
-      await showApp();
+      currentOwnerId = membership ? membership.ownerId : null;
+      currentUserRole = membership ? membership.role : null;
+      mySirketler = await resolveSirketler();
+      if (!mySirketler.length) {
+        if (!membership) { appStarted = false; showPendingScreen(); return; }
+        // Üyeliği var ama hiç firması yok (olağandışı bir durum) — yeni firma oluşturmasına izin ver.
+        showSirketSecScreen();
+        return;
+      }
+      if (mySirketler.length === 1) {
+        await selectSirketAndEnter(mySirketler[0].sirket_id, mySirketler[0].sirket_adi);
+      } else {
+        showSirketSecScreen();
+      }
     } else {
       appStarted = false;
       currentOwnerId = null;
       currentUserRole = null;
+      currentSirketId = null;
+      currentSirketAdi = '';
       showAuthScreen();
     }
   }
