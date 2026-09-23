@@ -7304,13 +7304,13 @@
     list.innerHTML = '<div class="empty-state">Yükleniyor…</div>';
     try {
       const { data: { user } } = await sb.auth.getUser();
-      const { data, error } = await sb.rpc('get_team_members');
+      const { data, error } = await sb.rpc('get_team_members', { p_sirket_id: currentSirketId });
       if (error) throw error;
       if (!data || !data.length) { list.innerHTML = '<div class="empty-state">Henüz kimse yok.</div>'; return; }
       list.innerHTML = data.map((m) => `
         <div class="list-row" data-id="${m.member_id}">
           <div class="main"><div class="title">${escapeHtml(m.email || '')}${m.member_id === user.id ? ' (Sen)' : ''}</div><div class="badge ${m.role === 'yonetici' ? 'pos' : 'zero'}">${m.role === 'yonetici' ? 'Yönetici' : 'Çalışan'}</div></div>
-          ${m.member_id !== currentOwnerId ? `<button class="btn btn-sm btn-danger" data-remove="${m.member_id}" type="button">Kaldır</button>` : ''}
+          ${m.member_id !== user.id ? `<button class="btn btn-sm btn-danger" data-remove="${m.member_id}" type="button">Kaldır</button>` : ''}
         </div>
       `).join('');
     } catch (e) {
@@ -7332,7 +7332,7 @@
       if (!email) { alert('E-posta gerekli.'); return; }
       const saveBtn = document.getElementById('mSave');
       saveBtn.disabled = true; saveBtn.textContent = 'Ekleniyor…';
-      const { error } = await sb.rpc('add_defter_member', { member_email: email, member_role: role });
+      const { error } = await sb.rpc('add_defter_member', { p_sirket_id: currentSirketId, member_email: email, member_role: role });
       if (error) { alert('Eklenemedi: ' + error.message); saveBtn.disabled = false; saveBtn.textContent = 'Ekle'; return; }
       closeModal();
       renderKullaniciList();
@@ -7341,7 +7341,7 @@
   document.getElementById('kullaniciList').addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-remove]'); if (!btn) return;
     if (!confirm('Bu kişinin erişimini kaldırmak istiyor musun?')) return;
-    const { error } = await sb.from('defter_members').delete().eq('member_id', btn.dataset.remove);
+    const { error } = await sb.from('defter_members').delete().eq('member_id', btn.dataset.remove).eq('sirket_id', currentSirketId);
     if (error) { alert('Kaldırılamadı: ' + error.message); return; }
     renderKullaniciList();
   });
