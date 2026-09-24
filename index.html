@@ -2152,30 +2152,17 @@
       hint.textContent = 'Barkodu çerçevenin içine hizala';
       try {
         scannerZXingReader = new ZXing.BrowserMultiFormatReader();
-        // ZXing'in kendi dokümantasyonu: "video elementinden doğrudan okuma Safari/iOS'ta
-        // desteklenmiyor, sadece img/canvas destekleniyor". decodeFromVideoElement bu yüzden
-        // Android/masaüstünde çalışıp iOS'ta hiç barkod bulamadan sessizce takılı kalıyordu.
-        // Bunun yerine her kareyi önce gizli bir canvas'a çiziyoruz, ZXing'e canvas'ı veriyoruz —
-        // bu yöntem tüm platformlarda (iOS dahil) destekleniyor.
-        const scanCanvas = document.createElement('canvas');
-        const scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
-        const zxLoop = () => {
-          if (finished) return;
-          if (video.videoWidth > 0) {
-            scanCanvas.width = video.videoWidth;
-            scanCanvas.height = video.videoHeight;
-            scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
-            try {
-              const result = scannerZXingReader.decodeFromCanvas(scanCanvas);
-              if (result && !finished) { finish(result.getText()); return; }
-            } catch (e) {
-              // ZXing'in "bu karede barkod yok" istisnası (NotFoundException) normal —
-              // sadece taramaya devam ediyoruz; başka bir hata da olsa aynı şekilde devam.
-            }
-          }
-          scannerDetectRAF = requestAnimationFrame(zxLoop);
-        };
-        scannerDetectRAF = requestAnimationFrame(zxLoop);
+        // Asıl hata buradaymış: "decodeFromVideoElement(video, callback)" — bu metod ASLINDA
+        // callback ALMIYOR, tek seferlik bir Promise döndürüyor (paketin kendi kaynak kodunda
+        // doğruladım). Callback'im hiç çağrılmadığı için Android'de (BarcodeDetector zaten var
+        // olduğu için ZXing'e hiç düşülmüyordu) sorun görünmüyordu, ama iOS'ta (BarcodeDetector
+        // yok, ZXing'e düşülüyor) hiçbir zaman sonuç gelmiyordu. Sürekli/canlı tarama için doğru
+        // metod "decodeFromVideoElementContinuously" — bu, video karesini kütüphanenin kendi iç
+        // canvas'ına çizip (video/img/canvas ayrımı olmadan tüm platformlarda çalışan bir yöntemle)
+        // her karede callback'i çağırıyor.
+        scannerZXingReader.decodeFromVideoElementContinuously(video, (result, err) => {
+          if (result && !finished) finish(result.getText());
+        });
       } catch (e) {
         hint.textContent = 'Barkod okunamadı — elle girebilirsin.';
         setTimeout(() => finish(null), 1800);
