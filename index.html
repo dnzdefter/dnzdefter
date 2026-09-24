@@ -1628,6 +1628,13 @@
     if (str === null || str === undefined) return '';
     return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
+  // Silme ve veriyi geri döndürülemez şekilde değiştirme işlemleri (ürün/fatura/cari silme, tüm
+  // veriyi silme, yedek geri yükleme vb.) sadece yönetici rolündeki kullanıcılar tarafından
+  // yapılabilir. Her silme onayından ÖNCE bu kontrol çağrılır.
+  function yoneticiKontrolSil() {
+    if (currentUserRole !== 'yonetici') { alert('Bu işlemi sadece yöneticiler yapabilir.'); return false; }
+    return true;
+  }
   function cariAdi(id) { const c = state.cariler.find((x) => x.id === id); return c ? c.name : null; }
   function cariBalance(cari) { return (cari.hareketler || []).reduce((sum, h) => sum + h.tutar, 0); }
   function hesapBalance(h) { return (h.hareketler || []).reduce((sum, x) => sum + x.tutar, 0); }
@@ -2392,6 +2399,7 @@
     };
   }
   function deleteTransaction(t) {
+    if (!yoneticiKontrolSil()) return;
     if (!confirm(`"${t.category}" kaydını silmek istiyor musun?`)) return;
     state.transactions = state.transactions.filter((x) => x.id !== t.id);
     state.hesaplar.forEach((h) => { h.hareketler = (h.hareketler || []).filter((hk) => hk.txId !== t.id); });
@@ -2612,6 +2620,7 @@
   document.getElementById('cfDeleteBtn').addEventListener('click', () => {
     if (!editingCariId) return;
     const c = state.cariler.find((x) => x.id === editingCariId);
+    if (!yoneticiKontrolSil()) return;
     if (!c || !confirm(`"${c.name}" adlı cariyi silmek istiyor musun? Hareket geçmişi de silinir.`)) return;
     state.cariler = state.cariler.filter((x) => x.id !== editingCariId);
     saveState(); renderAllCariSelects();
@@ -2714,6 +2723,7 @@
     }
     if (existingHareket) {
       document.getElementById('mSil').onclick = () => {
+        if (!yoneticiKontrolSil()) return;
         if (!confirm('Bu hareketi silmek istiyor musun?')) return;
         c.hareketler = (c.hareketler || []).filter((x) => x.id !== existingHareket.id);
         state.hesaplar.forEach((h) => { h.hareketler = (h.hareketler || []).filter((x) => x.odemeId !== existingHareket.odemeId); });
@@ -2786,6 +2796,7 @@
       else if (action === 'ekstre') printCariEkstre(c);
       else if (action === 'duzenle') enterCariForm(c.id);
       else if (action === 'sil') {
+        if (!yoneticiKontrolSil()) return;
         if (!confirm(`"${c.name}" adlı cariyi silmek istiyor musun? Hareket geçmişi de silinir.`)) return;
         state.cariler = state.cariler.filter((x) => x.id !== c.id);
         saveState(); renderAllCariSelects();
@@ -2959,6 +2970,7 @@
     document.getElementById('aktEkleBtn').addEventListener('click', () => { closeModal(); openCariAktiviteFormModal(c); });
     document.getElementById('aktList').addEventListener('click', (e) => {
       const btn = e.target.closest('.akt-sil-btn'); if (!btn) return;
+      if (!yoneticiKontrolSil()) return;
       if (!confirm('Bu aktiviteyi silmek istiyor musun?')) return;
       c.aktiviteler = (c.aktiviteler || []).filter((a) => a.id !== btn.dataset.id);
       saveState(); closeModal(); openCariAktiviteListModal(c);
@@ -3467,6 +3479,7 @@
       else if (action === 'sil') {
         const baglıFaturaSayisi = state.faturalar.reduce((n, f) => n + f.items.filter((it) => it.stokId === s.id).length, 0);
         const uyari = baglıFaturaSayisi ? `"${s.name}" kaydını silmek istiyor musun? Bu ürüne bağlı ${baglıFaturaSayisi} fatura kalemi var — silince bunlar "bağlantısız" hale gelecek, istersen sonra başka bir ürüne "Stoğa Bağla" ile yeniden bağlayabilirsin.` : `"${s.name}" kaydını silmek istiyor musun?`;
+        if (!yoneticiKontrolSil()) return;
         if (!confirm(uyari)) return;
         state.faturalar.forEach((f) => {
           f.items.forEach((it) => { if (it.stokId === s.id) it.stokId = ''; });
@@ -3891,6 +3904,7 @@
     if (!s) return;
     const baglıFaturaSayisi = state.faturalar.reduce((n, f) => n + f.items.filter((it) => it.stokId === editingStokId).length, 0);
     const uyari = baglıFaturaSayisi ? `"${s.name}" kaydını silmek istiyor musun? Bu ürüne bağlı ${baglıFaturaSayisi} fatura kalemi var — silince bunlar "bağlantısız" hale gelecek, istersen sonra başka bir ürüne "Stoğa Bağla" ile yeniden bağlayabilirsin.` : `"${s.name}" kaydını silmek istiyor musun?`;
+    if (!yoneticiKontrolSil()) return;
     if (!confirm(uyari)) return;
     // Bu ürüne bağlı fatura kalemlerinin bağlantısını temizle — yoksa silindikten sonra o kalemler
     // hâlâ (artık var olmayan) bu ürüne "bağlıymış" gibi görünüp "Stoğa Bağla" ile başka/yeni bir
@@ -3949,6 +3963,7 @@
       <div class="modal-actions"><button class="btn btn-danger" id="mSil">Sil</button><button class="btn btn-primary" id="mSave">Kaydet</button></div>
     `);
     document.getElementById('mSil').onclick = () => {
+      if (!yoneticiKontrolSil()) return;
       if (!confirm(`"${existing.name}" silinsin mi?${kind === 'top' ? ' Bağlı alt kategoriler de silinir.' : ''}`)) return;
       const childIds = state.kategoriler.filter((k) => k.parentId === existing.id).map((k) => k.id);
       state.kategoriler = state.kategoriler.filter((k) => k.id !== existing.id && !childIds.includes(k.id));
@@ -3979,6 +3994,7 @@
       <div class="modal-actions"><button class="btn btn-danger" id="mSil">Sil</button><button class="btn btn-primary" id="mSave">Kaydet</button></div>
     `);
     document.getElementById('mSil').onclick = () => {
+      if (!yoneticiKontrolSil()) return;
       if (!confirm(`"${existing.name}" markası silinsin mi?`)) return;
       state.markalar = state.markalar.filter((m) => m.id !== existing.id);
       syncStokCategoryLabels();
@@ -4028,6 +4044,7 @@
     `);
     if (state.depolar.length > 1) {
       document.getElementById('mSil').onclick = () => {
+        if (!yoneticiKontrolSil()) return;
         if (!confirm(`"${existing.name}" silinsin mi? Buradaki ürünler otomatik olarak başka bir depoya taşınır.`)) return;
         const fallback = state.depolar.find((d) => d.id !== existing.id);
         state.stok.forEach((s) => { if (s.depoId === existing.id) s.depoId = fallback.id; });
@@ -4187,6 +4204,7 @@
   document.getElementById('kasaSilBtn').addEventListener('click', () => {
     const h = state.hesaplar.find((x) => x.id === currentKasaDetailId);
     if (!h) return;
+    if (!yoneticiKontrolSil()) return;
     if (!confirm(`"${h.name}" hesabını silmek istiyor musun? Hesap hareketleri silinir; bu hesaba bağlı gelir/gider/ödeme kayıtları kalır ama artık bir hesaba bağlı olmaz.`)) return;
     state.hesaplar = state.hesaplar.filter((x) => x.id !== h.id);
     state.transactions.forEach((t) => { if (t.hesapId === h.id) t.hesapId = null; });
@@ -4245,6 +4263,7 @@
     `);
     if (existingHareket) {
       document.getElementById('mSil').onclick = () => {
+        if (!yoneticiKontrolSil()) return;
         if (!confirm('Bu hareketi silmek istiyor musun?')) return;
         h.hareketler = (h.hareketler || []).filter((x) => x.id !== existingHareket.id);
         saveState(); closeModal(); renderKasaDetail(); renderOzet();
@@ -4339,6 +4358,7 @@
       <div class="modal-actions"><button class="btn btn-danger" id="mSil">Sil</button><button class="btn btn-primary" id="mSave">Güncelle</button></div>
     `);
     document.getElementById('mSil').onclick = () => {
+      if (!yoneticiKontrolSil()) return;
       if (!confirm('Bu çek/senet kaydını silmek istiyor musun?')) return;
       state.cekSenet = state.cekSenet.filter((x) => x.id !== id);
       saveState(); closeModal(); renderCekList();
@@ -5405,6 +5425,7 @@
     };
   }
   function deleteFaturaOdeme(f, odemeId) {
+    if (!yoneticiKontrolSil()) return;
     if (!confirm('Bu ödeme kaydını silmek istiyor musun? Kasa/banka ve cari bakiyesindeki karşılığı da geri alınır.')) return;
     f.odemeler = (f.odemeler || []).filter((o) => o.id !== odemeId);
     if (f.cariId) { const c = state.cariler.find((x) => x.id === f.cariId); if (c) c.hareketler = (c.hareketler || []).filter((h) => h.odemeId !== odemeId); }
@@ -5547,6 +5568,7 @@
 
   function deleteFaturaConfirm(f) {
     const odemeUyarisi = (f.odemeler && f.odemeler.length) ? ' Bu belgeye ait ödeme/tahsilat kayıtları da silinir.' : '';
+    if (!yoneticiKontrolSil()) return;
     if (!confirm(`"${f.no}" belgesini silmek istiyor musun? Bağlı gelir/gider ve cari hareket kaydı da silinir.${odemeUyarisi}`)) return;
     faturaYonFilter = f.yon;
     reverseBelgeEffects(f);
@@ -5748,6 +5770,7 @@
     const genBtn = e.target.closest('.tk-generate');
     if (genBtn) { generateFromTemplate(genBtn.dataset.id); return; }
     const row = e.target.closest('.list-row'); if (!row) return;
+    if (!yoneticiKontrolSil()) return;
     if (!confirm('Bu şablonu silmek istiyor musun?')) return;
     state.tekrarlamaSablonlari = state.tekrarlamaSablonlari.filter((x) => x.id !== row.dataset.id);
     saveState(); renderTekrarlayanList();
@@ -5908,6 +5931,7 @@
     document.getElementById('mHesap').value = existingOdeme ? (existingOdeme.hesapId || '') : '';
     if (existingOdeme) {
       document.getElementById('mSil').onclick = () => {
+        if (!yoneticiKontrolSil()) return;
         if (!confirm('Bu ödemeyi silmek istiyor musun?')) return;
         k.odemeler = (k.odemeler || []).filter((o) => o.id !== existingOdeme.id);
         state.transactions = state.transactions.filter((t) => t.id !== existingOdeme.txId);
@@ -5948,6 +5972,7 @@
   });
   document.getElementById('krediSilBtn').addEventListener('click', () => {
     const k = state.krediler.find((x) => x.id === currentKrediDetailId);
+    if (!yoneticiKontrolSil()) return;
     if (!k || !confirm(`"${k.name}" krediyi silmek istiyor musun? Ödeme geçmişi de silinir (geçmiş gider kayıtları etkilenmez).`)) return;
     state.krediler = state.krediler.filter((x) => x.id !== k.id);
     saveState(); enterKredi();
@@ -6067,6 +6092,7 @@
   }
   document.getElementById('projeSilBtn').addEventListener('click', () => {
     const p = state.projeler.find((x) => x.id === currentProjeDetailId);
+    if (!yoneticiKontrolSil()) return;
     if (!p || !confirm(`"${p.name}" projesini silmek istiyor musun? Bağlı gelir/gider kayıtları silinmez, sadece proje etiketleri kaldırılır.`)) return;
     state.projeler = state.projeler.filter((x) => x.id !== p.id);
     state.transactions.forEach((t) => { if (t.projeId === p.id) t.projeId = null; });
@@ -6132,6 +6158,7 @@
       };
     };
     document.getElementById('flDeleteBtn').onclick = () => {
+      if (!yoneticiKontrolSil()) return;
       if (!confirm(`"${fl.name}" fiyat listesini silmek istiyor musun?`)) return;
       state.fiyatListeleri = state.fiyatListeleri.filter((x) => x.id !== fl.id);
       state.cariler.forEach((c) => { if (c.varsayilanFiyatListesiId === fl.id) c.varsayilanFiyatListesiId = null; });
@@ -6917,6 +6944,7 @@
     document.getElementById('mHesap').value = existingHareket ? (existingHareket.hesapId || '') : '';
     if (existingHareket) {
       document.getElementById('mSil').onclick = () => {
+        if (!yoneticiKontrolSil()) return;
         if (!confirm('Bu ödemeyi silmek istiyor musun?')) return;
         c.hareketler = (c.hareketler || []).filter((x) => x.id !== existingHareket.id);
         state.transactions = state.transactions.filter((t) => t.id !== existingHareket.txId);
@@ -6957,6 +6985,7 @@
   });
   document.getElementById('calisanSilBtn').addEventListener('click', () => {
     const c = state.calisanlar.find((x) => x.id === currentCalisanDetailId);
+    if (!yoneticiKontrolSil()) return;
     if (!c || !confirm(`"${c.name}" adlı çalışanı silmek istiyor musun? Ödeme geçmişi de silinir (geçmiş gider kayıtları etkilenmez).`)) return;
     state.calisanlar = state.calisanlar.filter((x) => x.id !== c.id);
     saveState(); enterCalisan();
@@ -7226,6 +7255,7 @@
     if (idx !== null) {
       document.getElementById('mSil').onclick = () => {
         if (items.length <= 1) { alert('En az bir tanım kalmalı.'); return; }
+        if (!yoneticiKontrolSil()) return;
         if (!confirm(`"${current}" silinsin mi?`)) return;
         items.splice(idx, 1);
         saveState(); closeModal(); renderTanimListe();
@@ -7272,6 +7302,7 @@
     const file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
+    if (!yoneticiKontrolSil()) return;
     if (!confirm('Bu yedeği geri yüklersen mevcut tüm verilerin üzerine yazılır. Devam etmek istiyor musun?')) return;
     const reader = new FileReader();
     reader.onload = async (ev) => {
@@ -7292,6 +7323,7 @@
     reader.readAsText(file);
   });
   function clearAllData() {
+    if (!yoneticiKontrolSil()) return;
     if (!confirm('TÜM verilerini silmek istediğinden emin misin? Bu işlem geri alınamaz.')) return;
     if (!confirm('Son kez soruyorum: gerçekten her şeyi silmek istiyor musun?')) return;
     state = emptyState();
@@ -7340,6 +7372,7 @@
   });
   document.getElementById('kullaniciList').addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-remove]'); if (!btn) return;
+    if (!yoneticiKontrolSil()) return;
     if (!confirm('Bu kişinin erişimini kaldırmak istiyor musun?')) return;
     const { error } = await sb.from('defter_members').delete().eq('member_id', btn.dataset.remove).eq('sirket_id', currentSirketId);
     if (error) { alert('Kaldırılamadı: ' + error.message); return; }
@@ -7383,6 +7416,10 @@
     list.innerHTML = mySirketler.map((s) => `
       <div class="list-row sirket-sec-row" data-id="${s.sirket_id}" data-ad="${escapeHtml(s.sirket_adi)}" style="cursor:pointer">
         <div class="main"><div class="title">${escapeHtml(s.sirket_adi)}</div></div>
+        ${s.role === 'yonetici' ? `
+          <button type="button" class="icon-btn sirket-rename-btn" data-id="${s.sirket_id}" data-ad="${escapeHtml(s.sirket_adi)}" style="width:30px;height:30px;flex-shrink:0" title="Adını düzenle"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+          <button type="button" class="icon-btn sirket-delete-btn" data-id="${s.sirket_id}" data-ad="${escapeHtml(s.sirket_adi)}" style="width:30px;height:30px;flex-shrink:0;color:var(--expense)" title="Firmayı sil"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>
+        ` : ''}
         <span class="chev">›</span>
       </div>
     `).join('');
@@ -7397,9 +7434,56 @@
   async function selectSirketAndEnter(sirketId, sirketAdi) {
     currentSirketId = sirketId;
     currentSirketAdi = sirketAdi;
+    // currentUserRole, get_my_membership'ten gelen İLK/eski firmanın rolünü tutuyordu — firma
+    // değiştirince bu, o firmadaki GERÇEK rolü yansıtmıyordu. mySirketler zaten her firma için
+    // rolü ayrı ayrı verdiği için, seçilen firmanın rolünü buradan alıp güncelliyoruz.
+    const secilen = mySirketler.find((s) => s.sirket_id === sirketId);
+    if (secilen) currentUserRole = secilen.role;
     await showApp();
   }
-  document.getElementById('sirketSecList').addEventListener('click', (e) => {
+  document.getElementById('sirketSecList').addEventListener('click', async (e) => {
+    const renameBtn = e.target.closest('.sirket-rename-btn');
+    if (renameBtn) {
+      const yeniAd = prompt('Firma adı:', renameBtn.dataset.ad);
+      if (!yeniAd || !yeniAd.trim() || yeniAd.trim() === renameBtn.dataset.ad) return;
+      try {
+        const { error } = await sb.from('sirketler').update({ ad: yeniAd.trim() }).eq('id', renameBtn.dataset.id);
+        if (error) throw error;
+        const s = mySirketler.find((x) => x.sirket_id === renameBtn.dataset.id);
+        if (s) s.sirket_adi = yeniAd.trim();
+        if (renameBtn.dataset.id === currentSirketId) {
+          currentSirketAdi = yeniAd.trim();
+          document.getElementById('drawerAktifFirmaAdi').textContent = currentSirketAdi;
+          document.getElementById('ayarlarAktifFirmaAdi').textContent = currentSirketAdi;
+        }
+        renderSirketSecList();
+      } catch (err) {
+        alert('Ad güncellenemedi: ' + (err.message || 'bağlantı sorunu'));
+      }
+      return;
+    }
+    const deleteBtn = e.target.closest('.sirket-delete-btn');
+    if (deleteBtn) {
+      if (!confirm(`"${deleteBtn.dataset.ad}" firmasını SİLMEK istiyor musun? Bu firmaya ait TÜM veriler (ürünler, faturalar, cariler, her şey) kalıcı olarak silinir. Bu işlem geri alınamaz.`)) return;
+      if (!confirm('Son kez soruyorum: gerçekten bu firmayı ve tüm verilerini silmek istiyor musun?')) return;
+      try {
+        const { error } = await sb.from('sirketler').delete().eq('id', deleteBtn.dataset.id);
+        if (error) throw error;
+        mySirketler = mySirketler.filter((x) => x.sirket_id !== deleteBtn.dataset.id);
+        if (deleteBtn.dataset.id === currentSirketId) {
+          // Aktif firmayı sildiysek: tek bir firma kaldıysa doğrudan ona geç, yoksa seçim ekranında kal.
+          currentSirketId = null; currentSirketAdi = '';
+          if (mySirketler.length === 1) {
+            await selectSirketAndEnter(mySirketler[0].sirket_id, mySirketler[0].sirket_adi);
+            return;
+          }
+        }
+        renderSirketSecList();
+      } catch (err) {
+        alert('Firma silinemedi: ' + (err.message || 'bağlantı sorunu'));
+      }
+      return;
+    }
     const row = e.target.closest('.sirket-sec-row'); if (!row) return;
     selectSirketAndEnter(row.dataset.id, row.dataset.ad);
   });
