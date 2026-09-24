@@ -2091,12 +2091,17 @@
       setTimeout(() => finish(null), 3200);
       return;
     }
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     try {
       scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
     } catch (err) {
       let msg = 'Kameraya erişilemedi.';
       const name = err && err.name;
-      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') msg = 'Kamera izni reddedildi. Chrome adres çubuğundaki kilit simgesine dokun > İzinler > Kamera > İzin Ver. Ayrıca Android Ayarlar > Uygulamalar > Chrome > İzinler\'den Kamera açık olmalı.';
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        msg = isIOS
+          ? 'Kamera izni reddedildi. iPhone Ayarlar > Safari > Kamera\'dan (ya da uygulamayı Ana Ekrana eklediysen Ayarlar > [Uygulama adı] > Kamera\'dan) izin ver, sonra sayfayı yenile.'
+          : 'Kamera izni reddedildi. Chrome adres çubuğundaki kilit simgesine dokun > İzinler > Kamera > İzin Ver. Ayrıca Android Ayarlar > Uygulamalar > Chrome > İzinler\'den Kamera açık olmalı.';
+      }
       else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') msg = 'Bu cihazda kullanılabilir bir kamera bulunamadı.';
       else if (name === 'NotReadableError' || name === 'TrackStartError') msg = 'Kamera şu an başka bir uygulama tarafından kullanılıyor olabilir — onu kapatıp tekrar dene.';
       else if (name === 'SecurityError') msg = 'Kamera bu bağlantıda güvenlik nedeniyle engellendi (https:// gerekiyor).';
@@ -2107,6 +2112,19 @@
     if (finished) { scannerStream.getTracks().forEach((t) => t.stop()); return; }
     video.srcObject = scannerStream;
     try { await video.play(); } catch (e) {}
+    // iOS Safari'de video akışı play() döndükten hemen sonra bile GERÇEKTEN hazır olmayabiliyor
+    // (henüz kare üretmiyor) — hem BarcodeDetector hem ZXing bu durumda hiçbir şey algılamadan
+    // sessizce takılı kalabiliyor. videoWidth>0 olana (gerçek kare gelene) kadar kısa bir süre
+    // (en fazla ~2 sn) bekleniyor.
+    for (let i = 0; i < 40 && video.videoWidth === 0 && !finished; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    if (finished) return;
+    if (video.videoWidth === 0) {
+      hint.textContent = 'Kamera görüntüsü başlatılamadı — sayfayı yenileyip tekrar dene, ya da barkodu elle gir.';
+      setTimeout(() => finish(null), 3200);
+      return;
+    }
     if ('BarcodeDetector' in window) {
       let formats = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf', 'qr_code'];
       try {
