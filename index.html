@@ -2152,9 +2152,30 @@
       hint.textContent = 'Barkodu çerçevenin içine hizala';
       try {
         scannerZXingReader = new ZXing.BrowserMultiFormatReader();
-        scannerZXingReader.decodeFromVideoElement(video, (result) => {
-          if (result && !finished) finish(result.getText());
-        });
+        // ZXing'in kendi dokümantasyonu: "video elementinden doğrudan okuma Safari/iOS'ta
+        // desteklenmiyor, sadece img/canvas destekleniyor". decodeFromVideoElement bu yüzden
+        // Android/masaüstünde çalışıp iOS'ta hiç barkod bulamadan sessizce takılı kalıyordu.
+        // Bunun yerine her kareyi önce gizli bir canvas'a çiziyoruz, ZXing'e canvas'ı veriyoruz —
+        // bu yöntem tüm platformlarda (iOS dahil) destekleniyor.
+        const scanCanvas = document.createElement('canvas');
+        const scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+        const zxLoop = () => {
+          if (finished) return;
+          if (video.videoWidth > 0) {
+            scanCanvas.width = video.videoWidth;
+            scanCanvas.height = video.videoHeight;
+            scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
+            try {
+              const result = scannerZXingReader.decodeFromCanvas(scanCanvas);
+              if (result && !finished) { finish(result.getText()); return; }
+            } catch (e) {
+              // ZXing'in "bu karede barkod yok" istisnası (NotFoundException) normal —
+              // sadece taramaya devam ediyoruz; başka bir hata da olsa aynı şekilde devam.
+            }
+          }
+          scannerDetectRAF = requestAnimationFrame(zxLoop);
+        };
+        scannerDetectRAF = requestAnimationFrame(zxLoop);
       } catch (e) {
         hint.textContent = 'Barkod okunamadı — elle girebilirsin.';
         setTimeout(() => finish(null), 1800);
