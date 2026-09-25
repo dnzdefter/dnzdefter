@@ -733,7 +733,14 @@
           </button>
         </div>
         <div class="field"><label>Dönüşüm Oranı (? alış birimi = 1 satış birimi)</label><input type="number" id="sfDonusum" step="0.0001" value="1"></div>
+
+        <h2 class="section-title" style="margin-top:20px">Paketleme Birimleri (isteğe bağlı)</h2>
+        <p style="font-size:12.5px;color:var(--ink-soft);margin:-8px 0 14px">Bu ürün paket/kutu/palet gibi daha büyük gruplar halinde de saklanıyorsa, aşağıya <b>küçükten büyüğe doğru</b> ekle. Her satırda sadece "bu birimden 1 tanesi, bir öncekinden kaç tane tutuyor" bilgisini gir — isimleri kendisi hatırlatır.</p>
+        <div id="sfPaketlemeList"></div>
+        <button type="button" class="btn btn-sm" id="sfPaketlemeEkleBtn" style="margin-top:4px">+ Birim Ekle</button>
+        <div id="sfPaketlemeOnizleme" style="margin-top:12px"></div>
       </div>
+
 
       <div class="stok-form-panel hidden" id="panelDiger">
         <div class="field">
@@ -2151,18 +2158,43 @@
     if (typeof ZXing !== 'undefined') {
       hint.textContent = 'Barkodu çerçevenin içine hizala';
       try {
-        scannerZXingReader = new ZXing.BrowserMultiFormatReader();
-        // Asıl hata buradaymış: "decodeFromVideoElement(video, callback)" — bu metod ASLINDA
-        // callback ALMIYOR, tek seferlik bir Promise döndürüyor (paketin kendi kaynak kodunda
-        // doğruladım). Callback'im hiç çağrılmadığı için Android'de (BarcodeDetector zaten var
-        // olduğu için ZXing'e hiç düşülmüyordu) sorun görünmüyordu, ama iOS'ta (BarcodeDetector
-        // yok, ZXing'e düşülüyor) hiçbir zaman sonuç gelmiyordu. Sürekli/canlı tarama için doğru
-        // metod "decodeFromVideoElementContinuously" — bu, video karesini kütüphanenin kendi iç
-        // canvas'ına çizip (video/img/canvas ayrımı olmadan tüm platformlarda çalışan bir yöntemle)
-        // her karede callback'i çağırıyor.
-        scannerZXingReader.decodeFromVideoElementContinuously(video, (result, err) => {
-          if (result && !finished) finish(result.getText());
-        });
+        // "decodeFromVideoElementContinuously" iOS'ta hâlâ okumuyordu — kütüphanenin video
+        // elementinden kare yakalayan iç mantığı (BrowserCodeReader), iOS Safari'de video
+        // boyutlarının bazen tutarsız/rastgele raporlanmasına karşı hassas olabiliyor (bu, ZXing'in
+        // kendi GitHub deposunda da bildirilmiş bir iOS sorunu). Bunun yerine kütüphanenin EN ALT
+        // seviye, tarayıcıya özel olmayan sınıflarını (MultiFormatReader, HTMLCanvasElementLuminanceSource,
+        // HybridBinarizer, BinaryBitmap) kullanarak her kareyi KENDİ KONTROLÜMDE, video boyutlarını
+        // HER SEFERİNDE yeniden okuyarak bir canvas'a çiziyor ve doğrudan okuyorum — bu, video/resim
+        // ayrımı yapan hiçbir platforma özel ara katmana bağımlı değil.
+        const zxReader = new ZXing.MultiFormatReader();
+        const scanCanvas = document.createElement('canvas');
+        const scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+        const zxLoop = () => {
+          if (finished) return;
+          const w = video.videoWidth, h = video.videoHeight;
+          if (w > 0 && h > 0) {
+            if (scanCanvas.width !== w) scanCanvas.width = w;
+            if (scanCanvas.height !== h) scanCanvas.height = h;
+            scanCtx.drawImage(video, 0, 0, w, h);
+            try {
+              const luminanceSource = new ZXing.HTMLCanvasElementLuminanceSource(scanCanvas);
+              const binaryBitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminanceSource));
+              // decode() bu kütüphane sürümünde hints verilmeden çağrılınca iç durumunu (readers
+              // listesini) hiç kurmadan hata veriyordu — kütüphanenin kendi önerisi olan ve
+              // sürekli/canlı tarama için tasarlanmış decodeWithState() bunu kendiliğinden kurup
+              // (ayrıca daha hızlı çalışıp) doğru sonucu veriyor; gerçek bir barkodla üretip geri
+              // okuyarak doğruladım.
+              const result = zxReader.decodeWithState(binaryBitmap);
+              if (result && !finished) { finish(result.getText()); return; }
+            } catch (e) {
+              // ZXing'in "bu karede barkod yok" istisnası (NotFoundException) beklenen bir
+              // durum — sessizce bir sonraki kareye geçiyoruz.
+            }
+          }
+          scannerDetectRAF = requestAnimationFrame(zxLoop);
+        };
+        scannerZXingReader = zxReader;
+        scannerDetectRAF = requestAnimationFrame(zxLoop);
       } catch (e) {
         hint.textContent = 'Barkod okunamadı — elle girebilirsin.';
         setTimeout(() => finish(null), 1800);
@@ -3594,6 +3626,87 @@
   let sfPhoto = null;
   let sfDepoId = null;
   let sfVariants = [];
+  // Paketleme birimleri (Adet -> Paket -> Palet gibi) — her eleman { birim, icerik }, icerik o
+  // birimin KENDİSİNDEN BİR ÖNCEKİ seviyeden (ilk elemanda satış biriminden) kaç tane içerdiğini
+  // gösterir. Çıktılarda toplam miktarı bu birimlere böler.
+  let sfPaketleme = [];
+  function pktOncekiAd(i) {
+    if (i === 0) return sfSatisBirimi || 'Adet';
+    return (sfPaketleme[i - 1] && sfPaketleme[i - 1].birim) || 'bir önceki birim';
+  }
+  function renderSfPaketlemeList() {
+    const wrap = document.getElementById('sfPaketlemeList');
+    if (!sfPaketleme.length) { wrap.innerHTML = '<p style="font-size:12px;color:var(--ink-soft);margin:0">Henüz paketleme birimi eklenmedi.</p>'; renderSfPaketlemeOnizleme(); return; }
+    wrap.innerHTML = sfPaketleme.map((p, i) => `
+      <div class="card" style="padding:12px;margin-bottom:10px">
+        <div class="field-row" style="align-items:flex-end">
+          <div class="field"><label>${i + 1}. birimin adı</label><input type="text" class="pkt-birim" data-i="${i}" value="${escapeHtml(p.birim || '')}" placeholder="ör. ${i === 0 ? 'Paket' : 'Palet'}"></div>
+          <button type="button" class="icon-btn pkt-sil-btn" data-i="${i}" style="flex-shrink:0;margin-bottom:2px" title="Bu birimi kaldır">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="field" style="margin-top:8px;margin-bottom:0">
+          <label>1 <b class="pkt-bu-ad" data-i="${i}">${escapeHtml(p.birim || 'bu birim')}</b>, kaç <b class="pkt-onceki-ad" data-i="${i}">${escapeHtml(pktOncekiAd(i))}</b> eder?</label>
+          <input type="number" class="pkt-icerik" data-i="${i}" min="0.0001" step="0.0001" value="${p.icerik || ''}">
+        </div>
+      </div>
+    `).join('');
+    renderSfPaketlemeOnizleme();
+  }
+  // Girilen değerlerle, ürünü gerçekten yazdırsa nasıl görüneceğini gösteren canlı örnek —
+  // "hangi birim nereye yazılır" sorusunu somut bir sayı üzerinden cevaplar.
+  function renderSfPaketlemeOnizleme() {
+    const box = document.getElementById('sfPaketlemeOnizleme');
+    if (!box) return;
+    const gecerli = sfPaketleme.filter((p) => p.birim && p.icerik > 0);
+    if (!gecerli.length) { box.innerHTML = ''; return; }
+    let kumulatif = 1;
+    const seviyeler = gecerli.map((p) => { kumulatif *= p.icerik; return { birim: p.birim, adetKarsiligi: kumulatif }; });
+    const enBuyuk = seviyeler[seviyeler.length - 1];
+    // Örnek miktar: en büyük birimden 1 tam + bir alt birimden yarısı kadar (kalan da olsun diye).
+    const ornekMiktar = Math.round(enBuyuk.adetKarsiligi * 1.5);
+    let kalan = ornekMiktar;
+    const parcalar = [];
+    for (let i = seviyeler.length - 1; i >= 0; i--) {
+      const sayi = Math.floor(kalan / seviyeler[i].adetKarsiligi + 1e-9);
+      if (sayi > 0) { parcalar.push(`${sayi} ${escapeHtml(seviyeler[i].birim)}`); kalan -= sayi * seviyeler[i].adetKarsiligi; }
+    }
+    if (kalan > 0.0001) parcalar.push(`${Math.round(kalan * 10000) / 10000} ${escapeHtml(sfSatisBirimi || 'Adet')}`);
+    box.innerHTML = `<div class="card" style="padding:12px;background:var(--bg-soft, #f3f6fb)">
+      <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:2px">Canlı örnek — girdiklerinle bir çıktı böyle görünür:</div>
+      <div style="font-size:13.5px;font-weight:600">${ornekMiktar} ${escapeHtml(sfSatisBirimi || 'Adet')} → ${parcalar.join(', ')}</div>
+    </div>`;
+  }
+  function syncSfPaketlemeFromDom() {
+    document.querySelectorAll('#sfPaketlemeList .pkt-birim').forEach((el) => { sfPaketleme[parseInt(el.dataset.i, 10)].birim = el.value.trim(); });
+    document.querySelectorAll('#sfPaketlemeList .pkt-icerik').forEach((el) => { sfPaketleme[parseInt(el.dataset.i, 10)].icerik = parseFloat(el.value) || 0; });
+  }
+  document.getElementById('sfPaketlemeEkleBtn').addEventListener('click', () => {
+    syncSfPaketlemeFromDom();
+    sfPaketleme.push({ birim: '', icerik: 0 });
+    renderSfPaketlemeList();
+  });
+  document.getElementById('sfPaketlemeList').addEventListener('click', (e) => {
+    const btn = e.target.closest('.pkt-sil-btn'); if (!btn) return;
+    syncSfPaketlemeFromDom();
+    sfPaketleme.splice(parseInt(btn.dataset.i, 10), 1);
+    renderSfPaketlemeList();
+  });
+  // Bir birimin adını yazarken hem kendi etiketini hem SONRAKİ satırın "hangi birime göre"
+  // yazısını CANLI günceller — odağı (imleci) kaybetmemek için tam yeniden çizim yapmıyor.
+  document.getElementById('sfPaketlemeList').addEventListener('input', (e) => {
+    const i = parseInt(e.target.dataset.i, 10);
+    if (e.target.classList.contains('pkt-birim')) {
+      sfPaketleme[i].birim = e.target.value.trim();
+      const kendiEtiket = document.querySelector(`.pkt-bu-ad[data-i="${i}"]`);
+      if (kendiEtiket) kendiEtiket.textContent = sfPaketleme[i].birim || 'bu birim';
+      const sonrakiEtiket = document.querySelector(`.pkt-onceki-ad[data-i="${i + 1}"]`);
+      if (sonrakiEtiket) sonrakiEtiket.textContent = sfPaketleme[i].birim || 'bir önceki birim';
+    } else if (e.target.classList.contains('pkt-icerik')) {
+      sfPaketleme[i].icerik = parseFloat(e.target.value) || 0;
+    }
+    renderSfPaketlemeOnizleme();
+  });
   let sfEtiketler = [];
 
   function updateSfPhotoPreview() {
@@ -3646,7 +3759,7 @@
     });
   });
   document.getElementById('sfSatisBirimiBtn').addEventListener('click', () => {
-    openUnitPicker('Satış birimi seçin', sfSatisBirimi, (u) => { sfSatisBirimi = u; document.getElementById('sfSatisBirimiVal').textContent = u; });
+    openUnitPicker('Satış birimi seçin', sfSatisBirimi, (u) => { sfSatisBirimi = u; document.getElementById('sfSatisBirimiVal').textContent = u; renderSfPaketlemeList(); });
   });
   function renderSfVariantList() {
     const wrap = document.getElementById('sfVaryantList');
@@ -3829,6 +3942,8 @@
     sfDepoId = s ? (s.depoId || state.depolar[0].id) : state.depolar[0].id;
     document.getElementById('sfDepoVal').textContent = (state.depolar.find((d) => d.id === sfDepoId) || {}).name || 'Ana Depo';
     sfVariants = s ? (s.variants || []).map((v) => Object.assign({}, v)) : [];
+    sfPaketleme = s ? (s.paketlemeBirimleri || []).map((p) => Object.assign({}, p)) : [];
+    renderSfPaketlemeList();
     renderSfVariantList();
 
     document.getElementById('sfName').value = s ? s.name : '';
@@ -3873,6 +3988,7 @@
   document.getElementById('sfSaveBtn').addEventListener('click', () => {
     const name = document.getElementById('sfName').value.trim();
     if (!name) { alert('Ürün ya da hizmet adı gerekli.'); return; }
+    syncSfPaketlemeFromDom();
     const donusumGirisi = parseFloat(document.getElementById('sfDonusum').value) || 1;
     if (sfKind !== 'hizmet' && sfAlisBirimi !== sfSatisBirimi && donusumGirisi === 1) {
       const devam = confirm(`Alış birimin "${sfAlisBirimi}", satış birimin "${sfSatisBirimi}" — farklı birimler. Dönüşüm Oranı hâlâ 1 (varsayılan) görünüyor. Bu doğru mu, yoksa "? ${sfAlisBirimi} = 1 ${sfSatisBirimi}" oranını girmen mi gerekiyor?\n\nDoğruysa Tamam'a bas, düzeltmek istersen Vazgeç'e bas.`);
@@ -3890,6 +4006,7 @@
       quantity: sfKind === 'hizmet' ? 0 : (sfVariants.length ? sfVariants.reduce((s, v) => s + (v.qty || 0), 0) : (parseFloat(document.getElementById('sfQty').value) || 0)),
       minStock: sfKind === 'hizmet' ? 0 : (parseFloat(document.getElementById('sfMinStock').value) || 0),
       variants: sfKind === 'hizmet' ? [] : sfVariants.map((v) => Object.assign({}, v)),
+      paketlemeBirimleri: sfPaketleme.filter((p) => p.birim && p.icerik > 0).map((p) => Object.assign({}, p)),
       sellPrice: parseFloat(document.getElementById('sfSellPrice').value) || 0,
       sellCurrency: document.getElementById('sfSellCurrency').value,
       sellVat: parseFloat(document.getElementById('sfSellVat').value),
@@ -4590,9 +4707,27 @@
         <div class="field"><label>Birim fiyat (TL)</label><input type="number" id="iPrice" value="${it.unitPrice}" min="0" step="0.01"></div>
         <div class="field"><label>KDV %</label><select id="iVat"><option ${it.vat===0?'selected':''} value="0">0</option><option ${it.vat===1?'selected':''} value="1">1</option><option ${it.vat===10?'selected':''} value="10">10</option><option ${it.vat===20?'selected':''} value="20">20</option></select></div>
       </div>
+      <div class="field"><label>Toplam (KDV dahil)</label><input type="number" id="iToplam" value="${Math.round(it.qty * it.unitPrice * (1 + it.vat / 100) * 100) / 100}" min="0" step="0.01"></div>
+      <p style="font-size:11.5px;color:var(--ink-soft);margin-top:-8px">Toplamı değiştirirsen miktar sabit kalır, birim fiyat otomatik yeniden hesaplanır.</p>
       ${tevkifatli ? `<div class="field"><label>Tevkifat % (KDV'nin ne kadarı tevkifata tabi)</label><input type="number" id="iTevkifat" value="${it.tevkifatOrani || 0}" min="0" max="100" step="1"></div>` : ''}
       <div class="modal-actions"><button class="btn btn-danger" id="iDelete">Sil</button><button class="btn btn-primary" id="iSave">Kaydet</button></div>
     `);
+    const iQtyEl = document.getElementById('iQty'), iPriceEl = document.getElementById('iPrice'), iToplamEl = document.getElementById('iToplam'), iVatEl = document.getElementById('iVat');
+    const iToplamiGuncelle = () => {
+      const m = parseFloat(iQtyEl.value) || 0, f = parseFloat(iPriceEl.value) || 0, v = parseFloat(iVatEl.value) || 0;
+      iToplamEl.value = (m && f) ? Math.round(m * f * (1 + v / 100) * 100) / 100 : '';
+    };
+    const iFiyatiToplamdanGuncelle = () => {
+      const m = parseFloat(iQtyEl.value) || 0, t = parseFloat(iToplamEl.value) || 0, v = parseFloat(iVatEl.value) || 0;
+      // 2 ondalığa yuvarlarsak (ör. 462,96), miktarla geri çarpınca girilen toplamı tam
+      // tutturamayabiliyor (462,96×36×1,20=19.999,87 ≠ 20.000). 4 ondalık kullanınca bu fark
+      // pratikte kayboluyor (yazdırmada gene 2 ondalık gösteriliyor, iç hesap daha hassas).
+      if (m > 0) iPriceEl.value = Math.round((t / (1 + v / 100) / m) * 10000) / 10000;
+    };
+    iQtyEl.addEventListener('input', iToplamiGuncelle);
+    iPriceEl.addEventListener('input', iToplamiGuncelle);
+    iVatEl.addEventListener('change', iToplamiGuncelle);
+    iToplamEl.addEventListener('input', iFiyatiToplamdanGuncelle);
     document.getElementById('iDelete').onclick = () => { draftItems.splice(idx, 1); closeModal(); renderItemsSummary(); };
     document.getElementById('iSave').onclick = () => {
       it.name = document.getElementById('iName').value.trim() || it.name;
@@ -5152,11 +5287,30 @@
         <div class="field"><label>Miktar</label><input type="number" id="mMiktar" min="0.01" step="any" value="1"></div>
         <div class="field"><label>Birim Fiyat</label><input type="number" id="mFiyat" min="0" step="0.01" value="${price}"></div>
       </div>
+      <div class="field"><label>Toplam (KDV dahil)</label><input type="number" id="mToplam" min="0" step="0.01" value="${Math.round(1 * price * (1 + (vat || 0) / 100) * 100) / 100}"></div>
+      <p style="font-size:11.5px;color:var(--ink-soft);margin-top:-8px">Toplamı değiştirirsen miktar sabit kalır, birim fiyat otomatik yeniden hesaplanır.</p>
       <button type="button" id="mOncekiFiyatlar" style="background:none;border:none;padding:0;margin-top:-6px;color:var(--flame-deep);font-size:12px;text-decoration:underline;cursor:pointer">önceki fiyatlar</button>
       <div class="modal-actions"><button class="btn" id="mCancel">Vazgeç</button><button class="btn btn-primary" id="mEkle">Ekle</button></div>
     `);
     const input = document.getElementById('mMiktar');
     const fiyatInput = document.getElementById('mFiyat');
+    const toplamInput = document.getElementById('mToplam');
+    // Miktar/Birim Fiyat'tan Toplam'ı (KDV dahil) hesapla; Toplam'dan da (miktar sabit kalarak)
+    // Birim Fiyat'ı geri hesapla — hangisini değiştirdiğine göre diğer ikisi otomatik güncellenir.
+    const kdvOrani = vat || 0;
+    const toplamiGuncelle = () => {
+      const m = parseFloat(input.value) || 0, f = parseFloat(fiyatInput.value) || 0;
+      toplamInput.value = (m && f) ? Math.round(m * f * (1 + kdvOrani / 100) * 100) / 100 : '';
+    };
+    const fiyatiToplamdanGuncelle = () => {
+      const m = parseFloat(input.value) || 0, t = parseFloat(toplamInput.value) || 0;
+      // 2 ondalığa yuvarlarsak geri çarpımda girilen toplamı tam tutturamayabiliyor — 4 ondalık
+      // kullanınca bu fark pratikte kayboluyor (yazdırmada gene 2 ondalık gösteriliyor).
+      if (m > 0) fiyatInput.value = Math.round((t / (1 + kdvOrani / 100) / m) * 10000) / 10000;
+    };
+    input.addEventListener('input', toplamiGuncelle);
+    fiyatInput.addEventListener('input', toplamiGuncelle);
+    toplamInput.addEventListener('input', fiyatiToplamdanGuncelle);
     input.focus(); input.select();
     document.getElementById('mCancel').onclick = closeModal;
     document.getElementById('mOncekiFiyatlar').onclick = () => {
@@ -5165,6 +5319,7 @@
         openMiktarModal(s, v, itemAd, itemAciklama, price, vat);
         document.getElementById('mMiktar').value = qtyKept;
         document.getElementById('mFiyat').value = fiyatKept;
+        document.getElementById('mFiyat').dispatchEvent(new Event('input'));
       });
     };
     const dogrula = () => {
@@ -5543,7 +5698,7 @@
     renderFaturaDetail();
     alert(`"${it.name}" kalemi "${s.name}" ürününe bağlandı ve stok güncellendi.`);
   }
-  function createStokFromItemAndLink(faturaId, idx) {
+  function createStokFromItemAndLink(faturaId, idx, digerFiyat) {
     const f = state.faturalar.find((x) => x.id === faturaId);
     if (!f) return;
     const it = f.items[idx];
@@ -5551,12 +5706,15 @@
     // Aynı isimde bir ürün zaten kayıtlıysa, tekrar tekrar kopya oluşturmak yerine ona bağla.
     const existing = state.stok.find((x) => x.name.trim().toLowerCase() === it.name.trim().toLowerCase());
     if (existing) { linkItemToStok(faturaId, idx, existing.id); return; }
+    // digerFiyat: "Stoğa Bağla" ekranında girilen karşı yöndeki fiyat (alış faturasındaysa satış
+    // fiyatı, satış faturasındaysa alış fiyatı) — böylece alışı kaydederken satışı da aynı anda
+    // belirlenebiliyor, sonradan ürünü bulup ayrıca düzenlemeye gerek kalmıyor.
     const s = {
       id: genId(), name: it.name, kind: 'urun',
       satisBirimi: it.unit || 'Adet', alisBirimi: it.unit || 'Adet', unit: it.unit || 'Adet',
       donusumOrani: 1, quantity: 0, minStock: 0, variants: [],
-      sellPrice: f.yon === 'satis' ? it.unitPrice : 0, sellCurrency: 'TL', sellVat: it.vat, sellVatIncluded: 'haric',
-      buyPrice: f.yon === 'alis' ? it.unitPrice : 0, buyCurrency: 'TL', buyVat: it.vat, buyVatIncluded: 'haric', buyDiscount: 0,
+      sellPrice: f.yon === 'satis' ? it.unitPrice : (digerFiyat || 0), sellCurrency: 'TL', sellVat: it.vat, sellVatIncluded: 'haric',
+      buyPrice: f.yon === 'alis' ? it.unitPrice : (digerFiyat || 0), buyCurrency: 'TL', buyVat: it.vat, buyVatIncluded: 'haric', buyDiscount: 0,
       categoryId: null, subCategoryId: null, brandId: null, photo: null, depoId: null, category: '', brand: '',
       barcode: '', productCode: ''
     };
@@ -5577,6 +5735,10 @@
       <div class="field"><input type="text" id="baglaSearch" placeholder="Kayıtlı ürün ara…" autocomplete="off" value="${escapeHtml(it.name)}"></div>
       <div id="baglaList" style="max-height:260px;overflow:auto"></div>
       <h2 class="section-title" style="margin-top:18px">Eşleşen Ürün Yoksa</h2>
+      <div class="field-row">
+        <div class="field"><label>${f.yon === 'alis' ? 'Alış Fiyatı' : 'Satış Fiyatı'}</label><input type="text" value="${formatTL(it.unitPrice)} / ${escapeHtml(it.unit || 'Adet')}" disabled style="opacity:0.7"></div>
+        <div class="field"><label>${f.yon === 'alis' ? 'Satış Fiyatı' : 'Alış Fiyatı'} (isteğe bağlı)</label><input type="number" id="baglaDigerFiyat" min="0" step="0.01" placeholder="${f.yon === 'alis' ? `ör. ${Math.round(it.unitPrice * 1.3 * 100) / 100}` : 'girilmezse 0 kalır'}"></div>
+      </div>
       <button type="button" class="btn btn-primary btn-block" id="baglaYeniBtn">+ "${escapeHtml(it.name)}" adıyla Yeni Ürün Oluştur ve Bağla</button>
     `);
     function renderBaglaList(query) {
@@ -5589,7 +5751,11 @@
     }
     renderBaglaList(it.name);
     document.getElementById('baglaSearch').addEventListener('input', (e) => renderBaglaList(e.target.value));
-    document.getElementById('baglaYeniBtn').addEventListener('click', () => { closeModal(); createStokFromItemAndLink(f.id, idx); });
+    document.getElementById('baglaYeniBtn').addEventListener('click', () => {
+      const digerFiyat = parseFloat(document.getElementById('baglaDigerFiyat').value);
+      closeModal();
+      createStokFromItemAndLink(f.id, idx, isNaN(digerFiyat) ? null : digerFiyat);
+    });
   }
 
   function deleteFaturaConfirm(f) {
@@ -5684,11 +5850,13 @@
           <tbody>
             ${f.items.map((it, idx) => {
               const s = it.stokId ? state.stok.find((x) => x.id === it.stokId) : null;
+              const paketlemeStr = s ? birimDonusumMetni(s, it) : null;
               const detaylar = [
                 it.aciklama || '',
                 sa.urunKodu && s && s.productCode ? 'Kod: ' + escapeHtml(s.productCode) : '',
                 sa.barkod && s && s.barcode ? 'Barkod: ' + escapeHtml(s.barcode) : '',
-                sa.rafYeri && s && s.rafYeri ? 'Raf: ' + escapeHtml(s.rafYeri) : ''
+                sa.rafYeri && s && s.rafYeri ? 'Raf: ' + escapeHtml(s.rafYeri) : '',
+                paketlemeStr ? escapeHtml(paketlemeStr) : ''
               ].filter(Boolean);
               return `<tr style="border-bottom:1px solid #ccc;page-break-inside:avoid"><td style="padding:4px 4px;white-space:nowrap">${idx + 1}</td>${sa.urunFotografi ? `<td style="padding:4px 4px"><div style="width:36px;height:36px;border-radius:6px;overflow:hidden;background:#eee">${s && s.photo ? `<img src="${s.photo}" style="width:36px;height:36px;object-fit:cover;display:block">` : ''}</div></td>` : ''}<td style="padding:4px 4px">${escapeHtml(it.name)}${detaylar.length ? `<div style="font-size:10px;color:#666;font-style:italic">${detaylar.join(' · ')}</div>` : ''}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">${it.qty}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">${escapeHtml(it.unit || 'Adet')}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">${formatUnitPrice(it.unitPrice, f.paraBirimi || 'TL')}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">%${it.vat}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">${formatMoney(it.qty * it.unitPrice * (1 + it.vat / 100), f.paraBirimi || 'TL')}</td></tr>`;
             }).join('')}
@@ -6747,6 +6915,52 @@
   // kalmıyor — bölme işleminde birimler zaten sadeleşiyor. Bu ürün için hiç alış faturası
   // bulunamazsa (ör. elle girilmiş açılış stoğu), s.buyPrice (yine satış birimine çevrilerek) yedek
   // olarak kullanılır.
+  // Bir ürünün SATIŞ BİRİMİ cinsinden toplam miktarını (ör. 500 Adet), ürüne tanımlı paketleme
+  // birimlerine (ör. 1 Palet=40 Paket, 1 Paket=12 Adet) göre en büyükten en küçüğe doğru parçalara
+  // ayırır ("1 Palet, 1 Paket, 8 Adet" gibi). Ürüne hiç paketleme birimi tanımlanmamışsa null döner.
+  // Bir fatura kaleminin, o kalemin GİRİLDİĞİ birimden (ör. m², kg, mt — genelde alış birimi)
+  // ürünün DİĞER biriminin (satış birimi, ya da tersi) karşılığını metin olarak döndürür.
+  // Öncelik: paketleme birimleri tanımlıysa (Paket/Palet gibi) o zincire göre böler; tanımlı
+  // değilse ama ürünün alış≠satış birimiyse (ör. 1 Adet = 3 m²) düz tek satır dönüşüm gösterir.
+  // Hiçbir dönüşüm/paketleme yoksa (birimler aynıysa) null döner.
+  function birimDonusumMetni(s, it) {
+    if (!s) return null;
+    const alisFarkli = !!(s.alisBirimi && s.satisBirimi && s.alisBirimi !== s.satisBirimi);
+    const paketlemeVar = !!((s.paketlemeBirimleri || []).length);
+    if (!alisFarkli && !paketlemeVar) return null;
+    const formatMiktar = (n) => {
+      const r = Math.round(n * 10000) / 10000;
+      return Number.isInteger(r) ? String(r) : r.toLocaleString('tr-TR', { maximumFractionDigits: 4 });
+    };
+    if (it.unit === s.satisBirimi && alisFarkli && !paketlemeVar) {
+      // Kalem zaten satış biriminde (ör. Adet) girilmiş — alış birimi (ör. m²) karşılığını göster.
+      const alisMiktari = it.qty / (s.donusumOrani || 1);
+      return `${formatMiktar(alisMiktari)} ${s.alisBirimi}`;
+    }
+    // Kalem alış biriminde (ör. m², kg, mt) girilmiş, ya da satış biriminde girilmiş ama paketleme
+    // tanımlı — her iki durumda da önce satış birimine çevrilip (gerekiyorsa) paketlemeye bölünür.
+    const satisMiktari = (it.unit === s.alisBirimi && alisFarkli) ? it.qty * (s.donusumOrani || 1) : it.qty;
+    const dagilim = paketlemeVar ? paketlemeDagilimi(s, satisMiktari) : null;
+    return dagilim || (alisFarkli || paketlemeVar ? `${formatMiktar(satisMiktari)} ${s.satisBirimi}` : null);
+  }
+  function paketlemeDagilimi(s, miktarSatisBiriminde) {
+    const birimler = (s && s.paketlemeBirimleri) || [];
+    if (!birimler.length || !miktarSatisBiriminde) return null;
+    // Her seviyenin, SATIŞ BİRİMİ cinsinden kaç taneye karşılık geldiğini (kümülatif çarpım) hesapla.
+    let kumulatif = 1;
+    const seviyeler = birimler.map((b) => { kumulatif *= (b.icerik || 1); return { birim: b.birim, adetKarsiligi: kumulatif }; });
+    let kalan = Math.round(miktarSatisBiriminde * 10000) / 10000;
+    const parcalar = [];
+    for (let i = seviyeler.length - 1; i >= 0; i--) {
+      const sayi = Math.floor(kalan / seviyeler[i].adetKarsiligi + 1e-9);
+      if (sayi > 0) { parcalar.push(`${sayi} ${seviyeler[i].birim}`); kalan = Math.round((kalan - sayi * seviyeler[i].adetKarsiligi) * 10000) / 10000; }
+    }
+    if (kalan > 0.0001 || parcalar.length === 0) {
+      const kalanStr = Number.isInteger(kalan) ? kalan : kalan.toLocaleString('tr-TR', { maximumFractionDigits: 4 });
+      parcalar.push(`${kalanStr} ${s.satisBirimi || 'Adet'}`);
+    }
+    return parcalar.join(', ');
+  }
   function stokDegeriHesapla(s) {
     if ((s.kind || 'urun') === 'hizmet') return 0;
     if (s.quantity <= 0) return 0;
