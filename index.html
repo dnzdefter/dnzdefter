@@ -634,16 +634,12 @@
     <!-- ÜRÜN DETAY -->
     <section class="view" id="view-stok-detail">
       <div class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
-        <div id="stokDetailPhotoWrap" style="width:100%;aspect-ratio:1/1;background:var(--flame-soft);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative">
-          <img id="stokDetailPhoto" style="width:100%;height:100%;object-fit:contain;display:none">
-          <svg id="stokDetailPhotoPlaceholder" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--flame)"><path d="M4 8h2.5L8 5.5h8L17.5 8H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13.5" r="3.4"/></svg>
-          <div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,0.55);color:#fff;border-radius:20px;padding:5px 11px;font-size:11px;display:flex;align-items:center;gap:4px;pointer-events:none">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h2.5L8 5.5h8L17.5 8H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13.5" r="3.4"/></svg>
-            Fotoğraf Ekle
-          </div>
-        </div>
+        <div id="stokDetailPhotoCarousel" style="width:100%;aspect-ratio:1/1;background:var(--flame-soft);display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch"></div>
         <input type="file" accept="image/*" id="stokDetailPhotoInput" style="display:none" multiple>
-        <div id="stokDetailPhotoStrip" style="display:flex;gap:8px;overflow-x:auto;padding:10px 12px"></div>
+        <button type="button" id="stokDetailPhotoAddBtn" class="btn btn-sm" style="margin:10px 12px;display:inline-flex;align-items:center;gap:6px;width:auto">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h2.5L8 5.5h8L17.5 8H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13.5" r="3.4"/></svg>
+          Fotoğraf Ekle
+        </button>
         <div style="padding:16px;padding-top:0">
           <div class="title" style="font-size:16px;font-weight:700;margin-bottom:8px" id="stokDetailName"></div>
           <div id="stokDetailBadges"></div>
@@ -663,14 +659,10 @@
     <!-- ÜRÜN BİLGİLERİ (STOK FORM) -->
     <section class="view" id="view-stok-form">
       <div class="card" style="text-align:center;padding:16px;margin-bottom:14px">
-        <div id="sfPhotoPreviewWrap" style="width:120px;height:120px;margin:0 auto 10px;border-radius:14px;overflow:hidden;background:rgba(58,161,255,0.08);display:flex;align-items:center;justify-content:center">
-          <img id="sfPhotoPreview" style="width:100%;height:100%;object-fit:contain;display:none">
-          <svg id="sfPhotoPlaceholder" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="color:var(--ink-soft)"><path d="M4 8h2.5L8 5.5h8L17.5 8H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13.5" r="3.4"/></svg>
-        </div>
+        <div id="sfPhotoGallery" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:10px"></div>
         <div style="display:flex;gap:10px;justify-content:center">
-          <label class="btn btn-sm">Fotoğraf Seç<input type="file" accept="image/*" id="sfPhotoInput" style="display:none"></label>
+          <label class="btn btn-sm">Fotoğraf Seç<input type="file" accept="image/*" id="sfPhotoInput" style="display:none" multiple></label>
           <label class="btn btn-sm">Fotoğraf Çek<input type="file" accept="image/*" capture="environment" id="sfPhotoCaptureInput" style="display:none"></label>
-          <button type="button" class="btn btn-sm btn-danger" id="sfPhotoRemoveBtn" style="display:none">Kaldır</button>
         </div>
       </div>
       <div class="chip-row" id="stokFormTabs">
@@ -3464,21 +3456,20 @@
   }
 
   // ---- Ürün Detay (rich detail view) ----
-  // Ürün detayındaki fotoğraf galerisi şeridini çizer — ilk fotoğraf "kapak" (listede/çıktıda
-  // görünen) foto olur, üzerinde renkli çerçeve ile belirtilir.
+  // Ürün detayındaki fotoğraf alanı: hiç fotoğraf yoksa placeholder, tek fotoğraf varsa onu tam
+  // boy gösterir, birden fazla varsa yana kaydırarak (scroll-snap) gezilebilen tam boy bir galeri
+  // olur. Silme işlemi burada YOK — kazayla silmeyi önlemek için "Bilgileri Güncelle" ekranında.
   function renderStokDetailPhotoStrip(s) {
-    const strip = document.getElementById('stokDetailPhotoStrip');
-    const photos = s.photos || [];
-    if (!photos.length) { strip.innerHTML = ''; strip.style.display = 'none'; return; }
-    strip.style.display = 'flex';
-    strip.innerHTML = photos.map((p, i) => `
-      <div class="stok-photo-thumb" data-i="${i}" style="position:relative;flex-shrink:0;width:56px;height:56px;border-radius:10px;overflow:hidden;cursor:pointer;border:2px solid ${i === 0 ? 'var(--flame)' : 'transparent'}">
-        <img src="${p.replace(/"/g, '&quot;')}" style="width:100%;height:100%;object-fit:cover;display:block">
-        <button type="button" class="stok-photo-sil" data-i="${i}" title="Bu fotoğrafı kaldır" style="position:absolute;top:1px;right:1px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,0.6);color:#fff;border:none;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0">✕</button>
-      </div>
-    `).join('');
+    const wrap = document.getElementById('stokDetailPhotoCarousel');
+    const photos = (s.photos && s.photos.length) ? s.photos : (s.photo ? [s.photo] : []);
+    if (!photos.length) {
+      wrap.innerHTML = `<div style="width:100%;flex-shrink:0;display:flex;align-items:center;justify-content:center">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--flame)"><path d="M4 8h2.5L8 5.5h8L17.5 8H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13.5" r="3.4"/></svg>
+      </div>`;
+      return;
+    }
+    wrap.innerHTML = photos.map((p) => `<div style="width:100%;flex-shrink:0;scroll-snap-align:center;display:flex;align-items:center;justify-content:center"><img src="${p.replace(/"/g, '&quot;')}" style="width:100%;height:100%;object-fit:contain"></div>`).join('');
   }
-  // Seçilen fotoğraf dosyalarını (birden fazla olabilir) tek tek küçültüp ürüne ekler.
   function handleStokDetailPhotoFiles(files) {
     const s = state.stok.find((x) => x.id === currentStokDetailId);
     if (!s || !files || !files.length) return;
@@ -3497,40 +3488,13 @@
       reader.readAsDataURL(file);
     });
   }
-  document.getElementById('stokDetailPhotoWrap').addEventListener('click', () => document.getElementById('stokDetailPhotoInput').click());
+  document.getElementById('stokDetailPhotoAddBtn').addEventListener('click', () => document.getElementById('stokDetailPhotoInput').click());
   document.getElementById('stokDetailPhotoInput').addEventListener('change', (e) => { handleStokDetailPhotoFiles(e.target.files); e.target.value = ''; });
-  document.getElementById('stokDetailPhotoStrip').addEventListener('click', (e) => {
-    const s = state.stok.find((x) => x.id === currentStokDetailId);
-    if (!s) return;
-    const silBtn = e.target.closest('.stok-photo-sil');
-    if (silBtn) {
-      const i = parseInt(silBtn.dataset.i, 10);
-      s.photos.splice(i, 1);
-      s.photo = s.photos[0] || null;
-      saveState(); renderStokDetail(); renderStokList();
-      return;
-    }
-    const thumb = e.target.closest('.stok-photo-thumb');
-    if (thumb) {
-      const i = parseInt(thumb.dataset.i, 10);
-      if (i > 0) {
-        const [sel] = s.photos.splice(i, 1);
-        s.photos.unshift(sel);
-        s.photo = s.photos[0];
-        saveState(); renderStokDetail(); renderStokList();
-      }
-    }
-  });
   function renderStokDetail() {
     const s = state.stok.find((x) => x.id === currentStokDetailId);
     if (!s) return;
     const isHizmet = (s.kind || 'urun') === 'hizmet';
     document.getElementById('stokDetailName').textContent = s.name;
-    const photoImg = document.getElementById('stokDetailPhoto');
-    const photoPh = document.getElementById('stokDetailPhotoPlaceholder');
-    const kapakFoto = (s.photos && s.photos[0]) || s.photo || null;
-    if (kapakFoto) { photoImg.src = kapakFoto; photoImg.style.display = 'block'; photoPh.style.display = 'none'; }
-    else { photoImg.style.display = 'none'; photoPh.style.display = 'flex'; }
     renderStokDetailPhotoStrip(s);
     const badges = [];
     if (s.category) badges.push(`<span class="badge zero">${escapeHtml(s.category)}</span>`);
@@ -3695,10 +3659,9 @@
   let sfCategoryId = null;
   let sfSubCategoryId = null;
   let sfBrandId = null;
-  let sfPhoto = null;
-  // Formdaki tek-fotoğraf alanı hâlâ ilk (kapak) fotoğrafı yönetiyor; ürün detayından eklenmiş
-  // EK fotoğraflar varsa (ikinci ve sonrası), form kaydedilirken bunların silinmemesi için saklanır.
-  let sfPhotosRest = [];
+  // Ürünün tüm fotoğrafları — ilk eleman "kapak" (listede/çıktıda görünen). Silme işlemi burada,
+  // ekleme hem burada hem ürün detayında yapılabiliyor.
+  let sfPhotos = [];
   let sfDepoId = null;
   let sfVariants = [];
   // Paketleme birimleri (Adet -> Paket -> Palet gibi) — her eleman { birim, icerik }, icerik o
@@ -3785,21 +3748,37 @@
   let sfEtiketler = [];
 
   function updateSfPhotoPreview() {
-    const img = document.getElementById('sfPhotoPreview');
-    const ph = document.getElementById('sfPhotoPlaceholder');
-    const rm = document.getElementById('sfPhotoRemoveBtn');
-    if (sfPhoto) { img.src = sfPhoto; img.style.display = 'block'; ph.style.display = 'none'; rm.style.display = 'inline-flex'; }
-    else { img.style.display = 'none'; ph.style.display = 'block'; rm.style.display = 'none'; }
+    const wrap = document.getElementById('sfPhotoGallery');
+    if (!sfPhotos.length) {
+      wrap.innerHTML = `<div style="width:80px;height:80px;border-radius:14px;background:rgba(58,161,255,0.08);display:flex;align-items:center;justify-content:center">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="color:var(--ink-soft)"><path d="M4 8h2.5L8 5.5h8L17.5 8H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13.5" r="3.4"/></svg>
+      </div>`;
+      return;
+    }
+    wrap.innerHTML = sfPhotos.map((p, i) => `
+      <div style="position:relative;width:80px;height:80px;border-radius:14px;overflow:hidden;background:rgba(58,161,255,0.08);border:2px solid ${i === 0 ? 'var(--flame)' : 'transparent'}">
+        <img src="${p.replace(/"/g, '&quot;')}" style="width:100%;height:100%;object-fit:cover;display:block">
+        <button type="button" class="sf-photo-sil" data-i="${i}" title="Bu fotoğrafı kaldır" style="position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,0.6);color:#fff;border:none;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0">✕</button>
+      </div>
+    `).join('');
   }
-  function handleSfPhotoFile(file) {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => { resizeImageDataUrl(e.target.result, 640, 0.82, (resized) => { sfPhoto = resized; updateSfPhotoPreview(); }); };
-    reader.readAsDataURL(file);
+  function handleSfPhotoFiles(files) {
+    if (!files || !files.length) return;
+    let kalan = files.length;
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => { resizeImageDataUrl(e.target.result, 640, 0.82, (resized) => { sfPhotos.push(resized); kalan--; if (kalan === 0) updateSfPhotoPreview(); }); };
+      reader.readAsDataURL(file);
+    });
   }
-  document.getElementById('sfPhotoInput').addEventListener('change', (e) => { handleSfPhotoFile(e.target.files[0]); e.target.value = ''; });
-  document.getElementById('sfPhotoCaptureInput').addEventListener('change', (e) => { handleSfPhotoFile(e.target.files[0]); e.target.value = ''; });
-  document.getElementById('sfPhotoRemoveBtn').addEventListener('click', () => { sfPhoto = null; updateSfPhotoPreview(); });
+  document.getElementById('sfPhotoInput').addEventListener('change', (e) => { handleSfPhotoFiles(e.target.files); e.target.value = ''; });
+  document.getElementById('sfPhotoCaptureInput').addEventListener('change', (e) => { handleSfPhotoFiles(e.target.files); e.target.value = ''; });
+  document.getElementById('sfPhotoGallery').addEventListener('click', (e) => {
+    const btn = e.target.closest('.sf-photo-sil'); if (!btn) return;
+    sfPhotos.splice(parseInt(btn.dataset.i, 10), 1);
+    updateSfPhotoPreview();
+  });
+
 
 
   document.getElementById('stokFormTabs').addEventListener('click', (e) => {
@@ -4012,8 +3991,7 @@
     sfCategoryId = s ? (s.categoryId || null) : null;
     sfSubCategoryId = s ? (s.subCategoryId || null) : null;
     sfBrandId = s ? (s.brandId || null) : null;
-    sfPhoto = s ? (s.photo || null) : null;
-    sfPhotosRest = s && Array.isArray(s.photos) ? s.photos.slice(1) : [];
+    sfPhotos = s ? (Array.isArray(s.photos) && s.photos.length ? s.photos.slice() : (s.photo ? [s.photo] : [])) : [];
     updateSfPhotoPreview();
     document.getElementById('sfBarcodeStatus').textContent = '';
     sfDepoId = s ? (s.depoId || state.depolar[0].id) : state.depolar[0].id;
@@ -4094,7 +4072,7 @@
       buyVat: parseFloat(document.getElementById('sfBuyVat').value),
       buyVatIncluded: document.getElementById('sfBuyVatIncluded').value,
       buyDiscount: parseFloat(document.getElementById('sfBuyDiscount').value) || 0,
-      categoryId: sfCategoryId, subCategoryId: sfSubCategoryId, brandId: sfBrandId, photo: sfPhoto, photos: sfPhoto ? [sfPhoto, ...sfPhotosRest] : sfPhotosRest, depoId: sfDepoId,
+      categoryId: sfCategoryId, subCategoryId: sfSubCategoryId, brandId: sfBrandId, photo: sfPhotos[0] || null, photos: sfPhotos.slice(), depoId: sfDepoId,
       category: catObj ? catObj.name + (subObj ? ' / ' + subObj.name : '') : '',
       brand: brandObj ? brandObj.name : '',
       barcode: document.getElementById('sfBarcode').value.trim(),
