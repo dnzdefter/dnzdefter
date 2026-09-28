@@ -97,6 +97,14 @@
   #headerDocActions::-webkit-scrollbar { display: none; }
   header.appbar.doc-actions-on h1 { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   @media (max-width: 600px) { header.appbar.doc-actions-on h1 { display: none; } }
+  /* Stok ekranında başlıkta 5 simge yan yana durur (menü, filtre, PDF, Excel, geri). Dar telefonda başlık
+     yazısı 2-3 satıra bölünmesin diye bu ekranda simgeler biraz küçülür, aralarındaki boşluk daralır. */
+  @media (max-width: 430px) {
+    header.appbar.stok-on .row { gap: 4px; }
+    header.appbar.stok-on .icon-btn { width: 32px; height: 32px; }
+    header.appbar.stok-on h1 { min-width: 0; white-space: normal; line-height: 1.15; }
+  }
+  @media (max-width: 340px) { header.appbar.stok-on h1 { font-size: 16px; } }
   #saveBanner {
     position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
     display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -150,6 +158,7 @@
   .hero-mini-grid .label { font-size: 11.5px; white-space: nowrap; }
   .hero-mini-grid .value { font-size: 19px; margin-top: 3px; }
 
+  .ozet-panel { display: none; } /* telefonda gizli; tablet/masaüstü düzeninde (≥700px) gösterilir */
   .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
   .stat-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 14px; }
   .stat-grid-3 .stat-card { padding: 12px 8px; text-align: center; }
@@ -205,6 +214,12 @@
   .chip-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
   .chip { font-size: 12.5px; padding: 8px 14px; border: 1px solid var(--glass-border); border-radius: 20px; background: var(--glass-strong); color: var(--ink-soft); cursor: pointer; box-shadow: var(--shadow-sm); position: relative; overflow: hidden; transition: transform .08s ease; }
   .chip:active { transform: scale(0.96); }
+  /* Stok sekmeleri (Tümü / Ürünler / Hizmetler / Kritik Stok): dar ekranda da 2 satıra bölünmeden yan yana sığar. */
+  .ttl-count { font-size: 0.74em; font-weight: 700; color: var(--ink-soft); white-space: nowrap; display: inline-block; }
+  #stokSearch { min-width: 0; } /* çok dar ekranda (320px) arama kutusu küçülebilsin, yanındaki butonlar taşmasın */
+  #stokFilterChips { flex-wrap: nowrap; gap: 6px; }
+  #stokFilterChips .chip { flex: 1 1 auto; min-width: 0; padding: 8px 4px; text-align: center; white-space: nowrap; }
+  @media (max-width: 340px) { #stokFilterChips { gap: 4px; } #stokFilterChips .chip { font-size: 11.5px; padding: 8px 2px; } }
   .chip.active { background: linear-gradient(135deg, var(--flame), var(--flame-deep)); border-color: transparent; color: #fff; box-shadow: 0 6px 16px rgba(232,73,30,0.32), inset 0 1px 0 rgba(255,255,255,0.3); }
 
   .ripple-wave { position: absolute; border-radius: 50%; transform: scale(0); background: rgba(11,37,69,0.13); pointer-events: none; animation: rippleAnim 0.55s ease-out; }
@@ -362,6 +377,57 @@
     #printArea * { color: #000 !important; }
   }
 
+  /* ---------------- Tablet ve geniş ekran düzeni (≥700px) ----------------
+     Telefon düzeni (tek sütun, 480px) değişmez. Tablette uygulama ekranın TAMAMINI kullanır: üst çubuk tam
+     genişlik, Özet ekranı 4 sütunlu panel, listeler 2 sütun, formlar/detaylar okunaklı genişlikte, pencereler
+     ortada bir iletişim kutusu olarak açılır. */
+  @media (min-width: 700px) {
+    .app { max-width: none; width: 100%; margin: 0; padding-bottom: 36px; }
+    header.appbar { padding: 16px 32px 14px; }
+    header.appbar h1 { font-size: 22px; }
+    .icon-btn { width: 40px; height: 40px; }
+    main#viewport { padding: 26px 32px 40px; max-width: none; }
+    .card { padding: 20px 22px; margin-bottom: 18px; }
+    .chip { font-size: 13.5px; padding: 9px 18px; }
+    h2.section-title { font-size: 16.5px; }
+    .view[id$="-form"], .view[id$="-detail"] { max-width: 980px; margin-left: auto; margin-right: auto; }
+
+    /* Özet: hero + 4 kart + grafik + 2 panel */
+    #view-ozet.active { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
+    #view-ozet > .hero-card { grid-column: 1 / -1; margin-bottom: 0; padding: 28px 32px; }
+    #view-ozet .hero-mini-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 26px; }
+    #view-ozet .hero-mini-grid .label { font-size: 13px; }
+    #view-ozet .hero-mini-grid .value { font-size: clamp(16px, 2.3vw, 27px); }
+    #view-ozet .stat-grid { display: contents; }
+    /* Rakam, kartın kendi genişliğine göre ölçeklenir (container query): dar tablette de tek satırda kalır. */
+    #view-ozet .stat-card { padding: 20px 18px; display: flex; flex-direction: column; container-type: inline-size; }
+    #view-ozet .stat-card .value { margin-top: auto; }
+    #view-ozet .stat-card .label { font-size: 13px; }
+    #view-ozet .stat-card .value { font-size: clamp(14px, 12cqw, 21px); }
+    #view-ozet > .card { grid-column: 1 / -1; margin-bottom: 0; }
+    #view-ozet > .ozet-panel { display: block; grid-column: span 2; }
+    #view-ozet .chart-row { height: 210px; gap: 10px; }
+    #view-ozet .chart-bars { height: 176px; gap: 4px; }
+    #view-ozet .chart-bar { width: clamp(10px, 1.7vw, 22px); border-radius: 5px 5px 0 0; }
+    #view-ozet .chart-label { font-size: 12.5px; }
+    #view-ozet .chart-legend { font-size: 13px; }
+
+    /* Listeler: her kayıt kendi kartında olanlar 2 sütun ızgara; tek kartta satır satır olanlar 2 sütun akış */
+    #stokList, #faturaList, #teklifList, #firsatList { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 18px; align-items: start; }
+    #stokList > :only-child, #faturaList > :only-child, #teklifList > :only-child, #firsatList > :only-child { grid-column: 1 / -1; }
+    .card[id$="List"]:not(#calisanHareketList):not(#cariHareketList):not(#kasaHareketList):not(#krediOdemeList):not(#projeKayitList):not(#uaList):has(> :nth-child(4)) { column-count: 2; column-gap: 44px; }
+    .card[id$="List"] .list-row, .menu-row { break-inside: avoid; }
+    .menu-row-wrap { padding: 6px 22px; }
+    .menu-row-wrap:has(> .menu-row:nth-child(4)) { column-count: 2; column-gap: 44px; }
+    #stokList .list-row .main { flex: 1; }
+    #stokFilterChips .chip { flex: 1 1 0; font-size: 14px; padding: 10px 6px; }
+
+    /* Pencereler: alttan açılan sayfa yerine ortada iletişim kutusu */
+    .modal-overlay { align-items: center; padding: 24px; }
+    .modal-sheet { max-width: 580px; border-radius: 22px; border-bottom: 1px solid var(--glass-border); max-height: 86vh; transform: translateY(18px) scale(0.98); opacity: 0; transition: transform 0.25s ease, opacity 0.22s ease; }
+    .modal-overlay.open .modal-sheet { transform: none; opacity: 1; }
+  }
+
   /* ---------------- Masaüstü (geniş ekran) düzeni ---------------- */
   @media (min-width: 900px) {
     .drawer-overlay {
@@ -375,14 +441,15 @@
       transform: none !important; box-shadow: none; border-right: none;
     }
     #drawerOpenBtn, #drawerCloseBtn { display: none; }
-    .app { max-width: 1180px; margin: 0 0 0 288px; width: calc(100% - 288px); padding-left: 28px; padding-right: 28px; }
-    header.appbar { padding-left: 4px; padding-right: 4px; }
-    main#viewport { padding-left: 4px; padding-right: 4px; max-width: 900px; }
+    /* Kenar çubuğu sabit: içerik alanı kalan genişliğin TAMAMINI kullanır (eskiden 900px'te kesiliyordu). */
+    .app { max-width: none; margin: 0 0 0 288px; width: calc(100% - 288px); padding: 0 0 36px; }
+    main#viewport { max-width: 1640px; }
   }
-  @media (min-width: 1280px) {
-    .app { max-width: 1360px; }
-    main#viewport { max-width: 1080px; }
+  @media (min-width: 1500px) {
+    #stokList, #faturaList, #teklifList, #firsatList { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card[id$="List"]:not(#calisanHareketList):not(#cariHareketList):not(#kasaHareketList):not(#krediOdemeList):not(#projeKayitList):not(#uaList):has(> :nth-child(7)) { column-count: 3; }
   }
+
 </style>
 </head>
 <body>
@@ -462,6 +529,10 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18M3 12h18M3 18h18" stroke-linecap="round"/></svg>
       </button>
       <h1 id="appTitle">DNZ Defter</h1>
+      <button class="icon-btn" id="headerStokFiltreBtn" style="display:none;position:relative" title="Filtrele (Marka / Kategori / Alt Kategori)" aria-label="Filtrele">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8L3 5Z"/></svg>
+        <span id="stokFiltreDot" style="display:none;position:absolute;top:5px;right:5px;width:9px;height:9px;border-radius:50%;background:var(--flame);border:2px solid #fff;box-sizing:content-box"></span>
+      </button>
       <button class="icon-btn" id="headerBarkodBtn" style="display:none" title="Barkod Tara">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a1 1 0 0 1 1-1h2M21 7V5a1 1 0 0 0-1-1h-2M3 17v2a1 1 0 0 0 1 1h2M21 17v2a1 1 0 0 1-1 1h-2M6 8v8M9 8v8M12 8v8M16 8v8M19 8v8" stroke-linecap="round"/></svg>
       </button>
@@ -531,6 +602,14 @@
           <span><span class="dot" style="background:var(--income)"></span>Gelir</span>
           <span><span class="dot" style="background:var(--expense)"></span>Gider</span>
         </div>
+      </div>
+      <div class="card ozet-panel">
+        <h2 class="section-title">Son Belgeler</h2>
+        <div id="ozetSonBelgeler"></div>
+      </div>
+      <div class="card ozet-panel">
+        <h2 class="section-title">Kritik Stok</h2>
+        <div id="ozetKritikStok"></div>
       </div>
     </section>
 
@@ -1676,8 +1755,46 @@
     return true;
   }
   function cariAdi(id) { const c = state.cariler.find((x) => x.id === id); return c ? c.name : null; }
-  function cariBalance(cari) { return (cari.hareketler || []).reduce((sum, h) => sum + h.tutar, 0); }
-  function hesapBalance(h) { return (h.hareketler || []).reduce((sum, x) => sum + x.tutar, 0); }
+  // Bakiyeler kuruş (2 ondalık) hassasiyetinde yuvarlanır: ondalıklı tutarların toplamında biriken
+  // ikili kayan nokta hatası (ör. 0,1+0,2=0,30000000000000004) yüzünden "bakiyesi sıfır" olması gereken bir
+  // carinin 0,00000000001 gibi görünüp listelerde borçlu/alacaklı sayılmasını önler.
+  function yuvarla2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+  function cariBalance(cari) { return yuvarla2((cari.hareketler || []).reduce((sum, h) => sum + h.tutar, 0)); }
+  function hesapBalance(h) { return yuvarla2((h.hareketler || []).reduce((sum, x) => sum + x.tutar, 0)); }
+  // Dövizli faturalarda kalem fiyatları faturanın para biriminde tutulur; toplamlar ise kayıt anında
+  // TL'ye çevrilmiştir. Raporlar kalem bazında hesap yaparken TL'ye çevirmek için bu kuru kullanır.
+  function faturaKuru(f) { return (f && f.paraBirimi && f.paraBirimi !== 'TL' && f.dovizKuru) ? f.dovizKuru : 1; }
+  // Rapor çıktılarındaki özet blokları için ortak hesaplayıcılar.
+  // Bakiye işareti: (+) o cari bize borçlu (alacağımız), (−) biz o cariye borçluyuz (borcumuz).
+  function bakiyeOzeti(bakiyeler) {
+    const alacak = yuvarla2(bakiyeler.reduce((s, b) => s + (b > 0 ? b : 0), 0));
+    const borc = yuvarla2(bakiyeler.reduce((s, b) => s + (b < 0 ? -b : 0), 0));
+    return [['Toplam Alacak', alacak], ['Toplam Borç', borc], ['Net Bakiye (Alacak − Borç)', alacak - borc]];
+  }
+  function gelirGiderOzeti(list) {
+    const g = yuvarla2(list.filter((t) => t.type === 'gelir').reduce((s, t) => s + t.amount, 0));
+    const gi = yuvarla2(list.filter((t) => t.type === 'gider').reduce((s, t) => s + t.amount, 0));
+    return [['Toplam Gelir', g], ['Toplam Gider', gi], ['Net (Gelir − Gider)', g - gi]];
+  }
+  // Açık (ödenmemiş) fatura tutarları: faturaya yapılan tahsilat/ödemeler düşülür; ardından cari toplam
+  // bakiyesini AŞAN kısım kırpılır — faturaya bağlanmamış (doğrudan cariye yapılan) ödemeler en eski
+  // faturaları kapatmış sayılır, yani kalan bakiye EN YENİ faturalara yüklenir. Perakende (carisiz) faturalar
+  // için bu haritada kayıt yoktur (onlar faturanın kendi kalan tutarıyla değerlendirilir).
+  function acikFaturaTutarlari(yon) {
+    const sonuc = {}, gruplar = {};
+    state.faturalar.forEach((f) => { if (f.docType === 'fatura' && f.yon === yon && f.cariId) (gruplar[f.cariId] = gruplar[f.cariId] || []).push(f); });
+    Object.keys(gruplar).forEach((cid) => {
+      const cari = state.cariler.find((x) => x.id === cid);
+      if (!cari) return;
+      let limit = yon === 'satis' ? cariBalance(cari) : -cariBalance(cari);
+      if (limit <= 0) return;
+      gruplar[cid].slice().sort((a, b) => b.date.localeCompare(a.date)).forEach((f) => {
+        const acik = Math.min(Math.max(0, faturaKalanTutar(f)), limit);
+        if (acik > 0.004) { sonuc[f.id] = yuvarla2(acik); limit -= acik; }
+      });
+    });
+    return sonuc;
+  }
 
   // ---------------- Navigation ----------------
   const viewport = document.getElementById('viewport');
@@ -1694,7 +1811,7 @@
 
   const VIEW_TITLES = {
     'view-ozet': 'DNZ Defter', 'view-cari': 'Cariler',
-    'view-cari-detail': 'Cari Detay', 'view-cari-form': 'Müşteri Bilgileri', 'view-stok': 'Stok Takibi', 'view-stok-detail': 'Ürün Bilgileri', 'view-stok-form': 'Ürün Bilgileri', 'view-fatura': 'Satışlar', 'view-teklifler': 'Teklifler', 'view-firsatlar': 'Fırsatlar',
+    'view-cari-detail': 'Cari Detay', 'view-cari-form': 'Müşteri Bilgileri', 'view-stok': 'Stoklarım', 'view-stok-detail': 'Ürün Bilgileri', 'view-stok-form': 'Ürün Bilgileri', 'view-fatura': 'Satışlar', 'view-teklifler': 'Teklifler', 'view-firsatlar': 'Fırsatlar',
     'view-kategori': 'Kategoriler', 'view-marka': 'Markalar', 'view-depo': 'Depolar',
     'view-fatura-form': 'İşlem Bilgileri', 'view-fatura-detail': 'Belge Detay', 'view-urun-arama': 'Ürün Arama',
     'view-tekrarlayan': 'Tekrarlayan Fatura Şablonları',
@@ -1744,9 +1861,11 @@
     headerBack.style.display = canStepBack() ? 'flex' : 'none';
     document.getElementById('headerBarkodBtn').style.display = (id === 'view-ozet') ? 'flex' : 'none';
     document.getElementById('headerFaturaEkleBtn').style.display = (id === 'view-ozet') ? 'flex' : 'none';
+    document.getElementById('headerStokFiltreBtn').style.display = (id === 'view-stok') ? 'flex' : 'none';
     const docActionsOn = id === 'view-fatura-detail';
     document.getElementById('headerDocActions').style.display = docActionsOn ? 'flex' : 'none';
     document.querySelector('header.appbar').classList.toggle('doc-actions-on', docActionsOn);
+    document.querySelector('header.appbar').classList.toggle('stok-on', id === 'view-stok');
     setExcelExport(null); // Her ekran değişiminde önceki raporun Excel verisi/butonu sıfırlanır; ilgili renderRaporX kendi verisini tekrar kurar.
     viewport.scrollTop = 0;
   }
@@ -1770,62 +1889,101 @@
   }
   // ---- Genel Excel'e Aktar altyapısı — her rapor/liste ekranı kendi verisini setExcelExport ile bildirir ----
   let currentExcelExport = null;
-  function setExcelExport(filename, rows, viewId) {
+  // opts (isteğe bağlı): { toplam: ['Tutar', ...]  -> sadece bu SÜTUNLAR için tablo altına "Toplam" satırı yazılır,
+  //   ozet: [['Etiket', değer], ...] -> tablonun altına ayrı bir özet bloğu (ör. Toplam Gelir / Gider / Net) yazılır,
+  //   altBaslik: 'Tarih aralığı...' -> PDF başlığının altına eklenir }.
+  // Eskiden tüm sayısal sütunlar otomatik toplanıyordu; bu, bakiye/oran/fiyat/gün gibi toplanamaz sütunlarda
+  // (ör. yevmiye defterindeki koşan bakiye, KDV oranı, kâr marjı) yanlış toplamlar üretiyordu.
+  function setExcelExport(filename, rows, viewId, opts) {
     // renderAll() arka planda TÜM ekranların render fonksiyonlarını sırayla çağırıyor (görünmeyenler
     // dahil) — viewId verilmişse, o ekran şu an görünür değilse paylaşılan butona dokunmuyoruz; yoksa
     // en son çalışan render fonksiyonu (görünen ekranla ilgisi olmasa bile) butonu ele geçirirdi.
     if (viewId) { const el = document.getElementById(viewId); if (!el || !el.classList.contains('active')) return; }
-    currentExcelExport = (rows && rows.length > 1) ? { filename, rows, viewId } : null;
+    currentExcelExport = (rows && rows.length > 1) ? { filename, rows, viewId, opts: opts || null } : null;
     document.getElementById('headerExcelBtn').style.display = currentExcelExport ? 'flex' : 'none';
     document.getElementById('headerPdfBtn').style.display = currentExcelExport ? 'flex' : 'none';
   }
-  function exportToExcel(rows, filename, sheetName) {
+  // Bir rapor çıktısının "Toplam" satırını ve özet satırlarını hesaplar (PDF ve Excel aynı sayıyı kullanır).
+  function raporToplamlari(rows, opts) {
+    opts = opts || {};
+    const header = rows[0], body = rows.slice(1);
+    const idx = (opts.toplam || []).map((n) => (typeof n === 'number' ? n : header.indexOf(n))).filter((i) => i >= 0);
+    let toplamSatir = null;
+    if (idx.length) {
+      const etiketSutunu = header.findIndex((_, i) => !idx.includes(i));
+      toplamSatir = header.map((_, i) => (idx.includes(i) ? yuvarla2(body.reduce((s, r) => s + (typeof r[i] === 'number' ? r[i] : 0), 0)) : ''));
+      if (etiketSutunu >= 0) toplamSatir[etiketSutunu] = 'Toplam';
+    }
+    return { toplamSatir, ozet: (opts.ozet || []).map(([l, v]) => [l, typeof v === 'number' ? yuvarla2(v) : v]) };
+  }
+  function exportToExcel(rows, filename, sheetName, opts) {
     if (typeof XLSX === 'undefined') { alert('Excel kütüphanesi yüklenemedi — internet bağlantını kontrol edip tekrar dene.'); return; }
     if (!rows || rows.length < 2) { alert('Aktarılacak veri yok.'); return; }
-    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const tp = raporToplamlari(rows, opts);
+    const aoa = rows.slice();
+    if (tp.toplamSatir) aoa.push(tp.toplamSatir);
+    if (tp.ozet.length) { aoa.push([]); tp.ozet.forEach(([l, v]) => aoa.push([l, v])); }
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, (sheetName || 'Sayfa1').slice(0, 31));
     XLSX.writeFile(wb, filename.endsWith('.xlsx') ? filename : filename + '.xlsx');
   }
   document.getElementById('headerExcelBtn').addEventListener('click', () => {
     if (!currentExcelExport) return;
-    exportToExcel(currentExcelExport.rows, currentExcelExport.filename);
+    exportToExcel(currentExcelExport.rows, currentExcelExport.filename, undefined, currentExcelExport.opts);
   });
   // Herhangi bir rapor/liste ekranının (setExcelExport ile kaydedilmiş) satır verisini PDF olarak
   // yazdırır — başlık VIEW_TITLES'tan, sayısal hücreler otomatik Türkçe formatta hizalanır.
-  function printRowsAsPdf(rows, title) {
+  // Yazdırma penceresini, çıktıdaki TÜM görseller (logo, ürün fotoğrafı) yüklenip çözüldükten sonra açar.
+  // Eskiden bazı çıktılar (rapor/liste PDF'leri) logo görseli daha yüklenmeden yazdırmayı başlatıyordu; bu
+  // yüzden büyük logolar önizlemede boş kalabiliyordu.
+  function yazdirGorselHazir() {
+    const imgs = [...document.querySelectorAll('#printArea img')];
+    let yazdirildi = false;
+    const yazdir = () => { if (yazdirildi) return; yazdirildi = true; window.print(); };
+    const bekle = imgs.map((im) => new Promise((resolve) => {
+      const coz = () => (im.decode ? im.decode().catch(() => {}).then(resolve) : resolve());
+      if (im.complete) coz();
+      else { im.addEventListener('load', coz); im.addEventListener('error', resolve); }
+    }));
+    Promise.all(bekle).then(yazdir);
+    setTimeout(yazdir, 3000); // görsel hiç yüklenemezse yine de yazdır
+  }
+  // Herhangi bir rapor/liste ekranının (setExcelExport ile kaydedilmiş) satır verisini PDF olarak
+  // yazdırır — başlık VIEW_TITLES'tan, sayısal hücreler otomatik Türkçe formatta hizalanır.
+  function printRowsAsPdf(rows, title, opts) {
     if (!rows || rows.length < 2) { alert('Yazdırılacak veri yok.'); return; }
     const header = rows[0], body = rows.slice(1);
     const fmt = (v) => typeof v === 'number' ? v.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : escapeHtml(String(v == null ? '' : v));
-    // Bir sütun, en az bir satırda sayısal değer taşıyorsa "toplanabilir" sayılır; alt toplam
-    // satırında o sütunun tüm sayısal değerleri toplanır, diğer sütunlar boş bırakılır (ilk sütuna
-    // "Toplam" yazılır).
-    const numericCols = header.map((_, i) => body.some((r) => typeof r[i] === 'number'));
-    const hasAnyNumeric = numericCols.some(Boolean);
-    const totals = header.map((_, i) => numericCols[i] ? body.reduce((s, r) => s + (typeof r[i] === 'number' ? r[i] : 0), 0) : null);
+    // Toplam satırı yalnızca rapor tarafından açıkça "toplanabilir" işaretlenen sütunlar için yazılır (opts.toplam).
+    const tp = raporToplamlari(rows, opts);
     // Sütun sayısı fazlaysa (ör. Ürünler listesi ~16 sütun) dikey A4'e sığmaz — bu durumda sayfayı
     // otomatik yatay (landscape) çeviriyoruz. Global @page kuralı dikey (portrait) tanımlı; bu
     // <style> etiketi çıktı alanının İÇİNE konsa da @page sayfanın tamamını etkiler ve daha sonra
     // geldiği için global kuralın üzerine yazar.
     const isWide = header.length > 6;
+    const altBaslik = opts && opts.altBaslik ? `<p style="text-align:center;color:#444;margin:-12px 0 16px;font-size:12px">${escapeHtml(opts.altBaslik)}</p>` : '';
+    const ozetHtml = tp.ozet.length ? `<table style="margin:16px 0 0 auto;border-collapse:collapse;min-width:300px;font-size:12.5px;page-break-inside:avoid">${tp.ozet.map(([l, v], i) => `<tr style="${i === tp.ozet.length - 1 ? 'border-top:2px solid #000;font-weight:700' : ''}"><td style="padding:4px 14px 4px 0">${escapeHtml(String(l))}</td><td style="padding:4px 0;text-align:right;white-space:nowrap">${fmt(v)}</td></tr>`).join('')}</table>` : '';
     document.getElementById('printArea').innerHTML = `
       ${isWide ? '<style>@page { size: A4 landscape; margin: 8mm; }</style>' : ''}
       <div style="font-family: sans-serif; padding: 14px; color:#000">
         ${sirketHeaderHtml()}
         <h1 style="font-size:20px;margin-bottom:18px;text-align:center">${escapeHtml(title)}</h1>
+        ${altBaslik}
         <table style="width:100%;border-collapse:collapse;font-size:11.5px">
           <thead><tr style="border-bottom:2px solid #000">${header.map((h) => `<th style="text-align:left;padding:5px 4px;white-space:nowrap">${escapeHtml(String(h))}</th>`).join('')}</tr></thead>
           <tbody>${body.map((r) => `<tr style="border-bottom:1px solid #ccc;page-break-inside:avoid">${r.map((c) => `<td style="padding:5px 4px;white-space:nowrap;text-align:${typeof c === 'number' ? 'right' : 'left'}">${fmt(c)}</td>`).join('')}</tr>`).join('')}</tbody>
-          ${hasAnyNumeric ? `<tfoot><tr style="border-top:2px solid #000;font-weight:700">${header.map((h, i) => `<td style="padding:6px 4px;white-space:nowrap;text-align:${numericCols[i] ? 'right' : 'left'}">${i === 0 ? 'Toplam' : (numericCols[i] ? fmt(totals[i]) : '')}</td>`).join('')}</tr></tfoot>` : ''}
+          ${tp.toplamSatir ? `<tfoot><tr style="border-top:2px solid #000;font-weight:700">${tp.toplamSatir.map((c) => `<td style="padding:6px 4px;white-space:nowrap;text-align:${typeof c === 'number' ? 'right' : 'left'}">${c === '' ? '' : fmt(c)}</td>`).join('')}</tr></tfoot>` : ''}
         </table>
+        ${ozetHtml}
       </div>
     `;
-    window.print();
+    yazdirGorselHazir();
   }
   document.getElementById('headerPdfBtn').addEventListener('click', () => {
     if (!currentExcelExport) return;
     const title = (currentExcelExport.viewId && VIEW_TITLES[currentExcelExport.viewId]) || currentExcelExport.filename.replace(/\.xlsx$/, '').replace(/_/g, ' ');
-    printRowsAsPdf(currentExcelExport.rows, title);
+    printRowsAsPdf(currentExcelExport.rows, title, currentExcelExport.opts);
   });
   // ---- Genel Excel'den İçe Aktar altyapısı ----
   function readExcelFile(file) {
@@ -2358,13 +2516,27 @@
     document.getElementById('chartRow').innerHTML = monthly.map((m) => `
       <div class="chart-col">
         <div class="chart-bars">
-          <div class="chart-bar income" style="height:${Math.max(2, m.gelir / maxVal * 88)}px"></div>
-          <div class="chart-bar expense" style="height:${Math.max(2, m.gider / maxVal * 88)}px"></div>
+          <div class="chart-bar income" style="height:${(m.gelir / maxVal * 100).toFixed(2)}%;min-height:2px"></div>
+          <div class="chart-bar expense" style="height:${(m.gider / maxVal * 100).toFixed(2)}%;min-height:2px"></div>
         </div>
         <div class="chart-label">${escapeHtml(m.label)}</div>
       </div>
     `).join('');
+
+    // Tablet/masaüstü panelleri: son belgeler ve kritik seviyedeki ürünler (telefonda gizli, veri yine hazırlanır).
+    const sonBelgeler = state.faturalar.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
+    document.getElementById('ozetSonBelgeler').innerHTML = sonBelgeler.length ? sonBelgeler.map((f) => `
+      <div class="list-row" data-id="${f.id}"><div class="main"><div class="title">${escapeHtml(f.belgeNo || f.no)}${f.cariAdi ? ' · ' + escapeHtml(f.cariAdi) : ''}</div><div class="sub">${escapeHtml(DOC_LABELS[f.docType] || 'Belge')} · ${formatDate(f.date)}</div></div>
+      <div class="amt mono ${f.yon === 'satis' ? 'income' : 'expense'}">${formatTL(f.genelToplam)}</div></div>`).join('') : '<div class="empty-state" style="padding:24px 10px">Henüz belge yok.</div>';
+    const kritikler = state.stok.filter((s) => (s.kind || 'urun') !== 'hizmet' && s.minStock > 0 && s.quantity <= s.minStock).sort((a, b) => a.quantity - b.quantity).slice(0, 6);
+    document.getElementById('ozetKritikStok').innerHTML = kritikler.length ? kritikler.map((s) => `
+      <div class="list-row" data-id="${s.id}"><div class="main"><div class="title">${escapeHtml(s.name)}</div><div class="sub">Minimum stok: ${s.minStock} ${escapeHtml(s.satisBirimi || 'Adet')}</div></div>
+      <div class="amt mono ${s.quantity <= 0 ? 'expense' : ''}" style="${s.quantity > 0 ? 'color:var(--amber)' : ''}">${s.quantity} ${escapeHtml(s.satisBirimi || 'Adet')}</div></div>`).join('') : '<div class="empty-state" style="padding:24px 10px">Kritik seviyede ürün yok.</div>';
   }
+  // Özet panellerinden açılan detaydan geri dönünce, ilgili listeye değil yine Özet'e dönülür.
+  function ozettenAc(fn) { fn(); const cur = viewPath[viewPath.length - 1]; if (cur) cur.onBack = enterOzet; }
+  document.getElementById('ozetSonBelgeler').addEventListener('click', (e) => { const r = e.target.closest('.list-row[data-id]'); if (r) ozettenAc(() => enterFaturaDetail(r.dataset.id)); });
+  document.getElementById('ozetKritikStok').addEventListener('click', (e) => { const r = e.target.closest('.list-row[data-id]'); if (r) ozettenAc(() => enterStokDetail(r.dataset.id)); });
 
   // ================= GELİR-GİDER =================
   let ggFilter = 'tum';
@@ -2594,7 +2766,7 @@
     setExcelExport((cariFilter === 'musteri' ? 'Musteriler' : 'Tedarikciler') + '.xlsx', [
       ['Ad', 'Telefon', 'Adres', 'Vergi Dairesi', 'Vergi No', 'E-posta', 'Etiketler', 'Bakiye'],
       ...items.map((c) => [c.name, c.phone || '', c.address || '', c.taxOffice || '', c.taxNo || '', c.email || '', (c.etiketler || []).join(', '), cariBalance(c)])
-    ], 'view-cari');
+    ], 'view-cari', { ozet: bakiyeOzeti(items.map((c) => cariBalance(c))) });
   }
   document.getElementById('cariEtiketChips').addEventListener('click', (e) => {
     const chip = e.target.closest('.chip'); if (!chip) return;
@@ -3001,16 +3173,7 @@
         <p style="margin-top:36px;color:#888;font-size:11px">Bu ekstre DNZ Defter uygulamasında oluşturulmuştur.</p>
       </div>
     `;
-    const logoImg = document.querySelector('#printArea img');
-    if (logoImg && !logoImg.complete) {
-      let printed = false;
-      const doPrint = () => { if (printed) return; printed = true; window.print(); };
-      logoImg.addEventListener('load', doPrint);
-      logoImg.addEventListener('error', doPrint);
-      setTimeout(doPrint, 600);
-    } else {
-      window.print();
-    }
+    yazdirGorselHazir();
   }
 
   // ---- Cari sub-lists: Satışlar / Alışlar / Teklifler / Ödemeler / Notlarınız ----
@@ -3269,6 +3432,7 @@
   let stokSearchText = '';
   let stokFilterMarkaId = '';
   let stokFilterKategoriId = '';
+  let stokFilterAltKategoriId = '';
   let stokEtiketFilter = '';
   // Satış Kataloğu Oluştur ekranının durumu — seçilen kategori/alt kategori ve işaretlenen ürünler.
   let katalogKategoriId = '';
@@ -3348,25 +3512,36 @@
     if (!secilenler.length) { alert('En az bir ürün seç.'); return; }
     printSatisKatalogu(secilenler);
   });
+  // "Stoklarım" başlığı: kayıt sayısı 1-2 haneliyse yanında yazılır; 3-4 haneli olunca (yan yana sığmadığı için)
+  // başlığın ALTINA, ayrı satıra yazılır. Çok dar ekranda 1-2 haneli sayı da sığmazsa kendiliğinden alta iner.
+  function stokBaslikYaz(n) {
+    const sayi = '<span class="ttl-count">(' + n + ')</span>';
+    appTitle.innerHTML = String(n).length >= 3 ? 'Stoklarım<br>' + sayi : 'Stoklarım ' + sayi;
+  }
   function renderStokList() {
     const list = document.getElementById('stokList');
-    if (document.getElementById('view-stok').classList.contains('active')) appTitle.textContent = 'Stok Takibi (' + state.stok.length + ')';
+    if (document.getElementById('view-stok').classList.contains('active')) stokBaslikYaz(state.stok.length);
     let items = state.stok.slice();
     if (stokFilter === 'kritik') items = items.filter((s) => (s.kind || 'urun') !== 'hizmet' && s.minStock > 0 && s.quantity <= s.minStock);
     else if (stokFilter !== 'tum') items = items.filter((s) => (s.kind || 'urun') === stokFilter);
     if (stokFilterMarkaId) items = items.filter((s) => s.brandId === stokFilterMarkaId);
     if (stokFilterKategoriId) items = items.filter((s) => s.categoryId === stokFilterKategoriId);
+    if (stokFilterAltKategoriId) items = items.filter((s) => s.subCategoryId === stokFilterAltKategoriId);
     if (stokEtiketFilter) items = items.filter((s) => (s.etiketler || []).includes(stokEtiketFilter));
     const q = stokSearchText.trim().toLocaleLowerCase('tr-TR');
     if (q) items = items.filter((s) => s.name.toLocaleLowerCase('tr-TR').includes(q) || (s.category || '').toLocaleLowerCase('tr-TR').includes(q) || (s.brand || '').toLocaleLowerCase('tr-TR').includes(q) || (s.productCode || '').toLocaleLowerCase('tr-TR').includes(q) || (s.barcode || '').toLocaleLowerCase('tr-TR').includes(q) || (s.gtip || '').toLocaleLowerCase('tr-TR').includes(q) || (s.gtin || '').toLocaleLowerCase('tr-TR').includes(q) || (s.rafYeri || '').toLocaleLowerCase('tr-TR').includes(q) || (s.etiketler || []).some((t) => t.toLocaleLowerCase('tr-TR').includes(q)));
     const marka = stokFilterMarkaId ? state.markalar.find((m) => m.id === stokFilterMarkaId) : null;
     const kategori = stokFilterKategoriId ? state.kategoriler.find((k) => k.id === stokFilterKategoriId) : null;
+    const altKategori = stokFilterAltKategoriId ? state.kategoriler.find((k) => k.id === stokFilterAltKategoriId) : null;
     const activeParts = [];
     if (marka) activeParts.push('Marka: ' + marka.name);
     if (kategori) activeParts.push('Kategori: ' + kategori.name);
+    if (altKategori) activeParts.push('Alt Kategori: ' + altKategori.name);
+    // Başlıktaki filtre simgesinde, marka/kategori/alt kategori filtresi açıksa küçük bir nokta göster.
+    document.getElementById('stokFiltreDot').style.display = (marka || kategori || altKategori) ? 'block' : 'none';
     if (stokEtiketFilter) activeParts.push('Etiket: #' + stokEtiketFilter);
     document.getElementById('stokFiltreStatus').textContent = activeParts.length ? activeParts.join(' · ') : '';
-    if (!items.length) { list.innerHTML = `<div class="card"><div class="empty-state">${q || marka || kategori ? 'Eşleşen ürün/hizmet bulunamadı.' : (stokFilter === 'kritik' ? 'Kritik seviyede ürün yok.' : 'Henüz ürün/hizmet yok. Yukarıdaki + ile ekleyebilirsin.')}</div></div>`; setExcelExport(null, null, 'view-stok'); return; }
+    if (!items.length) { list.innerHTML = `<div class="card"><div class="empty-state">${q || marka || kategori || altKategori ? 'Eşleşen ürün/hizmet bulunamadı.' : (stokFilter === 'kritik' ? 'Kritik seviyede ürün yok.' : 'Henüz ürün/hizmet yok. Yukarıdaki + ile ekleyebilirsin.')}</div></div>`; setExcelExport(null, null, 'view-stok'); return; }
     list.innerHTML = items.map((s) => {
       const isHizmet = (s.kind || 'urun') === 'hizmet';
       const isKritik = !isHizmet && s.minStock > 0 && s.quantity > 0 && s.quantity <= s.minStock;
@@ -3397,10 +3572,15 @@
   }
   document.getElementById('stokSearch').addEventListener('input', (e) => { stokSearchText = e.target.value; renderStokList(); });
   function openStokFiltreleModal() {
-    let tmpMarka = stokFilterMarkaId, tmpKategori = stokFilterKategoriId;
+    let tmpMarka = stokFilterMarkaId, tmpKategori = stokFilterKategoriId, tmpAlt = stokFilterAltKategoriId;
     function renderFiltreleModal() {
       const markaName = tmpMarka ? ((state.markalar.find((m) => m.id === tmpMarka) || {}).name || 'Hepsi') : 'Hepsi';
       const katName = tmpKategori ? ((state.kategoriler.find((k) => k.id === tmpKategori) || {}).name || 'Hepsi') : 'Hepsi';
+      const altlar = tmpKategori ? state.kategoriler.filter((k) => k.parentId === tmpKategori) : [];
+      const altName = tmpAlt ? ((state.kategoriler.find((k) => k.id === tmpAlt) || {}).name || 'Hepsi') : 'Hepsi';
+      const altDurum = !tmpKategori ? 'Önce kategori seç' : (!altlar.length ? 'Bu kategoride alt kategori yok' : altName);
+      const altKapali = !tmpKategori || !altlar.length;
+      const bosDegil = tmpMarka || tmpKategori || tmpAlt;
       openModal(`
         <h3>Filtrele</h3>
         <div class="field"><label>Marka</label>
@@ -3409,6 +3589,10 @@
         <div class="field"><label>Kategori</label>
           <button type="button" class="btn btn-block" id="flKategoriBtn" style="justify-content:space-between"><span>${escapeHtml(katName)}</span><span>›</span></button>
         </div>
+        <div class="field"><label>Alt Kategori</label>
+          <button type="button" class="btn btn-block" id="flAltKategoriBtn" ${altKapali ? 'disabled' : ''} style="justify-content:space-between;${altKapali ? 'opacity:0.55' : ''}"><span>${escapeHtml(altDurum)}</span><span>›</span></button>
+        </div>
+        ${bosDegil ? '<button type="button" class="btn btn-sm btn-block" id="flTemizleBtn" style="margin-bottom:10px">Filtreleri Temizle</button>' : ''}
         <div class="modal-actions"><button class="btn" id="mCancel">Vazgeç</button><button class="btn btn-primary" id="mUygula">Uygula</button></div>
       `);
       document.getElementById('flMarkaBtn').addEventListener('click', () => {
@@ -3436,20 +3620,41 @@
         `);
         document.getElementById('flKategoriList').addEventListener('click', (e) => {
           const row = e.target.closest('.fk-row'); if (!row) return;
-          tmpKategori = row.dataset.id || '';
+          const yeni = row.dataset.id || '';
+          if (yeni !== tmpKategori) tmpAlt = ''; // kategori değişince eski alt kategori geçersiz olur
+          tmpKategori = yeni;
           renderFiltreleModal();
         });
       });
+      document.getElementById('flAltKategoriBtn').addEventListener('click', () => {
+        if (altKapali) return;
+        openModal(`
+          <h3>Alt kategori seçin</h3>
+          <div id="flAltKategoriList">
+            <div class="list-row fa-row" data-id="">${!tmpAlt ? '✓ ' : ''}Hepsi</div>
+            ${altlar.map((k) => `<div class="list-row fa-row" data-id="${k.id}">${k.id === tmpAlt ? '✓ ' : ''}${escapeHtml(k.name)}</div>`).join('')}
+          </div>
+        `);
+        document.getElementById('flAltKategoriList').addEventListener('click', (e) => {
+          const row = e.target.closest('.fa-row'); if (!row) return;
+          tmpAlt = row.dataset.id || '';
+          renderFiltreleModal();
+        });
+      });
+      const temizle = document.getElementById('flTemizleBtn');
+      if (temizle) temizle.onclick = () => { tmpMarka = ''; tmpKategori = ''; tmpAlt = ''; renderFiltreleModal(); };
       document.getElementById('mCancel').onclick = closeModal;
       document.getElementById('mUygula').onclick = () => {
         stokFilterMarkaId = tmpMarka;
         stokFilterKategoriId = tmpKategori;
+        stokFilterAltKategoriId = tmpAlt;
         closeModal(); renderStokList();
       };
     }
     renderFiltreleModal();
   }
-  // Stok Takibi ekranındaki tüm ikincil eylemler (Yeni Ürün, İçe Aktar, Filtrele, Etiketler,
+  document.getElementById('headerStokFiltreBtn').addEventListener('click', openStokFiltreleModal);
+  // Stoklarım ekranındaki tüm ikincil eylemler (Yeni Ürün, İçe Aktar, Etiketler,
   // Kategoriler, Markalar, Depolar, Özel Fiyat Listeleri) tek bir "İşlemler" menüsünde toplanır —
   // ekranın üstü art arda butonlarla kalabalıklaşmasın diye. Etiketle arama zaten arama kutusundan
   // da çalıştığı için, etiket listesi burada sadece hızlı bir kısayol olarak duruyor.
@@ -3457,7 +3662,6 @@
     const actions = [
       { a: 'yeni', label: '+ Yeni Ürün / Hizmet' },
       { a: 'iceaktar', label: '📥 Excel\'den İçe Aktar' },
-      { a: 'filtrele', label: 'Filtrele (Marka / Kategori)' },
       { a: 'etiketler', label: '🏷️ Etiketler' },
       { a: 'kategoriler', label: 'Kategoriler' },
       { a: 'markalar', label: 'Markalar' },
@@ -3477,7 +3681,6 @@
       closeModal();
       if (action === 'yeni') enterStokForm(null);
       else if (action === 'iceaktar') document.getElementById('stokImportInput').click();
-      else if (action === 'filtrele') openStokFiltreleModal();
       else if (action === 'etiketler') openStokEtiketModal();
       else if (action === 'kategoriler') enterKategori();
       else if (action === 'markalar') enterMarka();
@@ -6185,16 +6388,7 @@
   }
   function printFatura(f) {
     document.getElementById('printArea').innerHTML = buildFaturaPrintHtml(f);
-    const logoImg = document.querySelector('#printArea img');
-    if (logoImg && !logoImg.complete) {
-      let printed = false;
-      const doPrint = () => { if (printed) return; printed = true; window.print(); };
-      logoImg.addEventListener('load', doPrint);
-      logoImg.addEventListener('error', doPrint);
-      setTimeout(doPrint, 600);
-    } else {
-      window.print();
-    }
+    yazdirGorselHazir();
   }
   // Seçilen ürünlerden, gönderilen örnek görseldekine benzer (numaralı kartlar, fiyat etiketi,
   // marka rozetleri) 2 sütunlu bir satış kataloğu oluşturup yazdırma önizlemesine koyar.
@@ -6263,16 +6457,7 @@
         ${satirlar.join('')}
       </div>
     `;
-    const imgs = [...document.querySelectorAll('#printArea img')];
-    if (imgs.length) {
-      let kalan = imgs.length, printed = false;
-      const doPrint = () => { if (printed) return; printed = true; window.print(); };
-      const tick = () => { kalan--; if (kalan <= 0) doPrint(); };
-      imgs.forEach((img) => { if (img.complete) tick(); else { img.addEventListener('load', tick); img.addEventListener('error', tick); } });
-      setTimeout(doPrint, 1500);
-    } else {
-      window.print();
-    }
+    yazdirGorselHazir();
   }
   // ================= BELGEYİ PDF DOSYASI OLARAK PAYLAŞMA =================
   // Türkçe karakterleri sadeleştirip dosya adına uygun hale getirir (ör. "Satış Faturası" -> "Satis_Faturasi").
@@ -6751,7 +6936,7 @@
     setExcelExport('Proje_' + p.name.replace(/[^\p{L}\p{N}]+/gu, '_') + '.xlsx', [
       ['Tarih', 'Kategori', 'Açıklama', 'Tür', 'Tutar'],
       ...sorted.map((t) => [formatDate(t.date), t.category, t.description || '', t.type === 'gelir' ? 'Gelir' : 'Gider', t.amount])
-    ], 'view-proje-detail');
+    ], 'view-proje-detail', { ozet: gelirGiderOzeti(sorted) });
   }
   document.getElementById('projeSilBtn').addEventListener('click', () => {
     const p = state.projeler.find((x) => x.id === currentProjeDetailId);
@@ -6918,7 +7103,7 @@
       <div class="mono" style="font-size:24px;font-weight:700;color:var(--income);margin-bottom:14px">${formatTL(total)}</div>
       ${items.length ? items.map((f) => `<div class="list-row" data-id="${f.id}"><div class="main"><div class="title">${escapeHtml(f.no)}</div><div class="sub">${formatDate(f.date)} · ${escapeHtml(f.cariAdi || '')}</div></div><div class="amt mono income">${formatTL(f.genelToplam)}</div></div>`).join('') : '<div class="empty-state">Henüz satış faturası yok.</div>'}
     `;
-    setExcelExport('Satislar_Raporu.xlsx', [['Belge No', 'Tarih', 'Cari', 'Tutar'], ...items.map((f) => [f.no, formatDate(f.date), f.cariAdi || '', f.genelToplam])], 'view-rapor-satis');
+    setExcelExport('Satislar_Raporu.xlsx', [['Belge No', 'Tarih', 'Cari', 'Tutar'], ...items.map((f) => [f.no, formatDate(f.date), f.cariAdi || '', f.genelToplam])], 'view-rapor-satis', { toplam: ['Tutar'] });
   }
   document.getElementById('rapSatisBody').addEventListener('click', (e) => { const r = e.target.closest('.list-row[data-id]'); if (r) enterFaturaDetail(r.dataset.id); });
 
@@ -6930,7 +7115,7 @@
       <div class="mono" style="font-size:24px;font-weight:700;color:var(--expense);margin-bottom:14px">${formatTL(total)}</div>
       ${items.length ? items.map((f) => `<div class="list-row" data-id="${f.id}"><div class="main"><div class="title">${escapeHtml(f.no)}</div><div class="sub">${formatDate(f.date)} · ${escapeHtml(f.cariAdi || '')}</div></div><div class="amt mono expense">${formatTL(f.genelToplam)}</div></div>`).join('') : '<div class="empty-state">Henüz alış faturası yok.</div>'}
     `;
-    setExcelExport('Alislar_Raporu.xlsx', [['Belge No', 'Tarih', 'Cari', 'Tutar'], ...items.map((f) => [f.no, formatDate(f.date), f.cariAdi || '', f.genelToplam])], 'view-rapor-alis');
+    setExcelExport('Alislar_Raporu.xlsx', [['Belge No', 'Tarih', 'Cari', 'Tutar'], ...items.map((f) => [f.no, formatDate(f.date), f.cariAdi || '', f.genelToplam])], 'view-rapor-alis', { toplam: ['Tutar'] });
   }
   document.getElementById('rapAlisBody').addEventListener('click', (e) => { const r = e.target.closest('.list-row[data-id]'); if (r) enterFaturaDetail(r.dataset.id); });
 
@@ -6942,7 +7127,7 @@
       <div class="mono" style="font-size:24px;font-weight:700;color:var(--expense);margin-bottom:14px">${formatTL(total)}</div>
       ${items.length ? items.map((t) => `<div class="list-row"><div class="main"><div class="title">${escapeHtml(t.category)}</div><div class="sub">${formatDate(t.date)}${t.description ? ' · ' + escapeHtml(t.description) : ''}</div></div><div class="amt mono expense">${formatTL(t.amount)}</div></div>`).join('') : '<div class="empty-state">Henüz masraf yok.</div>'}
     `;
-    setExcelExport('Masraflar_Raporu.xlsx', [['Tarih', 'Kategori', 'Açıklama', 'Tutar'], ...items.map((t) => [formatDate(t.date), t.category, t.description || '', t.amount])], 'view-rapor-masraf');
+    setExcelExport('Masraflar_Raporu.xlsx', [['Tarih', 'Kategori', 'Açıklama', 'Tutar'], ...items.map((t) => [formatDate(t.date), t.category, t.description || '', t.amount])], 'view-rapor-masraf', { toplam: ['Tutar'] });
   }
 
   function renderRaporIade() {
@@ -6961,7 +7146,7 @@
     `;
     setExcelExport('Iadeler_Raporu.xlsx', [['Belge No', 'Tarih', 'Cari', 'Yön', 'Tutar'],
       ...satisIade.map((f) => [f.no, formatDate(f.date), f.cariAdi || '', 'Müşteriden', f.genelToplam]),
-      ...alisIade.map((f) => [f.no, formatDate(f.date), f.cariAdi || '', 'Tedarikçiye', f.genelToplam])], 'view-rapor-iade');
+      ...alisIade.map((f) => [f.no, formatDate(f.date), f.cariAdi || '', 'Tedarikçiye', f.genelToplam])], 'view-rapor-iade', { ozet: [['Müşteriden gelen iadeler toplamı', totalSatisIade], ['Tedarikçiye yapılan iadeler toplamı', totalAlisIade]] });
   }
   document.getElementById('rapIadeBody').addEventListener('click', (e) => { const r = e.target.closest('.list-row[data-id]'); if (r) enterFaturaDetail(r.dataset.id); });
 
@@ -6972,7 +7157,7 @@
     document.getElementById('rapKasaBody').innerHTML = rows.length ? rows.map((r) => `
       <div class="list-row"><div class="main"><div class="title">${escapeHtml(r.hesap)} — ${escapeHtml(r.aciklama)}</div><div class="sub">${formatDate(r.date)}</div></div><div class="amt mono ${r.tutar >= 0 ? 'income' : 'expense'}">${r.tutar >= 0 ? '+' : '−'}${formatMoney(Math.abs(r.tutar), r.currency)}</div></div>
     `).join('') : '<div class="empty-state">Henüz kasa/hesap hareketi yok.</div>';
-    setExcelExport('Kasa_Hesap_Hareketleri_Raporu.xlsx', [['Tarih', 'Hesap', 'Açıklama', 'Tutar', 'Para Birimi'], ...rows.map((r) => [formatDate(r.date), r.hesap, r.aciklama, r.tutar, r.currency])], 'view-rapor-kasa');
+    setExcelExport('Kasa_Hesap_Hareketleri_Raporu.xlsx', [['Tarih', 'Hesap', 'Açıklama', 'Tutar', 'Para Birimi'], ...rows.map((r) => [formatDate(r.date), r.hesap, r.aciklama, r.tutar, r.currency])], 'view-rapor-kasa', { ozet: Object.entries(rows.reduce((m, r) => { const k = r.currency || 'TL'; m[k] = (m[k] || 0) + r.tutar; return m; }, {})).map(([k, v]) => ['Net hareket toplamı (' + k + ')', v]) });
   }
 
   function renderRaporBorc() {
@@ -6983,7 +7168,7 @@
         <div class="amt mono ${b > 0 ? 'income' : (b < 0 ? 'expense' : '')}">${b > 0 ? '+' : (b < 0 ? '−' : '')}${formatTL(Math.abs(b))}</div>
       </div>
     `).join('') : '<div class="empty-state">Henüz cari yok.</div>';
-    setExcelExport('Borc_Alacak_Listesi.xlsx', [['Cari', 'Tip', 'Bakiye'], ...rows.map(({ c, b }) => [c.name, c.type === 'musteri' ? 'Müşteri' : 'Tedarikçi', b])], 'view-rapor-borc');
+    setExcelExport('Borc_Alacak_Listesi.xlsx', [['Cari', 'Tip', 'Bakiye'], ...rows.map(({ c, b }) => [c.name, c.type === 'musteri' ? 'Müşteri' : 'Tedarikçi', b])], 'view-rapor-borc', { ozet: bakiyeOzeti(rows.map((x) => x.b)) });
   }
   document.getElementById('rapBorcBody').addEventListener('click', (e) => { const r = e.target.closest('.list-row[data-id]'); if (r) enterCariDetail(r.dataset.id); });
 
@@ -6999,45 +7184,60 @@
         <div class="list-row"><div class="main"><div class="title">${c.tur === 'cek' ? 'Çek' : 'Senet'} · ${c.yon === 'alinan' ? 'Alınan' : 'Verilen'}</div><div class="sub">Vade: ${formatDate(c.vade)}${c.cariAdi ? ' · ' + escapeHtml(c.cariAdi) : ''}</div><div class="badge ${durumClass[c.durum]}">${durumLabel[c.durum]}</div></div><div class="amt mono">${formatTL(c.tutar)}</div></div>
       `).join('') : '<div class="empty-state">Henüz çek/senet yok.</div>'}
     `;
-    setExcelExport('Cek_Senet_Raporu.xlsx', [['Tür', 'Yön', 'Vade', 'Cari', 'Durum', 'Tutar'], ...items.map((c) => [c.tur === 'cek' ? 'Çek' : 'Senet', c.yon === 'alinan' ? 'Alınan' : 'Verilen', formatDate(c.vade), c.cariAdi || '', durumLabel[c.durum], c.tutar])], 'view-rapor-cek');
+    setExcelExport('Cek_Senet_Raporu.xlsx', [['Tür', 'Yön', 'Vade', 'Cari', 'Durum', 'Tutar'], ...items.map((c) => [c.tur === 'cek' ? 'Çek' : 'Senet', c.yon === 'alinan' ? 'Alınan' : 'Verilen', formatDate(c.vade), c.cariAdi || '', durumLabel[c.durum], c.tutar])], 'view-rapor-cek', { ozet: [['Bekleyen Alınan (alacak)', items.filter((x) => x.durum === 'bekliyor' && x.yon === 'alinan').reduce((s, x) => s + x.tutar, 0)], ['Bekleyen Verilen (borç)', items.filter((x) => x.durum === 'bekliyor' && x.yon !== 'alinan').reduce((s, x) => s + x.tutar, 0)]] });
   }
 
   function renderRaporGeciken() {
     const today = todayISO();
-    const items = state.faturalar.filter((f) => f.docType === 'fatura' && f.yon === 'satis' && f.vade && f.vade < today && f.cariId);
-    const overdue = items.filter((f) => { const c = state.cariler.find((x) => x.id === f.cariId); return c && cariBalance(c) > 0; });
-    const total = overdue.reduce((s, f) => s + f.genelToplam, 0);
+    // Her faturanın AÇIK (ödenmemiş) tutarı: faturaya yapılan tahsilatlar düşülür, cari bakiyesini aşan kısım kırpılır.
+    const acik = acikFaturaTutarlari('satis');
+    const acikTutar = (f) => (f.cariId ? (acik[f.id] || 0) : Math.max(0, faturaKalanTutar(f)));
+    const overdue = state.faturalar
+      .filter((f) => f.docType === 'fatura' && f.yon === 'satis' && f.vade && f.vade < today && acikTutar(f) > 0.004)
+      .map((f) => ({ f, kalan: yuvarla2(acikTutar(f)) }))
+      .sort((a, b) => a.f.vade.localeCompare(b.f.vade));
+    const total = yuvarla2(overdue.reduce((s, x) => s + x.kalan, 0));
     document.getElementById('rapGecikenBody').innerHTML = `
       <div class="label" style="font-size:12px;color:var(--ink-soft)">Geciken toplam (tahmini)</div>
       <div class="mono" style="font-size:24px;font-weight:700;color:var(--expense);margin-bottom:14px">${formatTL(total)}</div>
-      ${overdue.length ? overdue.map((f) => `<div class="list-row" data-id="${f.id}"><div class="main"><div class="title">${escapeHtml(f.no)}</div><div class="sub">${escapeHtml(f.cariAdi || '')} · Vade: ${formatDate(f.vade)}</div></div><div class="amt mono expense">${formatTL(f.genelToplam)}</div></div>`).join('') : '<div class="empty-state">Geciken alacak görünmüyor.</div>'}
-      <p style="font-size:11.5px;color:var(--ink-soft);margin-top:12px">Not: Bu liste, vadesi geçmiş satış faturalarını ve o cariye ait güncel bakiyeyi karşılaştırarak tahmini hesaplanır; kısmi tahsilatlar ayrı ayrı izlenmez.</p>
+      ${overdue.length ? overdue.map(({ f, kalan }) => `<div class="list-row" data-id="${f.id}"><div class="main"><div class="title">${escapeHtml(f.no)}</div><div class="sub">${escapeHtml(f.cariAdi || '')} · Vade: ${formatDate(f.vade)}${kalan < f.genelToplam - 0.004 ? ' · Fatura: ' + formatTL(f.genelToplam) : ''}</div></div><div class="amt mono expense">${formatTL(kalan)}</div></div>`).join('') : '<div class="empty-state">Geciken alacak görünmüyor.</div>'}
+      <p style="font-size:11.5px;color:var(--ink-soft);margin-top:12px">Not: Faturaya yapılan tahsilatlar düşülür. Cariye faturasız yapılan ödemeler en eski faturaları kapatmış sayılır (kalan bakiye en yeni faturalara yüklenir); bu yüzden liste tahminidir.</p>
     `;
-    setExcelExport('Geciken_Alacaklar_Raporu.xlsx', [['Belge No', 'Cari', 'Vade', 'Tutar'], ...overdue.map((f) => [f.no, f.cariAdi || '', formatDate(f.vade), f.genelToplam])], 'view-rapor-geciken');
+    setExcelExport('Geciken_Alacaklar_Raporu.xlsx', [['Belge No', 'Cari', 'Vade', 'Fatura Tutarı', 'Kalan Tutar'], ...overdue.map(({ f, kalan }) => [f.no, f.cariAdi || '', formatDate(f.vade), f.genelToplam, kalan])], 'view-rapor-geciken', { toplam: ['Kalan Tutar'] });
   }
   document.getElementById('rapGecikenBody').addEventListener('click', (e) => { const r = e.target.closest('.list-row[data-id]'); if (r) enterFaturaDetail(r.dataset.id); });
 
   function renderRaporKdv() {
+    // Hesaplanan (satış) ve indirilecek (alış) KDV. İadeler ilgili taraftan DÜŞÜLÜR (müşteri iadesi hesaplanan
+    // KDV'yi, tedarikçiye iade indirilecek KDV'yi azaltır) ve dövizli faturalar TL'ye çevrilerek toplanır.
     function kdvByRate(yon) {
       const map = {};
-      state.faturalar.filter((f) => f.docType === 'fatura' && f.yon === yon).forEach((f) => {
-        f.items.forEach((it) => { const kdvAmt = it.qty * it.unitPrice * (it.vat / 100); map[it.vat] = (map[it.vat] || 0) + kdvAmt; });
+      state.faturalar.filter((f) => (f.docType === 'fatura' || f.docType === 'iade') && f.yon === yon).forEach((f) => {
+        const sign = f.docType === 'iade' ? -1 : 1, kur = faturaKuru(f);
+        f.items.forEach((it) => { map[it.vat] = (map[it.vat] || 0) + sign * it.qty * it.unitPrice * (it.vat / 100) * kur; });
       });
+      Object.keys(map).forEach((k) => { map[k] = yuvarla2(map[k]); });
       return map;
     }
+    const toplamOf = (m) => yuvarla2(Object.values(m).reduce((s, v) => s + v, 0));
+    const satisMap = kdvByRate('satis'), alisMap = kdvByRate('alis');
+    const hesaplanan = toplamOf(satisMap), indirilecek = toplamOf(alisMap), fark = yuvarla2(hesaplanan - indirilecek);
     function block(title, map, color) {
       const entries = Object.entries(map).sort((a, b) => b[1] - a[1]);
-      const total = entries.reduce((s, [, v]) => s + v, 0);
       return `
         <h2 class="section-title">${escapeHtml(title)}</h2>
-        <div class="mono" style="font-size:20px;font-weight:700;color:${color};margin-bottom:10px">${formatTL(total)}</div>
+        <div class="mono" style="font-size:20px;font-weight:700;color:${color};margin-bottom:10px">${formatTL(toplamOf(map))}</div>
         ${entries.length ? entries.map(([rate, amt]) => `<div class="list-row"><div class="main"><div class="title">%${rate} KDV</div></div><div class="amt mono">${formatTL(amt)}</div></div>`).join('') : '<div class="empty-state">Veri yok.</div>'}
       `;
     }
-    document.getElementById('rapKdvBody').innerHTML = block('Hesaplanan KDV (Satış)', kdvByRate('satis'), 'var(--income)') + '<div style="height:18px"></div>' + block('İndirilecek KDV (Alış)', kdvByRate('alis'), 'var(--expense)');
-    setExcelExport('KDV_Dokumu_Raporu.xlsx', [['Yön', 'KDV Oranı', 'Tutar'],
-      ...Object.entries(kdvByRate('satis')).map(([rate, amt]) => ['Satış', '%' + rate, amt]),
-      ...Object.entries(kdvByRate('alis')).map(([rate, amt]) => ['Alış', '%' + rate, amt])], 'view-rapor-kdv');
+    document.getElementById('rapKdvBody').innerHTML = `
+      <div class="stat-card ${fark >= 0 ? 'expense' : 'income'}" style="margin-bottom:16px"><div class="label">${fark >= 0 ? 'Ödenecek KDV (Hesaplanan − İndirilecek)' : 'Devreden KDV (indirilecek fazlası)'}</div><div class="value mono">${formatTL(Math.abs(fark))}</div></div>
+      <p style="font-size:11.5px;color:var(--ink-soft);margin:-6px 0 14px">Faturalar ve iadeler dahildir (iadeler düşülür); dövizli faturalar TL karşılığıyla hesaplanır. Tevkifat ve KDV beyanname kuralları için mali müşavirinize danışın.</p>
+      ${block('Hesaplanan KDV (Satış)', satisMap, 'var(--income)')}<div style="height:18px"></div>${block('İndirilecek KDV (Alış)', alisMap, 'var(--expense)')}`;
+    setExcelExport('KDV_Dokumu_Raporu.xlsx', [['Yön', 'KDV Oranı', 'KDV Tutarı'],
+      ...Object.entries(satisMap).map(([rate, amt]) => ['Satış', '%' + rate, amt]),
+      ...Object.entries(alisMap).map(([rate, amt]) => ['Alış', '%' + rate, amt])], 'view-rapor-kdv',
+      { ozet: [['Hesaplanan KDV (Satış)', hesaplanan], ['İndirilecek KDV (Alış)', indirilecek], [fark >= 0 ? 'Ödenecek KDV' : 'Devreden KDV', Math.abs(fark)]] });
   }
 
   function renderRaporDepo() {
@@ -7068,15 +7268,14 @@
   function renderRaporNakitAkis() {
     const today = todayISO();
     let events = [];
+    // Sadece AÇIK (henüz ödenmemiş/tahsil edilmemiş) tutarlar nakit akışına girer: faturaya yapılan tahsilat/ödemeler
+    // düşülür (eskiden ödenmiş alış faturaları da gelecekteki çıkış gibi sayılıyordu).
+    const acikSatis = acikFaturaTutarlari('satis'), acikAlis = acikFaturaTutarlari('alis');
     state.faturalar.forEach((f) => {
       if (f.docType !== 'fatura' || !f.vade) return;
-      if (f.yon === 'satis') {
-        const c = f.cariId ? state.cariler.find((x) => x.id === f.cariId) : null;
-        if (c && cariBalance(c) <= 0) return;
-        events.push({ date: f.vade, tutar: f.genelToplam, tip: 'giris', aciklama: f.no + (f.cariAdi ? ' · ' + f.cariAdi : '') });
-      } else {
-        events.push({ date: f.vade, tutar: f.genelToplam, tip: 'cikis', aciklama: f.no + (f.cariAdi ? ' · ' + f.cariAdi : '') });
-      }
+      const acik = f.cariId ? ((f.yon === 'satis' ? acikSatis : acikAlis)[f.id] || 0) : Math.max(0, faturaKalanTutar(f));
+      if (acik <= 0.004) return;
+      events.push({ date: f.vade, tutar: yuvarla2(acik), tip: f.yon === 'satis' ? 'giris' : 'cikis', aciklama: f.no + (f.cariAdi ? ' · ' + f.cariAdi : '') });
     });
     state.cekSenet.forEach((c) => {
       if (c.durum !== 'bekliyor') return;
@@ -7101,13 +7300,13 @@
       `;
     }
     document.getElementById('rapNakitAkisBody').innerHTML = `
-      <p style="font-size:12px;color:var(--ink-soft);margin-top:0">Vadeli satış/alış faturaları ve bekleyen çek/senetlere göre tahmini nakit akışı. Kısmi tahsilatlar ve kredi taksitleri bu hesaba dahil değildir.</p>
+      <p style="font-size:12px;color:var(--ink-soft);margin-top:0">Vadeli satış/alış faturalarının ödenmemiş kısmı ve bekleyen çek/senetlere göre tahmini nakit akışı (faturaya yapılan tahsilat/ödemeler düşülür). Kredi taksitleri bu hesaba dahil değildir.</p>
       ${gecikmis.length ? bucketHtml('Gecikmiş', gecikmis) : ''}
       ${bucketHtml('Bu Hafta (7 gün)', buHafta)}
       ${bucketHtml('Bu Ay (30 gün)', buAy)}
       ${bucketHtml('30 Günden Sonra', sonrasi)}
     `;
-    setExcelExport('Nakit_Akis_Tahmini_Raporu.xlsx', [['Tarih', 'Açıklama', 'Yön', 'Tutar'], ...events.map((e) => [formatDate(e.date), e.aciklama, e.tip === 'giris' ? 'Giriş' : 'Çıkış', e.tutar])], 'view-rapor-nakitakis');
+    setExcelExport('Nakit_Akis_Tahmini_Raporu.xlsx', [['Tarih', 'Açıklama', 'Yön', 'Tutar'], ...events.map((e) => [formatDate(e.date), e.aciklama, e.tip === 'giris' ? 'Giriş' : 'Çıkış', e.tutar])], 'view-rapor-nakitakis', { ozet: (() => { const g = events.filter((e) => e.tip === 'giris').reduce((s, e) => s + e.tutar, 0), ç = events.filter((e) => e.tip === 'cikis').reduce((s, e) => s + e.tutar, 0); return [['Toplam Giriş', g], ['Toplam Çıkış', ç], ['Net Nakit Akışı', g - ç]]; })() });
   }
 
   // ---- Hareket Görmeyen Ürünler ----
@@ -7142,7 +7341,7 @@
         const s = state.stok.find((x) => x.id === it.stokId);
         if (!s || (s.kind || 'urun') === 'hizmet') return;
         const row = ensure(it.stokId, s.name, it.unit || s.satisBirimi);
-        const tutar = it.qty * it.unitPrice * (1 + it.vat / 100);
+        const tutar = it.qty * it.unitPrice * (1 + it.vat / 100) * faturaKuru(f);
         if (f.yon === 'satis') { row.satisQty += sign * it.qty; row.satisTutar += sign * tutar; }
         else { row.alisQty += sign * it.qty; row.alisTutar += sign * tutar; }
       });
@@ -7155,7 +7354,7 @@
         <div style="text-align:right"><div class="amt mono income">${formatTL(r.satisTutar)}</div><div class="amt mono expense" style="font-size:12px;margin-top:2px">${formatTL(r.alisTutar)}</div></div></div>
       `).join('') : '<div class="empty-state">Henüz veri yok.</div>'}
     `;
-    setExcelExport('Urun_Alis_Satis_Raporu.xlsx', [['Ürün', 'Satış Miktar', 'Satış Tutar', 'Alış Miktar', 'Alış Tutar'], ...rows.map((r) => [r.name, r.satisQty, r.satisTutar, r.alisQty, r.alisTutar])], 'view-rapor-urunalissatis');
+    setExcelExport('Urun_Alis_Satis_Raporu.xlsx', [['Ürün', 'Satış Miktar', 'Satış Tutar', 'Alış Miktar', 'Alış Tutar'], ...rows.map((r) => [r.name, r.satisQty, yuvarla2(r.satisTutar), r.alisQty, yuvarla2(r.alisTutar)])], 'view-rapor-urunalissatis', { toplam: ['Satış Tutar', 'Alış Tutar'] });
   }
   function renderRaporStokSatisKarsilama() {
     const d30 = new Date(); d30.setDate(d30.getDate() - 30);
@@ -7191,11 +7390,11 @@
       f.items.forEach((it) => {
         let kategori = 'Kategorisiz';
         if (it.stokId) { const s = state.stok.find((x) => x.id === it.stokId); if (s && s.category) kategori = s.category; }
-        const tutar = it.qty * it.unitPrice * (1 + it.vat / 100);
+        const tutar = it.qty * it.unitPrice * (1 + it.vat / 100) * faturaKuru(f);
         map[kategori] = (map[kategori] || 0) + sign * tutar;
       });
     });
-    const entries = Object.entries(map).filter(([, amt]) => amt !== 0).sort((a, b) => b[1] - a[1]);
+    const entries = Object.entries(map).map(([k, v]) => [k, yuvarla2(v)]).filter(([, amt]) => Math.abs(amt) >= 0.005).sort((a, b) => b[1] - a[1]);
     const max = Math.max(1, ...entries.map((e) => e[1]));
     const toplam = entries.reduce((s, [, amt]) => s + amt, 0);
     document.getElementById('rapKategoriSatisBody').innerHTML = `
@@ -7208,7 +7407,7 @@
         </div>
       `).join('') : '<div class="empty-state">Henüz satış yok.</div>'}
     `;
-    setExcelExport('Kategori_Bazli_Satis_Raporu.xlsx', [['Kategori', 'Net Satış'], ...entries.map(([cat, amt]) => [cat, amt])], 'view-rapor-kategorisatis');
+    setExcelExport('Kategori_Bazli_Satis_Raporu.xlsx', [['Kategori', 'Net Satış'], ...entries.map(([cat, amt]) => [cat, amt])], 'view-rapor-kategorisatis', { toplam: ['Net Satış'] });
   }
 
   // ---- 6 Aylık Satışlar ----
@@ -7247,7 +7446,7 @@
         <div class="chart-label">${escapeHtml(m.label)}</div>
       </div>
     `).join('');
-    setExcelExport('6_Aylik_Satislar_Raporu.xlsx', [['Ay', 'Satış', 'Alış'], ...monthly.map((m) => [m.label, m.satis, m.alis])], 'view-rapor-satis6ay');
+    setExcelExport('6_Aylik_Satislar_Raporu.xlsx', [['Ay', 'Satış', 'Alış'], ...monthly.map((m) => [m.label, m.satis, m.alis])], 'view-rapor-satis6ay', { toplam: ['Satış', 'Alış'] });
   }
 
   // ---- Teklifler Raporu ----
@@ -7262,7 +7461,7 @@
       </div>
       ${items.length ? items.map((f) => `<div class="list-row" data-id="${f.id}"><div class="main"><div class="title">${escapeHtml(f.no)}</div><div class="sub">${formatDate(f.date)} · ${escapeHtml(f.cariAdi || '')}</div>${f.durum ? `<div class="badge ${TEKLIF_DURUM_CLASS[f.durum]}">${TEKLIF_DURUM_LABEL[f.durum]}</div>` : ''}</div><div class="amt mono">${formatTL(f.genelToplam)}</div></div>`).join('') : '<div class="empty-state">Henüz teklif yok.</div>'}
     `;
-    setExcelExport('Teklifler_Raporu.xlsx', [['Belge No', 'Tarih', 'Cari', 'Durum', 'Tutar'], ...items.map((f) => [f.no, formatDate(f.date), f.cariAdi || '', f.durum ? TEKLIF_DURUM_LABEL[f.durum] : '', f.genelToplam])], 'view-rapor-teklifler');
+    setExcelExport('Teklifler_Raporu.xlsx', [['Belge No', 'Tarih', 'Cari', 'Durum', 'Tutar'], ...items.map((f) => [f.no, formatDate(f.date), f.cariAdi || '', f.durum ? TEKLIF_DURUM_LABEL[f.durum] : '', f.genelToplam])], 'view-rapor-teklifler', { toplam: ['Tutar'] });
   }
   document.getElementById('rapTekliflerBody').addEventListener('click', (e) => { const r = e.target.closest('.list-row[data-id]'); if (r) enterFaturaDetail(r.dataset.id); });
 
@@ -7292,7 +7491,7 @@
         <div class="list-row"><div class="main"><div class="title">${escapeHtml(m.label)}</div><div class="sub">Gelir: ${formatTL(m.gelir)} · Gider: ${formatTL(m.gider)}</div></div><div class="amt mono ${m.net >= 0 ? 'income' : 'expense'}">${m.net >= 0 ? '+' : ''}${formatTL(m.net)}</div></div>
       `).join('')}
     `;
-    setExcelExport('Gelir_Gider_Durumu_Raporu.xlsx', [['Ay', 'Gelir', 'Gider', 'Net'], ...monthly.map((m) => [m.label, m.gelir, m.gider, m.net])], 'view-rapor-gelirgider');
+    setExcelExport('Gelir_Gider_Durumu_Raporu.xlsx', [['Ay', 'Gelir', 'Gider', 'Net'], ...monthly.map((m) => [m.label, m.gelir, m.gider, m.net])], 'view-rapor-gelirgider', { toplam: ['Gelir', 'Gider', 'Net'] });
   }
 
   // ---- Satış Kaybı (reddedilen tekliflere göre) ----
@@ -7307,7 +7506,7 @@
       </div>
       ${items.length ? items.map((f) => `<div class="list-row" data-id="${f.id}"><div class="main"><div class="title">${escapeHtml(f.no)}</div><div class="sub">${formatDate(f.date)} · ${escapeHtml(f.cariAdi || '')}</div></div><div class="amt mono expense">${formatTL(f.genelToplam)}</div></div>`).join('') : '<div class="empty-state">Henüz reddedilen teklif yok.</div>'}
     `;
-    setExcelExport('Satis_Kaybi_Raporu.xlsx', [['Belge No', 'Tarih', 'Cari', 'Tutar'], ...items.map((f) => [f.no, formatDate(f.date), f.cariAdi || '', f.genelToplam])], 'view-rapor-satiskaybi');
+    setExcelExport('Satis_Kaybi_Raporu.xlsx', [['Belge No', 'Tarih', 'Cari', 'Tutar'], ...items.map((f) => [f.no, formatDate(f.date), f.cariAdi || '', f.genelToplam])], 'view-rapor-satiskaybi', { toplam: ['Tutar'] });
   }
   document.getElementById('rapSatisKaybiBody').addEventListener('click', (e) => { const r = e.target.closest('.list-row[data-id]'); if (r) enterFaturaDetail(r.dataset.id); });
 
@@ -7315,28 +7514,34 @@
   let musteriListeTip = 'musteri';
   let musteriListeFilter = 'tum';
   function renderRaporMusteriListesi() {
-    let items = state.cariler.filter((c) => c.type === musteriListeTip).map((c) => ({ c, bakiye: cariBalance(c) }));
-    if (musteriListeFilter === 'borclu') items = items.filter((r) => r.bakiye > 0);
-    else if (musteriListeFilter === 'alacakli') items = items.filter((r) => r.bakiye < 0);
+    const musteri = musteriListeTip === 'musteri';
+    // Bakiye işareti: (+) o cari bize borçlu (alacağımız), (−) biz o cariye borçluyuz. Müşteride "borcu olan"
+    // pozitif bakiyeli; tedarikçide ise "borcumuz olan" NEGATİF bakiyeli carilerdir (eskiden tedarikçi
+    // toplamı yanlışlıkla pozitif bakiyelerden hesaplanıp genelde 0 görünüyordu).
+    const borcluMu = (b) => (musteri ? b > 0 : b < 0);
+    const fazlaMi = (b) => (musteri ? b < 0 : b > 0);
+    const hepsi = state.cariler.filter((c) => c.type === musteriListeTip).map((c) => ({ c, bakiye: cariBalance(c) }));
+    let items = hepsi.slice();
+    if (musteriListeFilter === 'borclu') items = items.filter((r) => borcluMu(r.bakiye));
+    else if (musteriListeFilter === 'alacakli') items = items.filter((r) => fazlaMi(r.bakiye));
     else if (musteriListeFilter === 'sifir') items = items.filter((r) => r.bakiye === 0);
-    items.sort((a, b) => b.bakiye - a.bakiye);
-    const toplam = state.cariler.filter((c) => c.type === musteriListeTip).reduce((s, c) => { const b = cariBalance(c); return s + (b > 0 ? b : 0); }, 0);
+    items.sort((a, b) => (musteri ? b.bakiye - a.bakiye : a.bakiye - b.bakiye));
+    const toplam = yuvarla2(hepsi.reduce((s, r) => s + (borcluMu(r.bakiye) ? Math.abs(r.bakiye) : 0), 0));
+    const filtreAdi = { tum: 'Tümü', borclu: musteri ? 'Borcu Olanlar' : 'Borcumuz Olanlar', alacakli: musteri ? 'Fazla Ödeyenler' : 'Fazla Ödediklerimiz', sifir: 'Bakiyesi Sıfır' };
     document.getElementById('rapMusteriListesiBody').innerHTML = `
       <div class="segmented" id="rapMusteriTipSeg" style="margin-bottom:12px">
         <button type="button" class="${musteriListeTip === 'musteri' ? 'active' : ''}" data-t="musteri">Müşteriler</button>
         <button type="button" class="${musteriListeTip === 'tedarikci' ? 'active' : ''}" data-t="tedarikci">Tedarikçiler</button>
       </div>
-      <div class="label" style="font-size:12px;color:var(--ink-soft)">${musteriListeTip === 'musteri' ? 'Müşterilerden toplam alacak' : 'Tedarikçilere toplam borç'}</div>
-      <div class="mono" style="font-size:22px;font-weight:700;color:var(--income);margin-bottom:12px">${formatTL(toplam)}</div>
+      <div class="label" style="font-size:12px;color:var(--ink-soft)">${musteri ? 'Müşterilerden toplam alacak' : 'Tedarikçilere toplam borç'}</div>
+      <div class="mono" style="font-size:22px;font-weight:700;color:${musteri ? 'var(--income)' : 'var(--expense)'};margin-bottom:12px">${formatTL(toplam)}</div>
       <div class="chip-row">
-        <button class="chip ${musteriListeFilter === 'tum' ? 'active' : ''}" data-f="tum">Tümü</button>
-        <button class="chip ${musteriListeFilter === 'borclu' ? 'active' : ''}" data-f="borclu">Borcu Olanlar</button>
-        <button class="chip ${musteriListeFilter === 'alacakli' ? 'active' : ''}" data-f="alacakli">Fazla Ödeyenler</button>
-        <button class="chip ${musteriListeFilter === 'sifir' ? 'active' : ''}" data-f="sifir">Bakiyesi Sıfır</button>
+        ${['tum', 'borclu', 'alacakli', 'sifir'].map((k) => `<button class="chip ${musteriListeFilter === k ? 'active' : ''}" data-f="${k}">${filtreAdi[k]}</button>`).join('')}
       </div>
       ${items.length ? items.map(({ c, bakiye }) => `<div class="list-row" data-id="${c.id}"><div class="main"><div class="title">${escapeHtml(c.name)}</div></div><div class="amt mono ${bakiye > 0 ? 'income' : (bakiye < 0 ? 'expense' : '')}">${formatTL(bakiye)}</div></div>`).join('') : '<div class="empty-state">Kayıt yok.</div>'}
     `;
-    setExcelExport('Musteri_Listesi_Raporu.xlsx', [['Ad', 'Tip', 'Bakiye'], ...items.map(({ c, bakiye }) => [c.name, c.type === 'musteri' ? 'Müşteri' : 'Tedarikçi', bakiye])], 'view-rapor-musteriliste');
+    setExcelExport('Musteri_Listesi_Raporu.xlsx', [['Ad', 'Tip', 'Bakiye'], ...items.map(({ c, bakiye }) => [c.name, c.type === 'musteri' ? 'Müşteri' : 'Tedarikçi', bakiye])], 'view-rapor-musteriliste',
+      { ozet: bakiyeOzeti(items.map((r) => r.bakiye)), altBaslik: (musteri ? 'Müşteriler' : 'Tedarikçiler') + ' — ' + filtreAdi[musteriListeFilter] + ' · Bakiye: (+) alacağımız, (−) borcumuz' });
   }
   document.getElementById('rapMusteriListesiBody').addEventListener('click', (e) => {
     const tSeg = e.target.closest('#rapMusteriTipSeg button');
@@ -7351,24 +7556,32 @@
     const now = new Date();
     const ym = localYearMonth(now);
     const monthLabel = now.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
+    // Ba/Bs formlarında tutarlar KDV HARİÇ bildirilir (eskiden KDV dahil genel toplam kullanılıyordu). Dövizli
+    // faturaların araToplam'ı kayıt anında zaten TL'ye çevrilmiştir.
+    const kdvHaric = (f) => (f.araToplam != null ? f.araToplam : f.genelToplam - (f.kdvToplam || 0));
     const satisMap = {}, alisMap = {};
     state.faturalar.forEach((f) => {
       if (f.docType !== 'fatura' || f.date.slice(0, 7) !== ym || !f.cariId) return;
       const map = f.yon === 'satis' ? satisMap : alisMap;
-      if (!map[f.cariId]) map[f.cariId] = { adi: f.cariAdi, tutar: 0 };
-      map[f.cariId].tutar += f.genelToplam;
+      if (!map[f.cariId]) map[f.cariId] = { adi: f.cariAdi, tutar: 0, adet: 0 };
+      map[f.cariId].tutar += kdvHaric(f);
+      map[f.cariId].adet += 1;
     });
-    const satisRows = Object.values(satisMap).sort((a, b) => b.tutar - a.tutar);
-    const alisRows = Object.values(alisMap).sort((a, b) => b.tutar - a.tutar);
-    const row = (r) => `<div class="list-row"><div class="main"><div class="title">${escapeHtml(r.adi || 'Cari yok')}</div></div><div class="amt mono">${formatTL(r.tutar)}</div></div>`;
+    const satisRows = Object.values(satisMap).map((r) => ({ ...r, tutar: yuvarla2(r.tutar) })).sort((a, b) => b.tutar - a.tutar);
+    const alisRows = Object.values(alisMap).map((r) => ({ ...r, tutar: yuvarla2(r.tutar) })).sort((a, b) => b.tutar - a.tutar);
+    const toplamOf = (list) => yuvarla2(list.reduce((s, r) => s + r.tutar, 0));
+    const row = (r) => `<div class="list-row"><div class="main"><div class="title">${escapeHtml(r.adi || 'Cari yok')}</div><div class="sub">${r.adet} belge</div></div><div class="amt mono">${formatTL(r.tutar)}</div></div>`;
     document.getElementById('rapBaBsBody').innerHTML = `
-      <p style="font-size:12px;color:var(--ink-soft);margin-top:0">${escapeHtml(monthLabel)} ayı, cari bazında toplam alış ve satış tutarları. Bu resmi bir Ba/Bs bildirim formu değildir; güncel bildirim eşiği ve kuralları için mali müşavirinize danışın.</p>
-      <h2 class="section-title">Satışlar (cari bazlı)</h2>
+      <p style="font-size:12px;color:var(--ink-soft);margin-top:0">${escapeHtml(monthLabel)} ayı, cari bazında toplam satış (Bs) ve alış (Ba) tutarları — KDV HARİÇ. Bu resmi bir Ba/Bs bildirim formu değildir; güncel bildirim eşiği ve kuralları için mali müşavirinize danışın.</p>
+      <h2 class="section-title">Satışlar — Bs (cari bazlı)</h2>
+      <div class="mono" style="font-size:18px;font-weight:700;color:var(--income);margin-bottom:8px">${formatTL(toplamOf(satisRows))}</div>
       ${satisRows.length ? satisRows.map(row).join('') : '<div class="empty-state">Bu ay satış yok.</div>'}
-      <h2 class="section-title" style="margin-top:16px">Alışlar (cari bazlı)</h2>
+      <h2 class="section-title" style="margin-top:16px">Alışlar — Ba (cari bazlı)</h2>
+      <div class="mono" style="font-size:18px;font-weight:700;color:var(--expense);margin-bottom:8px">${formatTL(toplamOf(alisRows))}</div>
       ${alisRows.length ? alisRows.map(row).join('') : '<div class="empty-state">Bu ay alış yok.</div>'}
     `;
-    setExcelExport('BA_BS_Listesi_Raporu.xlsx', [['Cari', 'Yön', 'Tutar'], ...satisRows.map((r) => [r.adi || '', 'Satış', r.tutar]), ...alisRows.map((r) => [r.adi || '', 'Alış', r.tutar])], 'view-rapor-babs');
+    setExcelExport('BA_BS_Listesi_Raporu.xlsx', [['Cari', 'Yön', 'Belge Sayısı', 'Tutar (KDV Hariç)'], ...satisRows.map((r) => [r.adi || '', 'Satış (Bs)', r.adet, r.tutar]), ...alisRows.map((r) => [r.adi || '', 'Alış (Ba)', r.adet, r.tutar])], 'view-rapor-babs',
+      { ozet: [['Toplam Satış - Bs (KDV hariç)', toplamOf(satisRows)], ['Toplam Alış - Ba (KDV hariç)', toplamOf(alisRows)]], altBaslik: monthLabel });
   }
 
   // ---- Ürün Kâr/Zarar Raporu ----
@@ -7440,7 +7653,7 @@
       f.items.forEach((it) => {
         if (it.stokId !== s.id) return;
         toplamMiktar += sign * it.qty * (s.donusumOrani || 1);
-        toplamMaliyet += sign * it.qty * it.unitPrice;
+        toplamMaliyet += sign * it.qty * it.unitPrice * faturaKuru(f);
       });
     });
     const birimBasinaFiyatSatisBiriminde = toplamMiktar > 0 ? (toplamMaliyet / toplamMiktar) : ((s.buyPrice || 0) / (s.donusumOrani || 1));
@@ -7460,7 +7673,7 @@
         const s = state.stok.find((x) => x.id === it.stokId);
         if (!s) return;
         const row = ensure(it.stokId, s);
-        const tutar = it.qty * it.unitPrice;
+        const tutar = it.qty * it.unitPrice * faturaKuru(f);
         if (f.yon === 'satis') row.satisTutar += sign * tutar;
         else row.alisTutar += sign * tutar;
       });
@@ -7484,7 +7697,7 @@
         <div class="list-row" data-id="${r.id}"><div class="main"><div class="title">${escapeHtml(r.name)}</div><div class="sub">Alış: ${formatTL(r.alisTutar)} · Satış: ${formatTL(r.satisTutar)} · Stokta kalan: ${formatTL(r.stokDegeri)}${r.marj !== null ? ' · Marj %' + r.marj.toFixed(1) : ''}</div></div><div class="amt mono ${r.kar >= 0 ? 'income' : 'expense'}">${r.kar >= 0 ? '+' : ''}${formatTL(r.kar)}</div></div>
       `).join('') : '<div class="empty-state">Henüz veri yok.</div>'}
     `;
-    setExcelExport('Urun_Kar_Zarar_Raporu.xlsx', [['Ürün', 'Alış', 'Satış', 'Stokta Kalan', 'Kâr/Zarar', 'Marj %'], ...rows.map((r) => [r.name, r.alisTutar, r.satisTutar, r.stokDegeri, r.kar, r.marj !== null ? r.marj.toFixed(1) : ''])], 'view-rapor-karzarar');
+    setExcelExport('Urun_Kar_Zarar_Raporu.xlsx', [['Ürün', 'Alış', 'Satış', 'Stokta Kalan', 'Kâr/Zarar', 'Marj %'], ...rows.map((r) => [r.name, yuvarla2(r.alisTutar), yuvarla2(r.satisTutar), yuvarla2(r.stokDegeri), yuvarla2(r.kar), r.marj !== null ? r.marj.toFixed(1) : ''])], 'view-rapor-karzarar', { toplam: ['Alış', 'Satış', 'Stokta Kalan', 'Kâr/Zarar'] });
   }
   document.getElementById('rapKarZararBody').addEventListener('click', (e) => { const r = e.target.closest('.list-row[data-id]'); if (r) openKarZararDetayModal(r.dataset.id); });
   function openKarZararDetayModal(stokId) {
@@ -7497,7 +7710,7 @@
       const sign = f.docType === 'iade' ? -1 : 1;
       f.items.forEach((it) => {
         if (it.stokId !== stokId) return;
-        const tutar = it.qty * it.unitPrice;
+        const tutar = it.qty * it.unitPrice * faturaKuru(f);
         if (f.yon === 'satis') satisTutar += sign * tutar; else alisTutar += sign * tutar;
         hareketler.push({ f, it, tutar: sign * tutar });
       });
@@ -7534,21 +7747,29 @@
   // ---- Yevmiye / Muhasebe Defteri (kronolojik gelir-gider dökümü, koşan bakiyeli) ----
   let muhasebeDefteriTarihFilter = 'tum';
   function renderRaporMuhasebeDefteri() {
-    let items = state.transactions.slice();
+    const tumu = state.transactions.slice();
+    let cutoff = null;
     if (muhasebeDefteriTarihFilter !== 'tum') {
       const d = new Date();
       if (muhasebeDefteriTarihFilter === '1ay') d.setMonth(d.getMonth() - 1);
       else if (muhasebeDefteriTarihFilter === '3ay') d.setMonth(d.getMonth() - 3);
       else if (muhasebeDefteriTarihFilter === '6ay') d.setMonth(d.getMonth() - 6);
       else if (muhasebeDefteriTarihFilter === '1yil') d.setFullYear(d.getFullYear() - 1);
-      const cutoff = localDateStr(d);
-      items = items.filter((t) => t.date >= cutoff);
+      cutoff = localDateStr(d);
     }
-    items.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
-    let running = 0;
-    const rows = items.map((t) => { running += t.type === 'gelir' ? t.amount : -t.amount; return { t, running }; });
-    const toplamGelir = items.filter((t) => t.type === 'gelir').reduce((s, t) => s + t.amount, 0);
-    const toplamGider = items.filter((t) => t.type === 'gider').reduce((s, t) => s + t.amount, 0);
+    const net = (t) => (t.type === 'gelir' ? t.amount : -t.amount);
+    // Dönem filtresi seçiliyse koşan bakiye SIFIRDAN değil, dönemden ÖNCEKİ kayıtların net toplamından
+    // (devreden bakiye) başlar — eskiden filtre bakiyeyi sıfırlayıp dönem sonu bakiyesini yanlış gösteriyordu.
+    const devreden = cutoff ? yuvarla2(tumu.filter((t) => t.date < cutoff).reduce((s, t) => s + net(t), 0)) : 0;
+    // Aynı gün içindeki kayıtlar giriş sırasıyla dizilir (eskiden rastgele kayıt-kimliği sırasına göre karışıyordu).
+    const items = tumu.map((t, i) => ({ t, i })).filter(({ t }) => !cutoff || t.date >= cutoff)
+      .sort((a, b) => a.t.date.localeCompare(b.t.date) || a.i - b.i).map(({ t }) => t);
+    let running = devreden;
+    const rows = items.map((t) => { running = yuvarla2(running + net(t)); return { t, running }; });
+    const toplamGelir = yuvarla2(items.filter((t) => t.type === 'gelir').reduce((s, t) => s + t.amount, 0));
+    const toplamGider = yuvarla2(items.filter((t) => t.type === 'gider').reduce((s, t) => s + t.amount, 0));
+    const donemSonu = yuvarla2(devreden + toplamGelir - toplamGider);
+    const donemAdi = { tum: 'Tüm Zamanlar', '1ay': 'Son 1 Ay', '3ay': 'Son 3 Ay', '6ay': 'Son 6 Ay', '1yil': 'Son 1 Yıl' }[muhasebeDefteriTarihFilter];
     document.getElementById('rapMuhasebeDefteriBody').innerHTML = `
       <p style="font-size:11.5px;color:var(--ink-soft);margin-top:0">Fatura ve gelir/gider kayıtlarının kronolojik dökümü — işletme hesabı esaslı basit bir gelir-gider defteri gibi düşünülebilir. Hesap kodlu, çift taraflı resmi bir yevmiye defteri değildir.</p>
       <div class="field" style="margin-bottom:12px"><label>Tarih Aralığı</label><select id="muhasebeDefteriTarihSelect">
@@ -7561,7 +7782,9 @@
       <div class="stat-grid" style="margin-bottom:14px">
         <div class="stat-card income"><div class="label">Toplam Gelir</div><div class="value mono">${formatTL(toplamGelir)}</div></div>
         <div class="stat-card expense"><div class="label">Toplam Gider</div><div class="value mono">${formatTL(toplamGider)}</div></div>
+        <div class="stat-card neutral" style="grid-column:1 / -1"><div class="label">${cutoff ? 'Dönem Sonu Bakiye (Devreden + Gelir − Gider)' : 'Bakiye (Gelir − Gider)'}</div><div class="value mono" style="color:${donemSonu >= 0 ? 'var(--income)' : 'var(--expense)'}">${formatTL(donemSonu)}</div></div>
       </div>
+      ${cutoff ? `<div class="list-row"><div class="main"><div class="title">Devreden Bakiye</div><div class="sub">${formatDate(cutoff)} öncesindeki kayıtların net toplamı</div></div><div class="amt mono ${devreden >= 0 ? 'income' : 'expense'}">${formatTL(devreden)}</div></div>` : ''}
       ${rows.length ? rows.map(({ t, running: r }) => `
         <div class="list-row"><div class="main"><div class="title">${escapeHtml(t.category)}${t.cariAdi ? ' · ' + escapeHtml(t.cariAdi) : ''}</div><div class="sub">${formatDate(t.date)}${t.description ? ' · ' + escapeHtml(t.description) : ''}</div></div>
         <div style="text-align:right"><div class="amt mono ${t.type === 'gelir' ? 'income' : 'expense'}">${t.type === 'gelir' ? '+' : '−'}${formatTL(t.amount)}</div><div class="sub" style="font-size:11px;margin-top:2px">Bakiye: ${formatTL(r)}</div></div></div>
@@ -7569,7 +7792,17 @@
     `;
     document.getElementById('muhasebeDefteriTarihSelect').value = muhasebeDefteriTarihFilter;
     document.getElementById('muhasebeDefteriTarihSelect').addEventListener('change', (e) => { muhasebeDefteriTarihFilter = e.target.value; renderRaporMuhasebeDefteri(); });
-    setExcelExport('Yevmiye_Muhasebe_Defteri_Raporu.xlsx', [['Tarih', 'Kategori', 'Cari', 'Açıklama', 'Tür', 'Tutar', 'Bakiye'], ...rows.map(({ t, running }) => [formatDate(t.date), t.category, t.cariAdi || '', t.description || '', t.type === 'gelir' ? 'Gelir' : 'Gider', t.amount, running])], 'view-rapor-muhasebedefteri');
+    // Çıktıda Gelir ve Gider AYRI sütunlardadır (eskiden tek "Tutar" sütununda gelir+gider karışık olup toplanıyor,
+    // "Bakiye" sütunu da toplanıyordu). Toplam sadece Gelir ve Gider sütunlarında; bakiye ayrı özet bloğunda.
+    setExcelExport('Yevmiye_Muhasebe_Defteri_Raporu.xlsx', [
+      ['Tarih', 'Kategori', 'Cari', 'Açıklama', 'Gelir', 'Gider', 'Bakiye'],
+      ...(cutoff ? [[formatDate(cutoff) + ' öncesi', 'Devreden Bakiye', '', '', '', '', devreden]] : []),
+      ...rows.map(({ t, running: r }) => [formatDate(t.date), t.category, t.cariAdi || '', t.description || '', t.type === 'gelir' ? t.amount : '', t.type === 'gider' ? t.amount : '', r])
+    ], 'view-rapor-muhasebedefteri', {
+      toplam: ['Gelir', 'Gider'],
+      ozet: [...(cutoff ? [['Devreden Bakiye', devreden]] : []), ['Toplam Gelir', toplamGelir], ['Toplam Gider', toplamGider], [cutoff ? 'Dönem Sonu Bakiye' : 'Bakiye', donemSonu]],
+      altBaslik: donemAdi + (cutoff ? ' (' + formatDate(cutoff) + ' ve sonrası)' : '')
+    });
   }
 
   // ================= ÇALIŞANLAR =================
