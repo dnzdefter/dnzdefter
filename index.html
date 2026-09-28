@@ -5848,7 +5848,20 @@
     const f = state.faturalar.find((x) => x.id === currentFaturaDetailId);
     if (!f) return;
     document.getElementById('faturaDetailBody').innerHTML = `
-      <div class="title" style="font-size:16px;font-weight:700">${escapeHtml(f.belgeNo || f.no)} · ${DOC_LABELS[f.docType] || 'Belge'}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div class="title" style="font-size:16px;font-weight:700;min-width:0">${escapeHtml(f.belgeNo || f.no)} · ${DOC_LABELS[f.docType] || 'Belge'}</div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button type="button" class="icon-btn fd-act" data-a="yazdir" title="Yazdır" aria-label="Yazdır" style="width:34px;height:34px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2"/><rect x="6" y="14" width="12" height="7"/></svg>
+          </button>
+          <button type="button" class="icon-btn fd-act" data-a="paylas" title="Paylaş" aria-label="Paylaş" style="width:34px;height:34px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.7l6.8-4M8.6 13.3l6.8 4"/></svg>
+          </button>
+          <button type="button" class="icon-btn fd-act" data-a="duzenle" title="Düzenle" aria-label="Düzenle" style="width:34px;height:34px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+        </div>
+      </div>
       <div class="sub" style="margin:4px 0 12px">${formatDate(f.date)} · ${escapeHtml(f.cariAdi || 'Cari yok')} · ${f.yon === 'satis' ? 'Satış' : 'Alış'}</div>
       ${f.docType === 'teklif' && f.durum ? `<div class="badge ${TEKLIF_DURUM_CLASS[f.durum]}" style="margin-bottom:10px">${TEKLIF_DURUM_LABEL[f.durum]}</div>` : ''}
       ${f.vade ? `<div class="sub">Vade: ${formatDate(f.vade)}</div>` : ''}
@@ -5893,6 +5906,14 @@
   document.getElementById('faturaDetailBody').addEventListener('click', (e) => {
     const f = state.faturalar.find((x) => x.id === currentFaturaDetailId);
     if (!f) return;
+    const actBtn = e.target.closest('.fd-act');
+    if (actBtn) {
+      const a = actBtn.dataset.a;
+      if (a === 'yazdir') printFatura(f);
+      else if (a === 'paylas') shareFatura(f);
+      else if (a === 'duzenle') enterFaturaForm(null, f.id, cameFromTeklifler);
+      return;
+    }
     const odemeSilBtn = e.target.closest('.odeme-sil-btn');
     if (odemeSilBtn) { deleteFaturaOdeme(f, odemeSilBtn.dataset.odemeId); return; }
     const odemeRow = e.target.closest('.odeme-row');
@@ -6302,9 +6323,6 @@
     if (!f) return;
     const cari = f.cariId ? state.cariler.find((x) => x.id === f.cariId) : null;
     const actions = [
-      { a: 'paylas', label: 'Paylaş' },
-      { a: 'yazdir', label: 'Yazdır / PDF' },
-      { a: 'duzenle', label: 'Düzenle' },
       { a: 'kopyala', label: f.yon === 'satis' ? 'Satışı Kopyala' : 'Alışı Kopyala' }
     ];
     if (cari) actions.push({ a: 'cariye-git', label: cari.type === 'musteri' ? 'Müşteriye Git' : 'Tedarikçiye Git' });
