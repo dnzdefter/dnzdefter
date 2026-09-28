@@ -12,9 +12,10 @@
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#3AA1FF">
-<meta name="mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -85,6 +86,12 @@
   header.appbar .row { display: flex; align-items: center; gap: 10px; }
   header.appbar h1 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 800; margin: 0; color: var(--flame); flex: 1; }
   #headerBack { margin-left: auto; }
+  /* Belge detayında işlem simgeleri (yazdır, paylaş, düzenle, kopyala...) geri tuşunun yanında durur.
+     Çok simge olursa (ör. teklif) taşan kısım yana kaydırılır. */
+  #headerDocActions { display: none; align-items: center; gap: 5px; flex: 1 1 0; min-width: 0; justify-content: flex-end; overflow-x: auto; scrollbar-width: none; padding: 3px 2px; }
+  #headerDocActions::-webkit-scrollbar { display: none; }
+  header.appbar.doc-actions-on h1 { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  @media (max-width: 600px) { header.appbar.doc-actions-on h1 { display: none; } }
   #saveBanner {
     position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
     display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -344,7 +351,7 @@
   .print-only { display: none; }
   @media print {
     @page { size: A4; margin: 8mm; }
-    html, body { height: auto !important; min-height: 0 !important; }
+    html, body { height: auto !important; min-height: 0 !important; background: #fff !important; background-image: none !important; }
     body > *:not(#printArea) { display: none !important; }
     #printArea { display: block !important; padding: 0; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     #printArea * { color: #000 !important; }
@@ -462,6 +469,7 @@
       <button class="icon-btn" id="headerExcelBtn" style="display:none" title="Excel'e Aktar">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
       </button>
+      <div id="headerDocActions"></div>
       <button class="icon-btn" id="headerBack" style="display:none">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg>
       </button>
@@ -878,7 +886,7 @@
 
     <!-- TEKRARLAYAN FATURA ŞABLONLARI -->
     <section class="view" id="view-tekrarlayan">
-      <p style="font-size:12.5px;color:var(--ink-soft);padding:0 4px">Bir faturanın İşlemler menüsünden "Tekrarlayan Şablon Oluştur" ile buraya şablon ekleyebilirsin. Uygulamayı açtığında vadesi gelenler için "Şimdi Oluştur" ile tek dokunuşla yeni fatura kesebilirsin.</p>
+      <p style="font-size:12.5px;color:var(--ink-soft);padding:0 4px">Uygulamayı açtığında vadesi gelen şablonlar için "Şimdi Oluştur" ile tek dokunuşla yeni fatura kesebilirsin.</p>
       <div class="card" id="tekrarlayanList" style="margin-top:12px"></div>
     </section>
 
@@ -979,9 +987,6 @@
     <!-- FATURA DETAY -->
     <section class="view" id="view-fatura-detail">
       <div class="card" id="faturaDetailBody"></div>
-      <div class="quick-actions">
-        <button class="btn btn-primary btn-block" id="faturaIslemlerBtn">İşlemler</button>
-      </div>
     </section>
 
     <!-- MASRAFLAR -->
@@ -1734,6 +1739,9 @@
     headerBack.style.display = canStepBack() ? 'flex' : 'none';
     document.getElementById('headerBarkodBtn').style.display = (id === 'view-ozet') ? 'flex' : 'none';
     document.getElementById('headerFaturaEkleBtn').style.display = (id === 'view-ozet') ? 'flex' : 'none';
+    const docActionsOn = id === 'view-fatura-detail';
+    document.getElementById('headerDocActions').style.display = docActionsOn ? 'flex' : 'none';
+    document.querySelector('header.appbar').classList.toggle('doc-actions-on', docActionsOn);
     setExcelExport(null); // Her ekran değişiminde önceki raporun Excel verisi/butonu sıfırlanır; ilgili renderRaporX kendi verisini tekrar kurar.
     viewport.scrollTop = 0;
   }
@@ -5844,24 +5852,66 @@
     saveState(); renderAll(); renderFaturaDetail();
   }
 
+  // Belge detayındaki işlemler (eskiden "İşlemler" menüsündeydi) artık başlık çubuğunda, geri
+  // tuşunun yanında simge olarak duruyor. Üzerine gelince (hover) ne olduğunu title gösterir.
+  function renderHeaderDocActions(f) {
+    const S = (p) => `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+    const ICON = {
+      yazdir: S('<path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2"/><rect x="6" y="14" width="12" height="7"/>'),
+      paylas: S('<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.7l6.8-4M8.6 13.3l6.8 4"/>'),
+      duzenle: S('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>'),
+      kopyala: S('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>'),
+      cari: S('<circle cx="12" cy="8" r="3.5"/><path d="M5 21c0-4 3-6.5 7-6.5s7 2.5 7 6.5"/>'),
+      odeme: S('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>'),
+      cevir: S('<path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>'),
+      onayla: S('<path d="M20 6L9 17l-5-5"/>'),
+      reddet: S('<path d="M18 6L6 18M6 6l12 12"/>'),
+      sil: S('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>')
+    };
+    const cari = f.cariId ? state.cariler.find((x) => x.id === f.cariId) : null;
+    const items = [
+      { a: 'yazdir', label: 'Yazdır', icon: ICON.yazdir },
+      { a: 'paylas', label: 'Paylaş', icon: ICON.paylas },
+      { a: 'duzenle', label: 'Düzenle', icon: ICON.duzenle },
+      { a: 'kopyala', label: f.yon === 'satis' ? 'Satışı Kopyala' : 'Alışı Kopyala', icon: ICON.kopyala }
+    ];
+    if (cari) items.push({ a: 'cariye-git', label: cari.type === 'musteri' ? 'Müşteriye Git' : 'Tedarikçiye Git', icon: ICON.cari });
+    if (f.docType === 'teklif') {
+      items.push({ a: 'siparise', label: 'Siparişe Çevir', icon: ICON.cevir });
+      if (f.durum !== 'onaylandi') items.push({ a: 'onayla', label: 'Onayla', icon: ICON.onayla, color: 'var(--income)' });
+      if (f.durum !== 'reddedildi') items.push({ a: 'reddet', label: 'Reddet', icon: ICON.reddet, color: 'var(--expense)' });
+    }
+    if (f.docType === 'siparis') items.push({ a: 'satisa', label: 'Satışa Çevir', icon: ICON.cevir });
+    if (isBelgeEffectDoc(f)) items.push({ a: 'odeme', label: f.yon === 'satis' ? 'Tahsilat Al' : 'Ödeme Yap', icon: ICON.odeme });
+    items.push({ a: 'sil', label: 'İşlemi Sil', icon: ICON.sil, color: 'var(--expense)' });
+    document.getElementById('headerDocActions').innerHTML = items.map((o) =>
+      `<button type="button" class="icon-btn hd-act" data-a="${o.a}" title="${escapeHtml(o.label)}" aria-label="${escapeHtml(o.label)}" style="width:32px;height:32px;flex-shrink:0;${o.color ? 'color:' + o.color : ''}">${o.icon}</button>`
+    ).join('');
+  }
+  document.getElementById('headerDocActions').addEventListener('click', (e) => {
+    const btn = e.target.closest('.hd-act'); if (!btn) return;
+    const f = state.faturalar.find((x) => x.id === currentFaturaDetailId);
+    if (!f) return;
+    const cari = f.cariId ? state.cariler.find((x) => x.id === f.cariId) : null;
+    const action = btn.dataset.a;
+    if (action === 'paylas') shareFatura(f);
+    else if (action === 'yazdir') printFatura(f);
+    else if (action === 'duzenle') enterFaturaForm(null, f.id, cameFromTeklifler);
+    else if (action === 'kopyala') copyFaturaAsNew(f);
+    else if (action === 'cariye-git') { if (cari) enterCariDetail(cari.id); }
+    else if (action === 'odeme') openFaturaOdemeModal(f);
+    else if (action === 'siparise') convertFaturaDoc(f, 'siparis');
+    else if (action === 'satisa') convertFaturaDoc(f, 'fatura');
+    else if (action === 'onayla') { f.durum = 'onaylandi'; saveState(); renderFaturaDetail(); }
+    else if (action === 'reddet') { f.durum = 'reddedildi'; saveState(); renderFaturaDetail(); }
+    else if (action === 'sil') deleteFaturaConfirm(f);
+  });
   function renderFaturaDetail() {
     const f = state.faturalar.find((x) => x.id === currentFaturaDetailId);
     if (!f) return;
+    renderHeaderDocActions(f);
     document.getElementById('faturaDetailBody').innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-        <div class="title" style="font-size:16px;font-weight:700;min-width:0">${escapeHtml(f.belgeNo || f.no)} · ${DOC_LABELS[f.docType] || 'Belge'}</div>
-        <div style="display:flex;gap:6px;flex-shrink:0">
-          <button type="button" class="icon-btn fd-act" data-a="yazdir" title="Yazdır" aria-label="Yazdır" style="width:34px;height:34px">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2"/><rect x="6" y="14" width="12" height="7"/></svg>
-          </button>
-          <button type="button" class="icon-btn fd-act" data-a="paylas" title="Paylaş" aria-label="Paylaş" style="width:34px;height:34px">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.7l6.8-4M8.6 13.3l6.8 4"/></svg>
-          </button>
-          <button type="button" class="icon-btn fd-act" data-a="duzenle" title="Düzenle" aria-label="Düzenle" style="width:34px;height:34px">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-          </button>
-        </div>
-      </div>
+      <div class="title" style="font-size:16px;font-weight:700">${escapeHtml(f.belgeNo || f.no)} · ${DOC_LABELS[f.docType] || 'Belge'}</div>
       <div class="sub" style="margin:4px 0 12px">${formatDate(f.date)} · ${escapeHtml(f.cariAdi || 'Cari yok')} · ${f.yon === 'satis' ? 'Satış' : 'Alış'}</div>
       ${f.docType === 'teklif' && f.durum ? `<div class="badge ${TEKLIF_DURUM_CLASS[f.durum]}" style="margin-bottom:10px">${TEKLIF_DURUM_LABEL[f.durum]}</div>` : ''}
       ${f.vade ? `<div class="sub">Vade: ${formatDate(f.vade)}</div>` : ''}
@@ -5906,14 +5956,6 @@
   document.getElementById('faturaDetailBody').addEventListener('click', (e) => {
     const f = state.faturalar.find((x) => x.id === currentFaturaDetailId);
     if (!f) return;
-    const actBtn = e.target.closest('.fd-act');
-    if (actBtn) {
-      const a = actBtn.dataset.a;
-      if (a === 'yazdir') printFatura(f);
-      else if (a === 'paylas') shareFatura(f);
-      else if (a === 'duzenle') enterFaturaForm(null, f.id, cameFromTeklifler);
-      return;
-    }
     const odemeSilBtn = e.target.closest('.odeme-sil-btn');
     if (odemeSilBtn) { deleteFaturaOdeme(f, odemeSilBtn.dataset.odemeId); return; }
     const odemeRow = e.target.closest('.odeme-row');
@@ -6087,10 +6129,11 @@
     if (f.docType === 'teklif') return 'Teklif Formu';
     return DOC_LABELS[f.docType] || 'Belge';
   }
-  function printFatura(f) {
+  // Belgenin yazdırma/PDF görünümünün HTML'i — hem yazdırma hem PDF olarak paylaşma aynı çıktıyı kullanır.
+  function buildFaturaPrintHtml(f) {
     const sa = state.sablonAyarlari;
     const extraMeta = [f.vade ? 'Vade: ' + formatDate(f.vade) : '', f.irsaliyeNo ? 'İrsaliye No: ' + escapeHtml(f.irsaliyeNo) : ''].filter(Boolean).join(' · ');
-    document.getElementById('printArea').innerHTML = `
+    return `
       <div style="font-family: sans-serif; padding: 14px; color:#000">
         ${printFaturaHeaderHtml(f)}
         <h1 style="font-size:22px;margin-bottom:2px;text-align:center">${printDocTitle(f).toUpperCase()}</h1>
@@ -6134,6 +6177,9 @@
         <p style="margin-top:36px;color:#888;font-size:11px">Bu belge DNZ Defter uygulamasında oluşturulmuştur. Resmi e-Fatura/e-Arşiv/e-İrsaliye belgesi değildir.</p>
       </div>
     `;
+  }
+  function printFatura(f) {
+    document.getElementById('printArea').innerHTML = buildFaturaPrintHtml(f);
     const logoImg = document.querySelector('#printArea img');
     if (logoImg && !logoImg.complete) {
       let printed = false;
@@ -6223,13 +6269,145 @@
       window.print();
     }
   }
-  function shareFatura(f) {
-    const text = `${DOC_LABELS[f.docType] || 'Belge'} ${f.no}\n${f.cariAdi || ''}\nToplam: ${formatTL(f.genelToplam)}`;
-    if (navigator.share) {
-      navigator.share({ title: f.no, text: text }).catch(() => {});
-    } else {
-      alert('Bu cihazda paylaşım desteklenmiyor. Belge bilgisi:\n\n' + text);
+  // ================= BELGEYİ PDF DOSYASI OLARAK PAYLAŞMA =================
+  // Türkçe karakterleri sadeleştirip dosya adına uygun hale getirir (ör. "Satış Faturası" -> "Satis_Faturasi").
+  function dosyaAdiTemizle(str) {
+    const map = { 'ç': 'c', 'Ç': 'C', 'ğ': 'g', 'Ğ': 'G', 'ı': 'i', 'İ': 'I', 'ö': 'o', 'Ö': 'O', 'ş': 's', 'Ş': 'S', 'ü': 'u', 'Ü': 'U' };
+    return String(str || '').replace(/[çÇğĞıİöÖşŞüÜ]/g, (ch) => map[ch]).replace(/[^A-Za-z0-9.\-]+/g, '_').replace(/^_+|_+$/g, '');
+  }
+  // Uzun bir sayfayı PDF sayfalarına bölerken, mümkünse bir tablo satırının/bloğun ORTASINDAN değil
+  // sonundan keser. candidates: güvenli kesme noktaları (px, sayfanın üstünden).
+  function computePageBreaks(totalPx, pagePx, candidates) {
+    const cands = candidates.filter((y) => y > 0 && y < totalPx).sort((a, b) => a - b);
+    const breaks = [0];
+    let start = 0;
+    while (totalPx - start > pagePx + 1) {
+      const limit = start + pagePx;
+      let cut = limit;
+      for (let i = cands.length - 1; i >= 0; i--) {
+        if (cands[i] <= limit && cands[i] > start + pagePx * 0.4) { cut = cands[i]; break; }
+      }
+      breaks.push(cut);
+      start = cut;
     }
+    breaks.push(totalPx);
+    return breaks;
+  }
+  function canvasToPdfBlob(canvas, candidates) {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const margin = 8, contentW = 210 - margin * 2, contentH = 297 - margin * 2;
+    const mmPerPx = contentW / canvas.width;
+    const breaks = computePageBreaks(canvas.height, Math.floor(contentH / mmPerPx), candidates || []);
+    let ilk = true;
+    for (let i = 0; i < breaks.length - 1; i++) {
+      const sy = Math.round(breaks[i]), sh = Math.round(breaks[i + 1]) - sy;
+      if (sh <= 0) continue;
+      const slice = document.createElement('canvas');
+      slice.width = canvas.width; slice.height = sh;
+      const ctx = slice.getContext('2d');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, slice.width, slice.height);
+      ctx.drawImage(canvas, 0, sy, canvas.width, sh, 0, 0, canvas.width, sh);
+      if (!ilk) pdf.addPage();
+      ilk = false;
+      pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, contentW, sh * mmPerPx);
+    }
+    return pdf.output('blob');
+  }
+  function resimlerYuklensin(root, timeoutMs) {
+    const imgs = [...root.querySelectorAll('img')].filter((im) => !im.complete);
+    if (!imgs.length) return Promise.resolve();
+    return new Promise((resolve) => {
+      let kalan = imgs.length;
+      const bitti = () => { kalan--; if (kalan <= 0) resolve(); };
+      imgs.forEach((im) => { im.addEventListener('load', bitti); im.addEventListener('error', bitti); });
+      setTimeout(resolve, timeoutMs || 3000);
+    });
+  }
+  // Belgeyi (yazdırma çıktısıyla aynı görünümde) ekran dışında çizip PDF Blob'u üretir.
+  async function faturaPdfBlob(f) {
+    if (typeof html2canvas === 'undefined' || !(window.jspdf && window.jspdf.jsPDF)) throw new Error('PDF kütüphanesi yüklenemedi');
+    const host = document.createElement('div');
+    host.id = 'pdfRenderHost';
+    host.style.cssText = 'position:absolute;left:-10000px;top:0;width:794px;background:#fff;color:#000;';
+    host.innerHTML = buildFaturaPrintHtml(f);
+    document.body.appendChild(host);
+    try {
+      await resimlerYuklensin(host, 3000);
+      const canvas = await html2canvas(host, {
+        scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false, windowWidth: 794,
+        // Ekran dışına koyduğumuz kutuyu, çizim kopyasında normal konuma alıyoruz.
+        onclone: (doc) => { const h = doc.getElementById('pdfRenderHost'); if (h) { h.style.left = '0'; h.style.top = '0'; } }
+      });
+      const hostTop = host.getBoundingClientRect().top;
+      const oran = canvas.width / (host.offsetWidth || 794);
+      const adaylar = [...host.querySelectorAll('tr, h1, p, table')].map((el) => (el.getBoundingClientRect().bottom - hostTop) * oran);
+      return canvasToPdfBlob(canvas, adaylar);
+    } finally {
+      host.remove();
+    }
+  }
+  function dosyaIndir(file) {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url; a.download = file.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 15000);
+  }
+  // "Paylaş" tuşuna YENİ bir dokunuş gerektiğinde (bazı tarayıcılar, uzun süren PDF hazırlığından
+  // sonra otomatik paylaşıma izin vermez) gösterilen pencere.
+  function pdfHazirPenceresi(file, title, text) {
+    openModal(`
+      <h3>PDF hazır</h3>
+      <p class="sub" style="margin:0 0 12px">${escapeHtml(file.name)}</p>
+      <div class="modal-actions"><button class="btn" id="pdfIndirBtn">İndir</button><button class="btn btn-primary" id="pdfPaylasBtn">Paylaş</button></div>
+    `);
+    document.getElementById('pdfIndirBtn').onclick = () => { dosyaIndir(file); closeModal(); };
+    document.getElementById('pdfPaylasBtn').onclick = () => {
+      // Doğrudan bu tıklamanın içinde çağrıldığı için kullanıcı dokunuşu geçerli.
+      navigator.share({ files: [file], title, text }).then(() => closeModal()).catch((err) => {
+        if (err && err.name === 'AbortError') return;
+        alert('Paylaşım açılamadı: ' + (err && err.message ? err.message : 'bilinmeyen hata') + '\nPDF\'yi "İndir" ile kaydedip istediğin uygulamadan gönderebilirsin.');
+      });
+    };
+  }
+  async function pdfDosyasiniPaylas(file, title, text) {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title, text }); return; }
+      catch (err) {
+        if (err && err.name === 'AbortError') return; // kullanıcı paylaşım penceresini kapattı
+        pdfHazirPenceresi(file, title, text); // ör. dokunuş süresi dolmuş — tuşla tekrar dene
+        return;
+      }
+    }
+    // Bu tarayıcı dosya paylaşımını desteklemiyor (ör. bazı bilgisayar tarayıcıları) — PDF'i indir.
+    dosyaIndir(file);
+    alert(`"${file.name}" PDF olarak indirildi. Bu tarayıcı doğrudan dosya paylaşımını desteklemiyor; indirilen dosyayı istediğin uygulamadan (WhatsApp, e-posta vb.) gönderebilirsin.`);
+  }
+  async function shareFatura(f) {
+    const belgeNo = f.belgeNo || f.no;
+    const text = `${printDocTitle(f)} ${belgeNo}\n${f.cariAdi || ''}\nToplam: ${formatTL(f.genelToplam)}`;
+    const fileName = dosyaAdiTemizle(`${printDocTitle(f)}_${belgeNo}`) + '.pdf';
+    openModal('<h3>Belge hazırlanıyor…</h3><p class="sub" style="margin:0">PDF oluşturuluyor, birkaç saniye sürebilir.</p>');
+    let file;
+    try {
+      const blob = await faturaPdfBlob(f);
+      file = new File([blob], fileName, { type: 'application/pdf' });
+    } catch (err) {
+      closeModal();
+      console.error('PDF oluşturulamadı', err);
+      // PDF üretilemedi (ör. kütüphane yüklenemedi/internet yok): en azından metin olarak paylaş.
+      const neden = err && err.message ? err.message : 'bilinmeyen hata';
+      if (navigator.share) {
+        alert('PDF oluşturulamadı (' + neden + '). Belge bilgisi metin olarak paylaşılacak.');
+        try { await navigator.share({ title: belgeNo, text }); } catch (e) { /* kullanıcı vazgeçti */ }
+      } else {
+        alert('PDF oluşturulamadı (' + neden + '). Belge bilgisi:\n\n' + text);
+      }
+      return;
+    }
+    closeModal();
+    await pdfDosyasiniPaylas(file, belgeNo, text);
   }
   function convertFaturaDoc(f, newDocType) {
     if (!confirm(`Bu belgeyi ${DOC_LABELS[newDocType]}'a çevirmek istiyor musun?`)) return;
@@ -6317,48 +6495,6 @@
     renderTekrarlayanList();
     alert(`"${fatura.no}" oluşturuldu.`);
   }
-
-  document.getElementById('faturaIslemlerBtn').addEventListener('click', () => {
-    const f = state.faturalar.find((x) => x.id === currentFaturaDetailId);
-    if (!f) return;
-    const cari = f.cariId ? state.cariler.find((x) => x.id === f.cariId) : null;
-    const actions = [
-      { a: 'kopyala', label: f.yon === 'satis' ? 'Satışı Kopyala' : 'Alışı Kopyala' }
-    ];
-    if (cari) actions.push({ a: 'cariye-git', label: cari.type === 'musteri' ? 'Müşteriye Git' : 'Tedarikçiye Git' });
-    if (f.docType === 'teklif') {
-      actions.push({ a: 'siparise', label: 'Siparişe Çevir' });
-      if (f.durum !== 'onaylandi') actions.push({ a: 'onayla', label: 'Onayla' });
-      if (f.durum !== 'reddedildi') actions.push({ a: 'reddet', label: 'Reddet' });
-    }
-    if (f.docType === 'siparis') actions.push({ a: 'satisa', label: 'Satışa Çevir' });
-    if (f.docType === 'fatura') actions.push({ a: 'tekrarla', label: 'Tekrarlayan Şablon Oluştur' });
-    if (isBelgeEffectDoc(f)) actions.push({ a: 'odeme', label: f.yon === 'satis' ? 'Tahsilat Al' : 'Ödeme Yap' });
-    actions.push({ a: 'sil', label: 'İşlemi Sil', danger: true });
-    openModal(`
-      <h3>İşlemler</h3>
-      <div id="islemlerList">
-        ${actions.map((o) => `<div class="list-row" data-a="${o.a}" style="cursor:pointer"><div class="main"><div class="title" style="${o.danger ? 'color:var(--expense)' : ''}">${escapeHtml(o.label)}</div></div></div>`).join('')}
-      </div>
-    `);
-    document.getElementById('islemlerList').addEventListener('click', (e) => {
-      const row = e.target.closest('.list-row'); if (!row) return;
-      const action = row.dataset.a;
-      closeModal();
-      if (action === 'paylas') shareFatura(f);
-      else if (action === 'yazdir') printFatura(f);
-      else if (action === 'duzenle') enterFaturaForm(null, f.id, cameFromTeklifler);
-      else if (action === 'kopyala') copyFaturaAsNew(f);
-      else if (action === 'cariye-git') { if (cari) enterCariDetail(cari.id); }
-      else if (action === 'odeme') openFaturaOdemeModal(f);
-      else if (action === 'siparise') convertFaturaDoc(f, 'siparis');
-      else if (action === 'satisa') convertFaturaDoc(f, 'fatura');
-      else if (action === 'onayla') { f.durum = 'onaylandi'; saveState(); renderFaturaDetail(); }
-      else if (action === 'reddet') { f.durum = 'reddedildi'; saveState(); renderFaturaDetail(); }
-      else if (action === 'tekrarla') openTekrarlamaSablonuModal(f);
-      else if (action === 'sil') deleteFaturaConfirm(f);
-    });
-  });
 
   // ================= KREDİLER =================
   function krediToplamOdenen(k) { return (k.odemeler || []).reduce((s, o) => s + o.tutar, 0); }
