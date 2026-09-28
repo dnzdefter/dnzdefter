@@ -88,7 +88,12 @@
   #headerBack { margin-left: auto; }
   /* Belge detayında işlem simgeleri (yazdır, paylaş, düzenle, kopyala...) geri tuşunun yanında durur.
      Çok simge olursa (ör. teklif) taşan kısım yana kaydırılır. */
-  #headerDocActions { display: none; align-items: center; gap: 5px; flex: 1 1 0; min-width: 0; justify-content: flex-end; overflow-x: auto; scrollbar-width: none; padding: 3px 2px; }
+  /* NOT: Burada justify-content:flex-end KULLANMA — simgeler sığmayınca taşan kısım SOL tarafa gider ve
+     kaydırmayla ulaşılamaz (ilk simge kesik kalır). Bunun yerine soldan başlatıp ilk elemana
+     margin-left:auto veriyoruz: yer varsa sağa yaslanır, taşarsa margin sıfırlanır ve baştan sona kaydırılır. */
+  #headerDocActions { display: none; align-items: center; gap: 5px; flex: 1 1 0; min-width: 0; justify-content: flex-start; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; padding: 5px 4px; }
+  #headerDocActions > :first-child { margin-left: auto; }
+  #headerDocActions .icon-btn { box-shadow: 0 1px 3px rgba(11,37,69,0.18); }
   #headerDocActions::-webkit-scrollbar { display: none; }
   header.appbar.doc-actions-on h1 { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   @media (max-width: 600px) { header.appbar.doc-actions-on h1 { display: none; } }
