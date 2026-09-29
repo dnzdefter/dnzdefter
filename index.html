@@ -1962,7 +1962,11 @@
     // <style> etiketi çıktı alanının İÇİNE konsa da @page sayfanın tamamını etkiler ve daha sonra
     // geldiği için global kuralın üzerine yazar.
     const isWide = header.length > 6;
-    const altBaslik = opts && opts.altBaslik ? `<p style="text-align:center;color:#444;margin:-12px 0 16px;font-size:12px">${escapeHtml(opts.altBaslik)}</p>` : '';
+    // Her çıktıda TEK bir alt başlık satırı: varsa rapora özel dönem/filtre bilgisi (opts.altBaslik),
+    // ardından her zaman "Tarih: GG.AA.YYYY" (çıktının alındığı gün). Böylece hiçbir çıktı tarihsiz
+    // kalmıyor ve birden fazla açıklayıcı satır birikmiyor.
+    const altSatir = (opts && opts.altBaslik ? escapeHtml(opts.altBaslik) + ' · ' : '') + 'Tarih: ' + formatDate(todayISO());
+    const altBaslik = `<p style="text-align:center;color:#444;margin:-12px 0 16px;font-size:12px">${altSatir}</p>`;
     const ozetHtml = tp.ozet.length ? `<table style="margin:16px 0 0 auto;border-collapse:collapse;min-width:300px;font-size:12.5px;page-break-inside:avoid">${tp.ozet.map(([l, v], i) => `<tr style="${i === tp.ozet.length - 1 ? 'border-top:2px solid #000;font-weight:700' : ''}"><td style="padding:4px 14px 4px 0">${escapeHtml(String(l))}</td><td style="padding:4px 0;text-align:right;white-space:nowrap">${fmt(v)}</td></tr>`).join('')}</table>` : '';
     document.getElementById('printArea').innerHTML = `
       ${isWide ? '<style>@page { size: A4 landscape; margin: 8mm; }</style>' : ''}
@@ -3139,7 +3143,7 @@
       <div style="font-family: sans-serif; padding: 14px; color:#000">
         ${sirketHeaderHtml()}
         <h1 style="font-size:20px;margin-bottom:2px;text-align:center">HESAP EKSTRESİ</h1>
-        ${tarihAraligi ? `<p style="text-align:center;color:#444;margin:0 0 4px">(${tarihAraligi})</p>` : ''}
+        <p style="text-align:center;color:#444;margin:0 0 4px">${tarihAraligi ? '(' + tarihAraligi + ')' : 'Tarih: ' + formatDate(todayISO())}</p>
         <p style="color:#444;margin:0 0 18px;text-align:center">${escapeHtml(c.name)} · ${c.type === 'musteri' ? 'Müşteri' : 'Tedarikçi'}${c.address ? '<br>' + escapeHtml(c.address) : ''}</p>
         <table style="width:100%;border-collapse:collapse;font-size:11.5px">
           <thead><tr style="border-bottom:2px solid #000">
@@ -3450,7 +3454,7 @@
           <div style="width:22px;height:22px;border-radius:6px;border:2px solid ${katalogSecili.has(s.id) ? 'var(--flame)' : 'var(--line)'};background:${katalogSecili.has(s.id) ? 'var(--flame)' : 'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-right:10px">
             ${katalogSecili.has(s.id) ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>' : ''}
           </div>
-          <div class="main"><div class="title">${escapeHtml(s.name)}</div><div class="sub">${formatTL(s.sellPrice)} TL / ${escapeHtml(s.satisBirimi || 'Adet')}</div></div>
+          <div class="main"><div class="title">${escapeHtml(s.name)}</div><div class="sub">${formatTL(s.sellPrice)} / ${escapeHtml(s.satisBirimi || 'Adet')}</div></div>
         </div>
       `).join('');
     }
@@ -6436,12 +6440,58 @@
     // Kartları CSS grid yerine SATIR SATIR (4'lü) diziyoruz — grid'in çok sayfaya bölünürken
     // bıraktığı büyük boşlukları önlemek için: her satır kendi page-break-inside:avoid'ine sahip,
     // satırlar arasında ise sayfa doğal olarak bölünebiliyor (grid tek blok gibi davranıp
-    // yazdırmada garip boşluklara yol açıyordu).
-    const satirlar = [];
-    for (let i = 0; i < urunler.length; i += 4) {
-      const grup = [urunler[i], urunler[i + 1], urunler[i + 2], urunler[i + 3]];
-      satirlar.push(`<div style="display:flex;gap:7px;margin-bottom:7px;page-break-inside:avoid">${grup.map((s, k) => s ? kartHtml(s, i + k) : '<div style="flex:1"></div>').join('')}</div>`);
+    // yazdırmada garip boşluklara yol açıyordu). globalIndex kartların "01, 02, ..." numarasını
+    // KATEGORİ GRUPLARI ARASINDA da kesintisiz sürdürür (her grup kendi 1'inden başlamaz).
+    let globalIndex = 0;
+    function satirlarHtml(items) {
+      const satirlar = [];
+      for (let i = 0; i < items.length; i += 4) {
+        const grup = [items[i], items[i + 1], items[i + 2], items[i + 3]];
+        satirlar.push(`<div style="display:flex;gap:7px;margin-bottom:7px;page-break-inside:avoid">${grup.map((s) => s ? kartHtml(s, globalIndex++) : '<div style="flex:1"></div>').join('')}</div>`);
+      }
+      return satirlar.join('');
     }
+    // ---- Ürünleri KATEGORİ ve ALT KATEGORİ'ye göre grupla ----
+    // Her ürünün gerçek kategori/alt kategori kaydı (state.kategoriler) üzerinden adı bulunur; hiçbiri
+    // yoksa "Diğer Ürünler" grubuna düşer ve her zaman EN SONA konur. Bir kategorinin altında hem
+    // alt-kategorisiz hem alt-kategorili ürünler karışık olabilir: alt-kategorisiz olanlar başlıksız,
+    // doğrudan kategori başlığının altında; alt-kategoriler kendi başlıklarıyla ardından gelir.
+    const katMap = new Map(); // katId('' = yok) -> { katAdi, direkt:[], altMap: Map(altId -> {altAdi, items:[]}) }
+    urunler.forEach((s) => {
+      const kat = s.categoryId ? state.kategoriler.find((k) => k.id === s.categoryId) : null;
+      const alt = s.subCategoryId ? state.kategoriler.find((k) => k.id === s.subCategoryId) : null;
+      const katId = kat ? kat.id : '';
+      if (!katMap.has(katId)) katMap.set(katId, { katAdi: kat ? kat.name : 'Diğer Ürünler', direkt: [], altMap: new Map() });
+      const grup = katMap.get(katId);
+      if (alt) {
+        if (!grup.altMap.has(alt.id)) grup.altMap.set(alt.id, { altAdi: alt.name, items: [] });
+        grup.altMap.get(alt.id).items.push(s);
+      } else {
+        grup.direkt.push(s);
+      }
+    });
+    const katGiris = [...katMap.entries()].sort((a, b) => {
+      if (!a[0] !== !b[0]) return a[0] ? -1 : 1; // kategorisiz ('' id) her zaman en sona
+      return a[1].katAdi.localeCompare(b[1].katAdi, 'tr');
+    });
+    // Tüm ürünler TEK bir grupta ve o grubun hiç alt kategorisi yoksa (ör. zaten tek kategoriye göre
+    // filtrelenmiş bir seçim), kategori başlığı göstermek gereksiz tekrar olur — bu durumda düz liste.
+    const baslikGoster = katGiris.length > 1 || (katGiris.length === 1 && katGiris[0][1].altMap.size > 0);
+    let govde = '';
+    katGiris.forEach(([, grup], gi) => {
+      if (baslikGoster) {
+        govde += `<div style="margin:${gi === 0 ? '0' : '14px'} 0 7px;padding:5px 9px;background:linear-gradient(90deg,#0b3a75,#1a5fc4);border-radius:6px;font-size:10.5px;font-weight:800;letter-spacing:0.3px;color:#fff !important;page-break-after:avoid">${escapeHtml(grup.katAdi.toLocaleUpperCase('tr-TR'))}</div>`;
+      }
+      if (grup.direkt.length) govde += satirlarHtml(grup.direkt);
+      const altGiris = [...grup.altMap.entries()].sort((a, b) => a[1].altAdi.localeCompare(b[1].altAdi, 'tr'));
+      altGiris.forEach(([, altGrup]) => {
+        govde += `<div style="margin:8px 0 6px 3px;padding-left:7px;border-left:3px solid #1a5fc4;font-size:9.5px;font-weight:700;color:#0b3a75;page-break-after:avoid">${escapeHtml(altGrup.altAdi)}</div>`;
+        govde += satirlarHtml(altGrup.items);
+      });
+    });
+    // ---- Katalog dönemi: "Ekim 2026" gibi ay/yıl etiketi, oluşturulduğu ayı gösterir ----
+    const simdi = new Date();
+    const ayYilEtiketi = simdi.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
     document.getElementById('printArea').innerHTML = `
       <div style="font-family: sans-serif; color:#0b1f3a">
         <div style="background:linear-gradient(120deg,#1a5fc4,#0b3a75);padding:12px 14px;border-radius:0 0 14px 14px;margin-bottom:12px">
@@ -6450,15 +6500,19 @@
               ${sb.logo ? `<img src="${sb.logo}" style="height:34px;max-width:120px;object-fit:contain;background:#fff;border-radius:7px;padding:3px">` : ''}
               <div style="font-weight:800;font-size:13px;color:#fff !important">${escapeHtml(sb.name || '')}</div>
             </div>
-            <div style="font-size:15px;font-weight:900;letter-spacing:0.3px;color:#fff !important">SATIŞ KATALOĞU</div>
+            <div style="text-align:right">
+              <div style="font-size:15px;font-weight:900;letter-spacing:0.3px;color:#fff !important">SATIŞ KATALOĞU</div>
+              <div style="font-size:10px;font-weight:700;letter-spacing:0.3px;color:#fff !important;opacity:0.92">${escapeHtml(ayYilEtiketi)}</div>
+            </div>
           </div>
           ${ozellikRow()}
         </div>
-        ${satirlar.join('')}
+        ${govde}
       </div>
     `;
     yazdirGorselHazir();
   }
+
   // ================= BELGEYİ PDF DOSYASI OLARAK PAYLAŞMA =================
   // Türkçe karakterleri sadeleştirip dosya adına uygun hale getirir (ör. "Satış Faturası" -> "Satis_Faturasi").
   function dosyaAdiTemizle(str) {
@@ -7541,7 +7595,7 @@
       ${items.length ? items.map(({ c, bakiye }) => `<div class="list-row" data-id="${c.id}"><div class="main"><div class="title">${escapeHtml(c.name)}</div></div><div class="amt mono ${bakiye > 0 ? 'income' : (bakiye < 0 ? 'expense' : '')}">${formatTL(bakiye)}</div></div>`).join('') : '<div class="empty-state">Kayıt yok.</div>'}
     `;
     setExcelExport('Musteri_Listesi_Raporu.xlsx', [['Ad', 'Tip', 'Bakiye'], ...items.map(({ c, bakiye }) => [c.name, c.type === 'musteri' ? 'Müşteri' : 'Tedarikçi', bakiye])], 'view-rapor-musteriliste',
-      { ozet: bakiyeOzeti(items.map((r) => r.bakiye)), altBaslik: (musteri ? 'Müşteriler' : 'Tedarikçiler') + ' — ' + filtreAdi[musteriListeFilter] + ' · Bakiye: (+) alacağımız, (−) borcumuz' });
+      { ozet: bakiyeOzeti(items.map((r) => r.bakiye)), altBaslik: (musteri ? 'Müşteriler' : 'Tedarikçiler') + ' — ' + filtreAdi[musteriListeFilter] });
   }
   document.getElementById('rapMusteriListesiBody').addEventListener('click', (e) => {
     const tSeg = e.target.closest('#rapMusteriTipSeg button');
