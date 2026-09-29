@@ -3025,12 +3025,23 @@
         ${kind === 'odeme' ? `<div class="field"><label>Para Birimi</label><select id="mCurrency"><option value="TL" ${!existingHareket || existingHareket.currency === 'TL' ? 'selected' : ''}>TL</option><option value="USD" ${existingHareket && existingHareket.currency === 'USD' ? 'selected' : ''}>USD</option><option value="EUR" ${existingHareket && existingHareket.currency === 'EUR' ? 'selected' : ''}>EUR</option></select></div>` : ''}
       </div>
       ${kind === 'odeme' ? `<p id="mFxHint" style="font-size:11.5px;color:var(--ink-soft);margin:-8px 0 14px;display:none"></p>
-      <div class="field"><label>Hesap (opsiyonel)</label><select id="mHesap"><option value="">— Kasaya işleme —</option>${hesapOptions}</select></div>` : ''}
+      <div class="field"><label>Hesap (opsiyonel)</label><select id="mHesap"><option value="">— Kasaya işleme —</option><option value="__cek__">${isMusteri ? 'Çek ile alındı' : 'Çek ile verildi'}</option><option value="__senet__">${isMusteri ? 'Senet ile alındı' : 'Senet ile verildi'}</option>${hesapOptions}</select></div>
+      <div class="field" id="mVadeWrap" style="display:none"><label>Vade Tarihi</label><input type="date" id="mVade" value="${todayISO()}"></div>` : ''}
       <div class="field"><label>Açıklama</label><input type="text" id="mDesc" value="${existingHareket ? escapeHtml(existingHareket.aciklama) : defaultDesc}"></div>
-      <div class="modal-actions">${existingHareket ? '<button class="btn btn-danger" id="mSil">Sil</button>' : '<button class="btn" id="mCancel">Vazgeç</button>'}<button class="btn btn-primary" id="mSave">Kaydet</button></div>
+      <div class="modal-actions">${existingHareket ? '<button class="btn btn-danger" id="mSil">Sil</button>' : '<button class="btn" id="mCancel">Vazgeç</button>'}${kind === 'odeme' && existingHareket ? '<button class="btn" id="mPaylas">📤 Paylaş</button><button class="btn" id="mMakbuz">🖨️ Makbuz</button>' : ''}<button class="btn btn-primary" id="mSave">Kaydet</button></div>
     `);
+    if (kind === 'odeme' && existingHareket) {
+      document.getElementById('mMakbuz').onclick = () => { closeModal(); printMakbuz(existingHareket.odemeId); };
+      document.getElementById('mPaylas').onclick = () => { closeModal(); shareMakbuz(existingHareket.odemeId); };
+    }
     if (kind === 'odeme') {
-      document.getElementById('mHesap').value = existingHareket ? (existingHareket.hesapId || '') : '';
+      document.getElementById('mHesap').value = existingHareket ? (existingHareket.odemeAraci ? '__' + existingHareket.odemeAraci + '__' : (existingHareket.hesapId || '')) : '';
+      const vadeWrap = document.getElementById('mVadeWrap');
+      const cekSenetKaydi = existingHareket && existingHareket.odemeAraci ? state.cekSenet.find((k) => k.odemeId === existingHareket.odemeId) : null;
+      if (cekSenetKaydi) document.getElementById('mVade').value = cekSenetKaydi.vade;
+      const updateVadeGorunurluk = () => { const v = document.getElementById('mHesap').value; vadeWrap.style.display = (v === '__cek__' || v === '__senet__') ? 'block' : 'none'; };
+      updateVadeGorunurluk();
+      document.getElementById('mHesap').addEventListener('change', updateVadeGorunurluk);
       const updateFxHint = () => {
         const cur = document.getElementById('mCurrency').value;
         const amt = parseFloat(document.getElementById('mAmount').value) || 0;
@@ -3050,6 +3061,7 @@
         if (!confirm('Bu hareketi silmek istiyor musun?')) return;
         c.hareketler = (c.hareketler || []).filter((x) => x.id !== existingHareket.id);
         state.hesaplar.forEach((h) => { h.hareketler = (h.hareketler || []).filter((x) => x.odemeId !== existingHareket.odemeId); });
+        state.cekSenet = (state.cekSenet || []).filter((k) => k.odemeId !== existingHareket.odemeId);
         saveState(); closeModal(); renderCariDetail(); renderOzet();
       };
     } else {
@@ -3070,19 +3082,34 @@
         }
       }
       const odemeId = existingHareket ? existingHareket.odemeId : genId();
-      if (existingHareket) { state.hesaplar.forEach((h) => { h.hareketler = (h.hareketler || []).filter((x) => x.odemeId !== odemeId); }); }
+      if (existingHareket) {
+        state.hesaplar.forEach((h) => { h.hareketler = (h.hareketler || []).filter((x) => x.odemeId !== odemeId); });
+        state.cekSenet = (state.cekSenet || []).filter((k) => k.odemeId !== odemeId);
+      }
       const hareket = existingHareket || { id: genId() };
       Object.assign(hareket, { date, aciklama: desc, tutar: sign * tlAmount, currency, foreignAmount: currency !== 'TL' ? amount : null, fxRate, odemeId, kind });
       if (!existingHareket) { c.hareketler = c.hareketler || []; c.hareketler.push(hareket); }
       if (kind === 'odeme') {
-        const hesapId = document.getElementById('mHesap').value || null;
-        hareket.hesapId = hesapId;
-        if (hesapId) {
-          const h = state.hesaplar.find((x) => x.id === hesapId);
+        const hesapVal = document.getElementById('mHesap').value || null;
+        const cekSenetTuru = (hesapVal === '__cek__') ? 'cek' : (hesapVal === '__senet__' ? 'senet' : null);
+        hareket.odemeAraci = cekSenetTuru;
+        hareket.hesapId = cekSenetTuru ? null : hesapVal;
+        if (cekSenetTuru) {
+          // Çek/senetle alınan/verilen bir ödeme, cari borcunu HEMEN kapatır (elimize/karşı tarafa geçen
+          // bir kıymet olduğu için) — ama çekin/senedin kendisi ayrıca Çek/Senet ekranında "bekliyor"
+          // durumunda takip edilmeye devam eder, vadesinde tahsil edilip edilmediği orada işaretlenir.
+          const vade = document.getElementById('mVade').value || date;
+          state.cekSenet = state.cekSenet || [];
+          state.cekSenet.push({ id: genId(), tur: cekSenetTuru, yon: isMusteri ? 'alinan' : 'verilen', tutar: tlAmount, vade, cariId: c.id, cariAdi: c.name, aciklama: desc, durum: 'bekliyor', odemeId });
+        } else if (hesapVal) {
+          const h = state.hesaplar.find((x) => x.id === hesapVal);
           if (h) { const hesapTutar = (h.currency === currency) ? amount : tlAmount; h.hareketler = h.hareketler || []; h.hareketler.push({ id: genId(), date, aciklama: desc + (c.name ? ' — ' + c.name : ''), tutar: isMusteri ? hesapTutar : -hesapTutar, odemeId }); }
         }
       }
       saveState(); closeModal(); renderCariDetail(); renderOzet();
+      if (kind === 'odeme' && !existingHareket) {
+        if (confirm((isMusteri ? 'Tahsilat' : 'Ödeme') + ' kaydedildi. Makbuz yazdırmak ister misin?')) printMakbuz(odemeId);
+      }
     };
   }
 
@@ -3213,6 +3240,20 @@
   }
 
   // ---- Cari sub-lists: Satışlar / Alışlar / Teklifler / Ödemeler / Notlarınız ----
+  // Bir ödeme/tahsilat kaydını (manuel ya da faturaya bağlı olsun fark etmez) doğru düzenleme
+  // penceresinde açar — o pencerede zaten Kaydet/Sil/🖨️ Makbuz/📤 Paylaş hepsi bir arada bulunur.
+  function acPaymentEdit(odemeId, c) {
+    const h = (c.hareketler || []).find((x) => x.odemeId === odemeId);
+    if (h && h.kind === 'odeme') { openHareketForm('odeme', h); return; }
+    const f = state.faturalar.find((x) => (x.odemeler || []).some((o) => o.id === odemeId));
+    if (f) {
+      const o = f.odemeler.find((x) => x.id === odemeId);
+      currentFaturaDetailId = f.id; // openFaturaOdemeModal kayıt/silme sonrası renderFaturaDetail() çağırır; doğru faturayı bulsun diye
+      openFaturaOdemeModal(f, o);
+      return;
+    }
+    alert('Bu ödeme kaydı bulunamadı.');
+  }
   document.getElementById('cariMenuRows').addEventListener('click', (e) => {
     const row = e.target.closest('.menu-row'); if (!row) return;
     const c = state.cariler.find((x) => x.id === currentCariDetailId);
@@ -3226,19 +3267,22 @@
     if (m === 'satislar') {
       title = 'Satışlar';
       rows = state.faturalar.filter((f) => f.docType === 'fatura' && f.yon === 'satis' && f.cariId === c.id).sort((a, b) => b.date.localeCompare(a.date))
-        .map((f) => ({ id: f.id, t: f.no, s: formatDate(f.date), amt: formatTL(f.genelToplam), cls: 'income' }));
+        .map((f) => ({ faturaId: f.id, t: f.no, s: formatDate(f.date), amt: formatTL(f.genelToplam), cls: 'income' }));
     } else if (m === 'alislar') {
       title = 'Alışlar';
       rows = state.faturalar.filter((f) => f.docType === 'fatura' && f.yon === 'alis' && f.cariId === c.id).sort((a, b) => b.date.localeCompare(a.date))
-        .map((f) => ({ id: f.id, t: f.no, s: formatDate(f.date), amt: formatTL(f.genelToplam), cls: 'expense' }));
+        .map((f) => ({ faturaId: f.id, t: f.no, s: formatDate(f.date), amt: formatTL(f.genelToplam), cls: 'expense' }));
     } else if (m === 'teklifler') {
       title = 'Teklifler';
       rows = state.faturalar.filter((f) => f.docType === 'teklif' && f.cariId === c.id).sort((a, b) => b.date.localeCompare(a.date))
-        .map((f) => ({ id: f.id, t: f.no, s: formatDate(f.date), amt: formatTL(f.genelToplam), cls: '' }));
+        .map((f) => ({ faturaId: f.id, t: f.no, s: formatDate(f.date), amt: formatTL(f.genelToplam), cls: '' }));
     } else if (m === 'odemeler') {
       title = 'Ödemeler';
-      rows = (c.hareketler || []).filter((h) => h.tutar < 0).sort((a, b) => b.date.localeCompare(a.date))
-        .map((h) => ({ id: null, t: h.aciklama, s: formatDate(h.date), amt: formatTL(Math.abs(h.tutar)), cls: 'expense' }));
+      // "Ödeme" satırı h.tutar İŞARETİNE göre DEĞİL belirlenir — o işaret cari tipine göre değişir ve
+      // eskiden tedarikçiye yapılan ödemeleri (pozitif tutar) bu listeden hiç göstermiyordu. Bunun yerine
+      // tumOdemeHareketleri() ile AYNI ölçüt kullanılır: odemeId var VE "borç" kaydı değil.
+      rows = (c.hareketler || []).filter((h) => h.odemeId && h.kind !== 'borc').sort((a, b) => b.date.localeCompare(a.date))
+        .map((h) => ({ odemeId: h.odemeId, t: h.aciklama, s: formatDate(h.date), amt: formatTL(Math.abs(h.tutar)), cls: h.tutar >= 0 ? 'income' : 'expense' }));
     }
     openModal(`
       <h3>${title}</h3>
@@ -3246,13 +3290,18 @@
         ${rows.length ? rows.map((r, i) => `<div class="list-row" data-i="${i}"><div class="main"><div class="title">${escapeHtml(r.t)}</div><div class="sub">${escapeHtml(r.s)}</div></div><div class="amt mono ${r.cls}">${escapeHtml(r.amt)}</div></div>`).join('') : '<div class="empty-state">Kayıt yok.</div>'}
       </div>
     `);
-    if (rows.length && rows[0].id) {
-      document.getElementById('cariSubList').addEventListener('click', (e2) => {
-        const r2 = e2.target.closest('.list-row'); if (!r2) return;
-        const item = rows[parseInt(r2.dataset.i, 10)];
-        if (item.id) { closeModal(); enterFaturaDetail(item.id); }
-      });
-    }
+    document.getElementById('cariSubList').addEventListener('click', (e2) => {
+      const r2 = e2.target.closest('.list-row'); if (!r2) return;
+      const item = rows[parseInt(r2.dataset.i, 10)];
+      if (!item) return;
+      closeModal();
+      // Satış/Alış/Teklif'te fatura detayına gidilir — ama "geri" tuşu buradaki cariye döner, genel
+      // Satışlar/Alışlar listesine değil (bu sayede cari bağlamından hiç çıkılmamış olur).
+      if (item.faturaId) { enterFaturaDetail(item.faturaId, m === 'teklifler', c.id); return; }
+      // Ödemeler ekranda KALINARAK (yeni bir sayfaya geçmeden) düzenleme penceresinde açılır — o pencerede
+      // zaten Kaydet/Sil/🖨️ Makbuz/📤 Paylaş hepsi bir arada bulunur.
+      if (item.odemeId) { acPaymentEdit(item.odemeId, c); return; }
+    });
   });
   function openCariNoteModal(c) {
     openModal(`
@@ -6209,6 +6258,211 @@
   // ---- Fatura/İade bazlı Ödeme-Tahsilat (kasa/banka hareketi + cari bakiyesi günceller, gelir/gider tekrar oluşturmaz çünkü fatura zaten oluşturmuştu) ----
   function faturaOdenenToplam(f) { return (f.odemeler || []).reduce((s, o) => s + o.tutar, 0); }
   function faturaKalanTutar(f) { return f.genelToplam - faturaOdenenToplam(f); }
+  // ================= TAHSİLAT / ÖDEME MAKBUZU =================
+  // Türkçe sayıyı yazıyla ifade eder (makbuzdaki geleneksel "Yalnız: ... TÜRK LİRASI" satırı için).
+  function sayiYaziyla(n) {
+    n = Math.round(Math.abs(n));
+    if (n === 0) return 'SIFIR';
+    const birler = ['', 'BİR', 'İKİ', 'ÜÇ', 'DÖRT', 'BEŞ', 'ALTI', 'YEDİ', 'SEKİZ', 'DOKUZ'];
+    const onlar = ['', 'ON', 'YİRMİ', 'OTUZ', 'KIRK', 'ELLİ', 'ALTMIŞ', 'YETMİŞ', 'SEKSEN', 'DOKSAN'];
+    const grupAdi = ['', 'BİN', 'MİLYON', 'MİLYAR'];
+    function ucHane(x) {
+      const y = Math.floor(x / 100), o = Math.floor((x % 100) / 10), b = x % 10;
+      let s = '';
+      if (y === 1) s += 'YÜZ ';
+      else if (y > 1) s += birler[y] + ' YÜZ ';
+      if (o > 0) s += onlar[o] + ' ';
+      if (b > 0) s += birler[b] + ' ';
+      return s;
+    }
+    const gruplar = [];
+    let kalan = n;
+    while (kalan > 0) { gruplar.push(kalan % 1000); kalan = Math.floor(kalan / 1000); }
+    let sonuc = '';
+    for (let i = gruplar.length - 1; i >= 0; i--) {
+      const deger = gruplar[i];
+      if (deger === 0) continue;
+      // "bir bin" değil sadece "bin" denir; milyon/milyar'da "bir milyon" normal şekilde söylenir.
+      if (i === 1 && deger === 1) sonuc += 'BİN ';
+      else sonuc += ucHane(deger) + (grupAdi[i] ? grupAdi[i] + ' ' : '');
+    }
+    return sonuc.replace(/\s+/g, ' ').trim();
+  }
+  function tutarYaziyla(n) {
+    const lira = Math.floor(Math.abs(n));
+    const kurus = Math.round((Math.abs(n) - lira) * 100);
+    let s = sayiYaziyla(lira) + ' TÜRK LİRASI';
+    if (kurus > 0) s += ' ' + sayiYaziyla(kurus) + ' KURUŞ';
+    return s;
+  }
+  // Hem cariye doğrudan kaydedilen (openHareketForm) hem faturaya bağlı (openFaturaOdemeModal) ödeme/tahsilat
+  // hareketlerini TEK bir kronolojik listede toplar — makbuz numarası bu sıradaki konuma göre verilir.
+  // "Borç / Manuel Fatura" (kind:'borc') bir ödeme değil, bu yüzden dışarıda tutulur.
+  function tumOdemeHareketleri() {
+    const liste = [];
+    state.cariler.forEach((c) => {
+      (c.hareketler || []).forEach((h) => { if (h.odemeId && h.kind !== 'borc') liste.push({ h, c }); });
+    });
+    liste.sort((a, b) => a.h.date.localeCompare(b.h.date) || String(a.h.odemeId).localeCompare(String(b.h.odemeId)));
+    return liste;
+  }
+  function makbuzNo(odemeId) {
+    const liste = tumOdemeHareketleri();
+    const idx = liste.findIndex((x) => x.h.odemeId === odemeId);
+    return 'DNZ-' + String(idx >= 0 ? idx + 1 : liste.length + 1).padStart(4, '0');
+  }
+  // Tahsilat/ödeme makbuzu yazdırır. odemeId hem manuel cari hareketini hem faturaya bağlı ödemeyi kapsar.
+  // Belgenin (fatura print gibi) HTML gövdesini üretir — hem ekrana yazdırma hem PDF olarak paylaşma
+  // AYNI çıktıyı kullanır. odemeId bulunamazsa null döner.
+  function buildMakbuzHtml(odemeId) {
+    const kayit = tumOdemeHareketleri().find((x) => x.h.odemeId === odemeId);
+    if (!kayit) return null;
+    const { h, c } = kayit;
+    const isMusteri = c.type === 'musteri';
+    const tutar = Math.abs(h.tutar);
+    const baslik = isMusteri ? 'TAHSİLAT MAKBUZU' : 'ÖDEME MAKBUZU';
+    const f = state.faturalar.find((x) => (x.odemeler || []).some((o) => o.id === odemeId));
+    // Faturaya bağlı ödemelerde hesap/döviz bilgisi CARİ HAREKETİNDE değil, faturanın kendi odemeler[]
+    // kaydında tutulur (openFaturaOdemeModal cari hareketine bu alanları kopyalamaz). Bu yüzden asıl
+    // kayıt varsa ondan, yoksa (manuel/serbest ödeme) doğrudan hareketten okunur.
+    const odemeKaydi = f ? (f.odemeler || []).find((o) => o.id === odemeId) : null;
+    const hesapId = (odemeKaydi ? odemeKaydi.hesapId : null) || h.hesapId || null;
+    const foreignAmount = (odemeKaydi ? odemeKaydi.foreignAmount : null) || h.foreignAmount || null;
+    const currency = (odemeKaydi ? odemeKaydi.currency : null) || h.currency || null;
+    const hesap = hesapId ? state.hesaplar.find((x) => x.id === hesapId) : null;
+    // Çek/senetle yapılan bir ödemede hesapId YOKTUR (kasa/banka hareketi oluşmaz) — bunun yerine
+    // odemeAraci alanı 'cek' veya 'senet' olarak işaretlenir (bkz. openHareketForm / openFaturaOdemeModal).
+    const odemeAraci = (odemeKaydi ? odemeKaydi.odemeAraci : null) || h.odemeAraci || null;
+    // Doldurma çizgili form satırı — gerçek matbu makbuzlardaki noktalı alanları taklit eder.
+    const satir = (etiket, deger) => deger ? `<tr><td style="padding:3px 4px 3px 0;color:#333;width:110px;vertical-align:bottom">${etiket}</td><td style="padding:3px 0;border-bottom:1px dotted #999;font-weight:600;vertical-align:bottom">${deger}</td></tr>` : '';
+    const kutu = (aktif) => `<span style="display:inline-block;width:12px;height:12px;border:1.4px solid #000;text-align:center;line-height:11px;font-size:10.5px;font-weight:800;margin-right:5px;vertical-align:middle">${aktif ? '✓' : ''}</span>`;
+    // Hesap tipleri: kasa, banka, pos, kredikarti, ortak, veresiye (bkz. HESAP_TYPE_LABELS). Çek/senetle
+    // yapılan bir ödemede hesap SEÇİLMEZ, onun yerine odemeAraci ('cek'/'senet') işaretlenir.
+    // "odemeSekliKelime" alttaki "nakden/hesaben/mahsuben/çekle/senetle" cümlesinde de kullanılır.
+    const nakitMi = !odemeAraci && (!hesap || hesap.type === 'kasa');
+    const hesabenMi = !odemeAraci && !!hesap && (hesap.type === 'banka' || hesap.type === 'pos' || hesap.type === 'kredikarti');
+    const odemeSekilleri = [
+      { label: 'Nakit', aktif: nakitMi },
+      { label: 'Havale / EFT', aktif: !!hesap && hesap.type === 'banka' && !odemeAraci },
+      { label: 'Kredi Kartı / POS', aktif: !!hesap && (hesap.type === 'pos' || hesap.type === 'kredikarti') && !odemeAraci },
+      { label: 'Çek', aktif: odemeAraci === 'cek' },
+      { label: 'Senet', aktif: odemeAraci === 'senet' }
+    ];
+    // Yukarıdaki 5 seçeneğin hiçbiri eşleşmediyse (ör. "Şirket Ortağı" veya "Veresiye" hesabı, ya da ileride
+    // eklenebilecek başka bir hesap tipi) hesabın kendi adıyla altıncı bir kutu eklenir — bu sayede hiçbir
+    // ödeme şekli işaretsiz kalmaz.
+    if (hesap && !odemeAraci && !odemeSekilleri.some((o) => o.aktif)) odemeSekilleri.push({ label: escapeHtml(hesap.name), aktif: true });
+    const odemeSekliKelime = odemeAraci === 'cek' ? 'çekle' : (odemeAraci === 'senet' ? 'senetle' : (nakitMi ? 'nakden' : (hesabenMi ? 'hesaben' : 'mahsuben')));
+    // Ödeyen / Ödemeyi Alan iki ayrı taraf olarak AÇIKÇA isimleriyle yazılır — sadece "Sayın" ile karşı
+    // tarafı yazıp bizim tarafı başlıktan/antetten çıkarsanmasına bırakmak kafa karıştırıyordu.
+    const bizimAd = (state.sirketBilgileri || {}).name || '—';
+    const cariSatirlari = satir(isMusteri ? 'Ödeyen' : 'Ödemeyi Alan', `<span style="font-size:14px">${escapeHtml(c.name)}</span>`)
+      + satir('Adres', c.address ? escapeHtml(c.address) : '')
+      + satir('Vergi D. / No', (c.taxOffice || c.taxNo) ? [c.taxOffice, c.taxNo].filter(Boolean).map(escapeHtml).join(' · ') : '');
+    const bizSatiri = satir(isMusteri ? 'Ödemeyi Alan' : 'Ödeyen', `<span style="font-size:14px">${escapeHtml(bizimAd)}</span>`);
+    const taraflarHtml = isMusteri ? (cariSatirlari + bizSatiri) : (bizSatiri + cariSatirlari);
+    return `
+      <div style="font-family: sans-serif; padding: 10px; color:#000">
+        <div style="border:2px solid #000;border-radius:5px;overflow:hidden;margin-top:2px">
+          <div style="background:#eee;border-bottom:2px solid #000;padding:7px 14px;display:grid;grid-template-columns:1fr 2fr 1fr;align-items:center;gap:10px">
+            <div>${(state.sirketBilgileri || {}).logo ? `<img src="${(state.sirketBilgileri || {}).logo}" style="height:36px;max-width:110px;object-fit:contain">` : ''}</div>
+            <div style="font-size:18px;font-weight:800;letter-spacing:0.4px;text-align:center">${baslik}</div>
+            <div style="text-align:right">
+              <div style="font-size:9.5px;color:#555">MAKBUZ NO</div>
+              <div style="font-size:16px;font-weight:800">${makbuzNo(odemeId)}</div>
+            </div>
+          </div>
+          <div style="padding:5px 16px;border-bottom:1px solid #ccc;font-size:10.5px;color:#444;text-align:center">
+            ${(state.sirketBilgileri || {}).name ? `<strong style="font-size:13px;color:#000">${escapeHtml(keepUnvanTogether((state.sirketBilgileri || {}).name))}</strong>` : ''}
+            ${[(state.sirketBilgileri || {}).address, [(state.sirketBilgileri || {}).taxOffice, (state.sirketBilgileri || {}).taxNo].filter(Boolean).join(' '), (state.sirketBilgileri || {}).phone].filter(Boolean).map(escapeHtml).join(' · ')}
+          </div>
+          <div style="padding:10px 16px">
+            <table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:8px">
+              ${satir('Tarih', formatDate(h.date))}
+              ${taraflarHtml}
+              ${satir('İlgili Belge', f ? escapeHtml(f.belgeNo || f.no) : '')}
+            </table>
+            <div style="border:1.5px solid #000;border-radius:5px;padding:7px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline">
+              <div style="font-size:11px;color:#555;font-weight:700;letter-spacing:0.3px">TUTAR</div>
+              <div style="font-size:20px;font-weight:800">${formatTL(tutar)}${foreignAmount ? ` <span style="font-size:13px;font-weight:600;color:#444">(${foreignAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency})</span>` : ''}</div>
+            </div>
+            <p style="font-size:12px;margin:0 0 8px;line-height:1.4"><span style="color:#333">Yalnız:</span> <strong>${tutarYaziyla(tutar)}</strong><span style="border-bottom:1px dotted #999;margin-left:4px"></span></p>
+            <div style="font-size:12px;margin-bottom:8px">
+              <span style="color:#333;margin-right:10px">Ödeme Şekli:</span>
+              ${odemeSekilleri.map((o) => `<span style="margin-right:16px;white-space:nowrap">${kutu(o.aktif)}${o.label}</span>`).join('')}
+            </div>
+            ${(() => { const aciklama = (odemeKaydi ? odemeKaydi.aciklama : null) || h.aciklama; return aciklama ? `<p style="font-size:12px;margin:0 0 8px"><span style="color:#333">Açıklama:</span> ${escapeHtml(aciklama)}</p>` : ''; })()}
+            <p style="font-size:11.5px;font-style:italic;color:#333;margin:0 0 4px;border-top:1px solid #ddd;padding-top:7px">Yukarıda cinsi ve tutarı yazılı bedeli ${odemeSekliKelime} ${isMusteri ? 'tahsil ettim.' : 'ödedim.'}</p>
+            <div style="display:flex;justify-content:space-between;margin-top:22px;font-size:12px">
+              <div style="text-align:center;width:42%">
+                <div style="border-top:1px solid #000;padding-top:6px">Ödeyen<br><span style="font-size:10px;color:#777">${escapeHtml(isMusteri ? c.name : bizimAd)} — İmza</span></div>
+              </div>
+              <div style="text-align:center;width:42%">
+                <div style="border-top:1px solid #000;padding-top:6px">Ödemeyi Alan<br><span style="font-size:10px;color:#777">${escapeHtml(isMusteri ? bizimAd : c.name)} — İmza / Kaşe</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p style="text-align:center;font-size:9px;color:#999;margin-top:6px">Bu makbuz ${escapeHtml((state.sirketBilgileri || {}).name || '')} tarafından düzenlenmiştir · Elektronik ortamda oluşturulmuştur.</p>
+      </div>
+    `;
+  }
+  function printMakbuz(odemeId) {
+    const html = buildMakbuzHtml(odemeId);
+    if (!html) { alert('Ödeme kaydı bulunamadı.'); return; }
+    document.getElementById('printArea').innerHTML = html;
+    yazdirGorselHazir();
+  }
+  // Yazdırma çıktısıyla AYNI görünümde makbuzu ekran dışında çizip PDF Blob'u üretir (fatura PDF
+  // paylaşımıyla birebir aynı yöntem — html2canvas + jsPDF).
+  async function makbuzPdfBlob(odemeId) {
+    const html = buildMakbuzHtml(odemeId);
+    if (!html) throw new Error('Ödeme kaydı bulunamadı');
+    if (typeof html2canvas === 'undefined' || !(window.jspdf && window.jspdf.jsPDF)) throw new Error('PDF kütüphanesi yüklenemedi');
+    const host = document.createElement('div');
+    host.id = 'pdfRenderHost';
+    host.style.cssText = 'position:absolute;left:-10000px;top:0;width:794px;background:#fff;color:#000;';
+    host.innerHTML = html;
+    document.body.appendChild(host);
+    try {
+      await resimlerYuklensin(host, 3000);
+      const canvas = await html2canvas(host, {
+        scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false, windowWidth: 794,
+        onclone: (doc) => { const h = doc.getElementById('pdfRenderHost'); if (h) { h.style.left = '0'; h.style.top = '0'; } }
+      });
+      return canvasToPdfBlob(canvas, []);
+    } finally {
+      host.remove();
+    }
+  }
+  async function shareMakbuz(odemeId) {
+    const kayit = tumOdemeHareketleri().find((x) => x.h.odemeId === odemeId);
+    if (!kayit) { alert('Ödeme kaydı bulunamadı.'); return; }
+    const { h, c } = kayit;
+    const isMusteri = c.type === 'musteri';
+    const baslik = isMusteri ? 'Tahsilat Makbuzu' : 'Ödeme Makbuzu';
+    const text = `${baslik} ${makbuzNo(odemeId)}\n${c.name}\nTutar: ${formatTL(Math.abs(h.tutar))}`;
+    const fileName = dosyaAdiTemizle(`${baslik}_${makbuzNo(odemeId)}`) + '.pdf';
+    openModal('<h3>Makbuz hazırlanıyor…</h3><p class="sub" style="margin:0">PDF oluşturuluyor, birkaç saniye sürebilir.</p>');
+    let file;
+    try {
+      const blob = await makbuzPdfBlob(odemeId);
+      file = new File([blob], fileName, { type: 'application/pdf' });
+    } catch (err) {
+      closeModal();
+      console.error('Makbuz PDF oluşturulamadı', err);
+      const neden = err && err.message ? err.message : 'bilinmeyen hata';
+      if (navigator.share) {
+        alert('PDF oluşturulamadı (' + neden + '). Makbuz bilgisi metin olarak paylaşılacak.');
+        try { await navigator.share({ title: makbuzNo(odemeId), text }); } catch (e) { /* kullanıcı vazgeçti */ }
+      } else {
+        alert('PDF oluşturulamadı (' + neden + '). Makbuz bilgisi:\n\n' + text);
+      }
+      return;
+    }
+    closeModal();
+    await pdfDosyasiniPaylas(file, makbuzNo(odemeId), text);
+  }
   function reverseFaturaOdemeleri(f) {
     const odemeIds = (f.odemeler || []).map((o) => o.id);
     if (!odemeIds.length) return;
@@ -6228,11 +6482,22 @@
         <div class="field"><label>Para Birimi</label><select id="mCurrency"><option value="TL" ${!existingOdeme || existingOdeme.currency === 'TL' ? 'selected' : ''}>TL</option><option value="USD" ${existingOdeme && existingOdeme.currency === 'USD' ? 'selected' : ''}>USD</option><option value="EUR" ${existingOdeme && existingOdeme.currency === 'EUR' ? 'selected' : ''}>EUR</option></select></div>
       </div>
       <p id="mFxHint" style="font-size:11.5px;color:var(--ink-soft);margin:-8px 0 14px;display:none"></p>
-      <div class="field"><label>Hesap (opsiyonel)</label><select id="mHesap"><option value="">— Kasaya işleme —</option>${hesapOptions}</select></div>
+      <div class="field"><label>Hesap (opsiyonel)</label><select id="mHesap"><option value="">— Kasaya işleme —</option><option value="__cek__">${isTahsilat ? 'Çek ile alındı' : 'Çek ile verildi'}</option><option value="__senet__">${isTahsilat ? 'Senet ile alındı' : 'Senet ile verildi'}</option>${hesapOptions}</select></div>
+      <div class="field" id="mVadeWrap" style="display:none"><label>Vade Tarihi</label><input type="date" id="mVade" value="${todayISO()}"></div>
       <div class="field"><label>Açıklama (opsiyonel)</label><input type="text" id="mDesc" placeholder="isteğe bağlı" value="${existingOdeme ? escapeHtml(existingOdeme.aciklama || '') : ''}"></div>
-      <div class="modal-actions">${existingOdeme ? '<button class="btn btn-danger" id="mSil">Sil</button>' : '<button class="btn" id="mCancel">Vazgeç</button>'}<button class="btn btn-primary" id="mSave">Kaydet</button></div>
+      <div class="modal-actions">${existingOdeme ? '<button class="btn btn-danger" id="mSil">Sil</button>' : '<button class="btn" id="mCancel">Vazgeç</button>'}${existingOdeme ? '<button class="btn" id="mPaylas">📤 Paylaş</button><button class="btn" id="mMakbuz">🖨️ Makbuz</button>' : ''}<button class="btn btn-primary" id="mSave">Kaydet</button></div>
     `);
-    document.getElementById('mHesap').value = existingOdeme ? (existingOdeme.hesapId || '') : '';
+    if (existingOdeme) {
+      document.getElementById('mMakbuz').onclick = () => { closeModal(); printMakbuz(existingOdeme.id); };
+      document.getElementById('mPaylas').onclick = () => { closeModal(); shareMakbuz(existingOdeme.id); };
+    }
+    document.getElementById('mHesap').value = existingOdeme ? (existingOdeme.odemeAraci ? '__' + existingOdeme.odemeAraci + '__' : (existingOdeme.hesapId || '')) : '';
+    const vadeWrap = document.getElementById('mVadeWrap');
+    const mevcutCekSenetKaydi = existingOdeme && existingOdeme.odemeAraci ? state.cekSenet.find((k) => k.odemeId === existingOdeme.id) : null;
+    if (mevcutCekSenetKaydi) document.getElementById('mVade').value = mevcutCekSenetKaydi.vade;
+    const updateVadeGorunurluk = () => { const v = document.getElementById('mHesap').value; vadeWrap.style.display = (v === '__cek__' || v === '__senet__') ? 'block' : 'none'; };
+    updateVadeGorunurluk();
+    document.getElementById('mHesap').addEventListener('change', updateVadeGorunurluk);
     function updateFxHint() {
       const cur = document.getElementById('mCurrency').value;
       const amt = parseFloat(document.getElementById('mAmount').value) || 0;
@@ -6258,14 +6523,17 @@
         tlAmount = Math.round(amount * fxRate * 100) / 100;
       }
       const date = document.getElementById('mDate').value || todayISO();
-      const hesapId = document.getElementById('mHesap').value || null;
+      const hesapVal = document.getElementById('mHesap').value || null;
+      const cekSenetTuru = (hesapVal === '__cek__') ? 'cek' : (hesapVal === '__senet__' ? 'senet' : null);
+      const hesapId = cekSenetTuru ? null : hesapVal;
       const desc = document.getElementById('mDesc').value.trim();
       if (existingOdeme) {
         if (f.cariId) { const c = state.cariler.find((x) => x.id === f.cariId); if (c) c.hareketler = (c.hareketler || []).filter((h) => h.odemeId !== existingOdeme.id); }
         state.hesaplar.forEach((h) => { h.hareketler = (h.hareketler || []).filter((x) => x.odemeId !== existingOdeme.id); });
+        state.cekSenet = (state.cekSenet || []).filter((k) => k.odemeId !== existingOdeme.id);
         f.odemeler = (f.odemeler || []).filter((o) => o.id !== existingOdeme.id);
       }
-      const odeme = { id: existingOdeme ? existingOdeme.id : genId(), date, tutar: tlAmount, currency, foreignAmount: currency !== 'TL' ? amount : null, fxRate, hesapId, aciklama: desc };
+      const odeme = { id: existingOdeme ? existingOdeme.id : genId(), date, tutar: tlAmount, currency, foreignAmount: currency !== 'TL' ? amount : null, fxRate, hesapId, odemeAraci: cekSenetTuru, aciklama: desc };
       f.odemeler = f.odemeler || [];
       f.odemeler.push(odeme);
       if (f.cariId) {
@@ -6275,7 +6543,14 @@
           c.hareketler.push({ id: genId(), date, aciklama: (isTahsilat ? 'Tahsilat: ' : 'Ödeme: ') + f.no + (desc ? ' — ' + desc : ''), tutar: isTahsilat ? -tlAmount : tlAmount, odemeId: odeme.id });
         }
       }
-      if (hesapId) {
+      if (cekSenetTuru) {
+        // Çek/senetle alınan/verilen bir ödeme, fatura/cari borcunu HEMEN kapatır (elimize/karşı tarafa
+        // geçen bir kıymet olduğu için) — çekin/senedin kendisi ayrıca Çek/Senet ekranında "bekliyor"
+        // durumunda takip edilmeye devam eder, vadesinde tahsil edilip edilmediği orada işaretlenir.
+        const vade = document.getElementById('mVade').value || date;
+        state.cekSenet = state.cekSenet || [];
+        state.cekSenet.push({ id: genId(), tur: cekSenetTuru, yon: isTahsilat ? 'alinan' : 'verilen', tutar: tlAmount, vade, cariId: f.cariId || null, cariAdi: f.cariAdi || null, aciklama: desc || f.no, durum: 'bekliyor', odemeId: odeme.id });
+      } else if (hesapId) {
         const h = state.hesaplar.find((x) => x.id === hesapId);
         if (h) {
           const hesapTutar = (h.currency === currency) ? amount : tlAmount;
@@ -6284,6 +6559,9 @@
         }
       }
       saveState(); closeModal(); renderAll(); renderFaturaDetail();
+      if (!existingOdeme) {
+        if (confirm((isTahsilat ? 'Tahsilat' : 'Ödeme') + ' kaydedildi. Makbuz yazdırmak ister misin?')) printMakbuz(odeme.id);
+      }
     };
   }
   function deleteFaturaOdeme(f, odemeId) {
@@ -6292,6 +6570,7 @@
     f.odemeler = (f.odemeler || []).filter((o) => o.id !== odemeId);
     if (f.cariId) { const c = state.cariler.find((x) => x.id === f.cariId); if (c) c.hareketler = (c.hareketler || []).filter((h) => h.odemeId !== odemeId); }
     state.hesaplar.forEach((h) => { h.hareketler = (h.hareketler || []).filter((x) => x.odemeId !== odemeId); });
+    state.cekSenet = (state.cekSenet || []).filter((k) => k.odemeId !== odemeId);
     saveState(); renderAll(); renderFaturaDetail();
   }
 
