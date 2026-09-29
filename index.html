@@ -14,6 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#3AA1FF">
 <meta name="mobile-web-app-capable" content="yes">
@@ -1185,6 +1186,22 @@
       <div class="fab-row"><button class="btn btn-primary btn-block" id="katalogOlusturBtn">Kataloğu Oluştur</button></div>
     </section>
 
+    <!-- ÜRÜN ETİKETİ OLUŞTUR -->
+    <section class="view" id="view-etiket-sec">
+      <div class="card">
+        <div class="field-row">
+          <div class="field"><label>Kategori</label><button type="button" class="btn btn-block" id="etiketKategoriBtn" style="justify-content:space-between"><span id="etiketKategoriVal">Tümü</span><span>›</span></button></div>
+          <div class="field"><label>Alt Kategori</label><button type="button" class="btn btn-block" id="etiketAltKategoriBtn" style="justify-content:space-between"><span id="etiketAltKategoriVal">Tümü</span><span>›</span></button></div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 2px;gap:8px">
+        <span id="etiketSecimSayisi" style="font-size:13px;color:var(--ink-soft);font-weight:600;flex:1">0 ürün, 0 etiket</span>
+        <button type="button" class="btn btn-sm" id="etiketAyarlarBtn">⚙️ Etiket Ayarları</button>
+      </div>
+      <div id="etiketUrunList"></div>
+      <div class="fab-row"><button class="btn btn-primary btn-block" id="etiketOlusturBtn">Etiketleri Yazdır</button></div>
+    </section>
+
 
     <!-- FİYAT LİSTESİ DETAY -->
     <section class="view" id="view-fiyat-listesi-detail">
@@ -1675,6 +1692,20 @@
     if (!state.tanimlar.giderKategorileri) state.tanimlar.giderKategorileri = ['Malzeme/Stok Alımı', 'Kira', 'Fatura (Elektrik/Su/Doğalgaz)', 'Personel', 'Vergi/SGK', 'Diğer Gider'];
     if (!state.tanimlar.masrafKategorileri) state.tanimlar.masrafKategorileri = ['Yakıt', 'Yemek/İkram', 'Ofis Malzemesi', 'Seyahat/Konaklama', 'Bakım/Onarım', 'Kırtasiye', 'Diğer Masraf'];
     if (!state.tanimlar.odemeYontemleri) state.tanimlar.odemeYontemleri = ['Nakit', 'Kart', 'Banka Havalesi'];
+    // Ürün Etiketi Oluştur ekranının sayfa düzeni. Kullanıcının gönderdiği örnek etiket kağıdı 4 sütun x 8
+    // satır (32 etiket/A4) idi — bu varsayılan sayı buradan geliyor. Ölçüler (mm) fotoğraftan kesin
+    // ölçülemediği için bu alandaki en yaygın "evrensel etiket" boyutuna göre başlangıç değeri verildi;
+    // Etiket Ayarları penceresinden kullanıcı ince ayar yapıp bir deneme baskısıyla kalibre edebilir.
+    if (!state.tanimlar.etiketSablonu) {
+      state.tanimlar.etiketSablonu = { genislik: 48, yukseklik: 33, sutun: 4, satir: 8, yatayBosluk: 2.5, dikeyBosluk: 3, xKaydirma: 0, yKaydirma: 0, icerikAd: true, icerikBarkod: true, icerikFiyat: true, icerikKod: false };
+    } else if (state.tanimlar.etiketSablonu.yatayBosluk === 1.5 && state.tanimlar.etiketSablonu.dikeyBosluk === 2) {
+      // Kullanıcı bu iki değeri kendisi hiç değiştirmemiş (hâlâ ilk varsayılanda) — etiketler arası boşluğu
+      // biraz daha aç. Kullanıcı Ayarlar'dan kendi değerini girdiyse bu blok hiç çalışmaz.
+      state.tanimlar.etiketSablonu.yatayBosluk = 2.5;
+      state.tanimlar.etiketSablonu.dikeyBosluk = 3;
+    }
+    if (state.tanimlar.etiketSablonu.xKaydirma === undefined) state.tanimlar.etiketSablonu.xKaydirma = 0;
+    if (state.tanimlar.etiketSablonu.yKaydirma === undefined) state.tanimlar.etiketSablonu.yKaydirma = 0;
   }
   let pendingSaves = 0;
   window.addEventListener('beforeunload', (e) => {
@@ -1822,6 +1853,7 @@
     'view-proje': 'Projeler', 'view-proje-detail': 'Proje Detayı',
     'view-fiyat-listesi': 'Özel Fiyat Listeleri', 'view-fiyat-listesi-detail': 'Fiyat Listesi',
     'view-katalog-sec': 'Satış Kataloğu Oluştur',
+    'view-etiket-sec': 'Ürün Etiketi Oluştur',
     'view-ayarlar': 'Ayarlar', 'view-sirket-bilgileri': 'Şirket Bilgileri', 'view-sablon-ayarlari': 'Şablon Ayarları', 'view-tanimlar': 'Tanımlar',
     'view-tanim-liste': 'Tanım Listesi', 'view-veri-yonetimi': 'Veri Yönetimi', 'view-kullanicilar': 'Kullanıcılar',
     'view-rapor-satis': 'Satışlar', 'view-rapor-alis': 'Alışlar', 'view-rapor-masraf': 'Masraflar Raporu',
@@ -3516,6 +3548,203 @@
     if (!secilenler.length) { alert('En az bir ürün seç.'); return; }
     printSatisKatalogu(secilenler);
   });
+
+  // ================= ÜRÜN ETİKETİ OLUŞTUR =================
+  // Barkod/fiyat etiketi basma ekranı: kullanıcının elindeki hazır kesim etiket kağıdına (sütun x satır,
+  // mm cinsinden ölçü) göre ayarlanabilir bir düzende, seçilen ürünlerin adını/barkodunu/fiyatını basar.
+  let etiketKategoriId = '', etiketAltKategoriId = '';
+  let etiketSecili = new Map(); // stokId -> adet (kaç etiket basılacak)
+  function enterEtiketSec() {
+    etiketKategoriId = ''; etiketAltKategoriId = ''; etiketSecili = new Map();
+    document.getElementById('etiketKategoriVal').textContent = 'Tümü';
+    document.getElementById('etiketAltKategoriVal').textContent = 'Tümü';
+    showView('view-etiket-sec', { showBack: true, onBack: enterStok });
+    renderEtiketUrunList();
+    setDrawerActive('stok');
+  }
+  function etiketFiltreliUrunler() {
+    return state.stok.filter((s) => (s.kind || 'urun') !== 'hizmet'
+      && (!etiketKategoriId || s.categoryId === etiketKategoriId || s.subCategoryId === etiketKategoriId)
+      && (!etiketAltKategoriId || s.subCategoryId === etiketAltKategoriId));
+  }
+  function renderEtiketUrunList() {
+    const list = document.getElementById('etiketUrunList');
+    const urunler = etiketFiltreliUrunler();
+    if (!urunler.length) { list.innerHTML = '<div class="empty-state">Bu filtreyle eşleşen ürün yok.</div>'; }
+    else {
+      list.innerHTML = urunler.map((s) => {
+        const adet = etiketSecili.get(s.id) || 0;
+        return `
+        <div class="list-row etiket-urun-row" data-id="${s.id}" style="cursor:pointer">
+          <div class="main"><div class="title">${escapeHtml(s.name)}</div><div class="sub">${formatTL(s.sellPrice)} / ${escapeHtml(s.satisBirimi || 'Adet')}${s.barcode ? ' · ' + escapeHtml(s.barcode) : ' · barkodsuz'}</div></div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            <button type="button" class="btn btn-sm eu-eksi" data-id="${s.id}" style="width:30px;padding:6px 0">−</button>
+            <span style="min-width:16px;text-align:center;font-weight:700">${adet}</span>
+            <button type="button" class="btn btn-sm eu-arti" data-id="${s.id}" style="width:30px;padding:6px 0">+</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+    const toplamUrun = [...etiketSecili.values()].filter((n) => n > 0).length;
+    const toplamEtiket = [...etiketSecili.values()].reduce((s, n) => s + n, 0);
+    document.getElementById('etiketSecimSayisi').textContent = `${toplamUrun} ürün, ${toplamEtiket} etiket`;
+  }
+  document.getElementById('etiketUrunList').addEventListener('click', (e) => {
+    const artiBtn = e.target.closest('.eu-arti');
+    const eksiBtn = e.target.closest('.eu-eksi');
+    if (artiBtn) { const id = artiBtn.dataset.id; etiketSecili.set(id, (etiketSecili.get(id) || 0) + 1); renderEtiketUrunList(); return; }
+    if (eksiBtn) { const id = eksiBtn.dataset.id; const yeni = (etiketSecili.get(id) || 0) - 1; if (yeni <= 0) etiketSecili.delete(id); else etiketSecili.set(id, yeni); renderEtiketUrunList(); return; }
+    // Butonlar dışında satırın herhangi bir yerine dokunmak hızlı seç/kaldır (1 adet) sağlar.
+    const row = e.target.closest('.etiket-urun-row'); if (!row) return;
+    const id = row.dataset.id;
+    if (etiketSecili.has(id)) etiketSecili.delete(id); else etiketSecili.set(id, 1);
+    renderEtiketUrunList();
+  });
+  document.getElementById('etiketKategoriBtn').addEventListener('click', () => {
+    const tops = state.kategoriler.filter((k) => !k.parentId);
+    openModal(`
+      <h3>Kategori seçin</h3>
+      <div id="etiketKategoriList">
+        <div class="list-row ek-row" data-id="">${!etiketKategoriId ? '✓ ' : ''}Tümü</div>
+        ${tops.map((k) => `<div class="list-row ek-row" data-id="${k.id}">${k.id === etiketKategoriId ? '✓ ' : ''}${escapeHtml(k.name)}</div>`).join('')}
+      </div>
+    `);
+    document.getElementById('etiketKategoriList').addEventListener('click', (e) => {
+      const row = e.target.closest('.ek-row'); if (!row) return;
+      etiketKategoriId = row.dataset.id || '';
+      etiketAltKategoriId = '';
+      document.getElementById('etiketKategoriVal').textContent = etiketKategoriId ? (state.kategoriler.find((k) => k.id === etiketKategoriId) || {}).name : 'Tümü';
+      document.getElementById('etiketAltKategoriVal').textContent = 'Tümü';
+      closeModal(); renderEtiketUrunList();
+    });
+  });
+  document.getElementById('etiketAltKategoriBtn').addEventListener('click', () => {
+    if (!etiketKategoriId) { alert('Önce bir kategori seç.'); return; }
+    const subs = state.kategoriler.filter((k) => k.parentId === etiketKategoriId);
+    if (!subs.length) { alert('Bu kategorinin alt kategorisi yok.'); return; }
+    openModal(`
+      <h3>Alt kategori seçin</h3>
+      <div id="etiketAltKategoriList">
+        <div class="list-row ea-row" data-id="">${!etiketAltKategoriId ? '✓ ' : ''}Tümü</div>
+        ${subs.map((k) => `<div class="list-row ea-row" data-id="${k.id}">${k.id === etiketAltKategoriId ? '✓ ' : ''}${escapeHtml(k.name)}</div>`).join('')}
+      </div>
+    `);
+    document.getElementById('etiketAltKategoriList').addEventListener('click', (e) => {
+      const row = e.target.closest('.ea-row'); if (!row) return;
+      etiketAltKategoriId = row.dataset.id || '';
+      document.getElementById('etiketAltKategoriVal').textContent = etiketAltKategoriId ? (state.kategoriler.find((k) => k.id === etiketAltKategoriId) || {}).name : 'Tümü';
+      closeModal(); renderEtiketUrunList();
+    });
+  });
+  // Etiket kağıdının sütun/satır sayısı ve mm ölçüleri — kullanıcının elindeki fiziksel etiket kağıdına
+  // göre ayarlanır. Bir deneme baskısı alıp gerekirse küçük adımlarla (0,5mm) düzeltilebilir.
+  function openEtiketAyarlarModal() {
+    const a = state.tanimlar.etiketSablonu;
+    openModal(`
+      <h3>Etiket Ayarları</h3>
+      <p class="sub" style="margin:0 0 12px">Elindeki etiket kağıdının sütun/satır sayısı ve ölçüleri (mm). Bir deneme sayfası bastırıp etiketlere tam oturmuyorsa ölçüleri küçük adımlarla düzelt.</p>
+      <div class="field-row">
+        <div class="field"><label>Sütun Sayısı</label><input type="number" id="eaSutun" min="1" max="10" value="${a.sutun}"></div>
+        <div class="field"><label>Satır Sayısı</label><input type="number" id="eaSatir" min="1" max="20" value="${a.satir}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Etiket Genişliği (mm)</label><input type="number" step="0.5" id="eaGenislik" value="${a.genislik}"></div>
+        <div class="field"><label>Etiket Yüksekliği (mm)</label><input type="number" step="0.5" id="eaYukseklik" value="${a.yukseklik}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Yatay Boşluk (mm)</label><input type="number" step="0.5" id="eaYatayBosluk" value="${a.yatayBosluk}"></div>
+        <div class="field"><label>Dikey Boşluk (mm)</label><input type="number" step="0.5" id="eaDikeyBosluk" value="${a.dikeyBosluk}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Yatay Kaydırma (mm)</label><input type="number" step="0.5" id="eaXKaydirma" value="${a.xKaydirma || 0}"></div>
+        <div class="field"><label>Dikey Kaydırma (mm)</label><input type="number" step="0.5" id="eaYKaydirma" value="${a.yKaydirma || 0}"></div>
+      </div>
+      <p class="sub" style="margin:-6px 0 12px">Yazı gerçek etiketin dışına taşıyor veya kayıyorsa, tüm sayfayı bir bütün olarak kaydırmak için bu iki alanı kullan (sağa/aşağı için pozitif, sola/yukarı için negatif sayı gir).</p>
+      <div class="card" style="margin-top:4px">
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)"><span>Ürün adı görünsün</span><input type="checkbox" id="eaAd" style="width:auto;transform:scale(1.3)" ${a.icerikAd ? 'checked' : ''}></label>
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)"><span>Barkod görünsün</span><input type="checkbox" id="eaBarkod" style="width:auto;transform:scale(1.3)" ${a.icerikBarkod ? 'checked' : ''}></label>
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)"><span>Satış fiyatı görünsün</span><input type="checkbox" id="eaFiyat" style="width:auto;transform:scale(1.3)" ${a.icerikFiyat ? 'checked' : ''}></label>
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0"><span>Ürün kodu görünsün</span><input type="checkbox" id="eaKod" style="width:auto;transform:scale(1.3)" ${a.icerikKod ? 'checked' : ''}></label>
+      </div>
+      <div class="modal-actions"><button class="btn" id="mCancel">Vazgeç</button><button class="btn btn-primary" id="mSave">Kaydet</button></div>
+    `);
+    document.getElementById('mCancel').onclick = closeModal;
+    document.getElementById('mSave').onclick = () => {
+      const sutun = Math.max(1, parseInt(document.getElementById('eaSutun').value) || a.sutun);
+      const satir = Math.max(1, parseInt(document.getElementById('eaSatir').value) || a.satir);
+      const genislik = Math.max(5, parseFloat(document.getElementById('eaGenislik').value) || a.genislik);
+      const yukseklik = Math.max(5, parseFloat(document.getElementById('eaYukseklik').value) || a.yukseklik);
+      const yatayBosluk = Math.max(0, parseFloat(document.getElementById('eaYatayBosluk').value) || 0);
+      const dikeyBosluk = Math.max(0, parseFloat(document.getElementById('eaDikeyBosluk').value) || 0);
+      const xKaydirma = parseFloat(document.getElementById('eaXKaydirma').value) || 0;
+      const yKaydirma = parseFloat(document.getElementById('eaYKaydirma').value) || 0;
+      state.tanimlar.etiketSablonu = {
+        sutun, satir, genislik, yukseklik, yatayBosluk, dikeyBosluk, xKaydirma, yKaydirma,
+        icerikAd: document.getElementById('eaAd').checked,
+        icerikBarkod: document.getElementById('eaBarkod').checked,
+        icerikFiyat: document.getElementById('eaFiyat').checked,
+        icerikKod: document.getElementById('eaKod').checked
+      };
+      saveState();
+      closeModal();
+    };
+  }
+  document.getElementById('etiketAyarlarBtn').addEventListener('click', openEtiketAyarlarModal);
+  document.getElementById('etiketOlusturBtn').addEventListener('click', () => {
+    const liste = [];
+    etiketSecili.forEach((adet, id) => {
+      const s = state.stok.find((x) => x.id === id);
+      if (s && adet > 0) liste.push({ s, adet });
+    });
+    if (!liste.length) { alert('En az bir ürün için etiket adedi gir.'); return; }
+    printUrunEtiketleri(liste);
+  });
+  // Seçilen ürünlerin (adet kadar tekrarlanmış) barkod/fiyat etiketlerini, Etiket Ayarları'ndaki
+  // sütun x satır düzenine göre A4 sayfalara dizip yazdırır. Etiket sayısı bir sayfayı aşarsa
+  // otomatik olarak sonraki sayfaya devam eder (page-break-after ile).
+  function printUrunEtiketleri(liste) {
+    const a = state.tanimlar.etiketSablonu;
+    const perSayfa = a.sutun * a.satir;
+    // Sayfayı ORTALAMAK için sol/üst boşluk otomatik hesaplanır — kullanıcı sadece etiket ölçüsü ve
+    // aralığı ile ilgilenir, kenar boşluğunu ayrıca girmesi gerekmez.
+    const toplamGenislik = a.sutun * a.genislik + (a.sutun - 1) * a.yatayBosluk;
+    const toplamYukseklik = a.satir * a.yukseklik + (a.satir - 1) * a.dikeyBosluk;
+    const solBosluk = Math.max(0, (210 - toplamGenislik) / 2) + (a.xKaydirma || 0);
+    const ustBosluk = Math.max(0, (297 - toplamYukseklik) / 2) + (a.yKaydirma || 0);
+    const fiyatStr = (n) => Number(n || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    // Tek bir etiket kutusunun içeriği. Barkod, HTML basıldıktan SONRA JsBarcode ile <svg> içine çizilir
+    // (burada sadece boş bir <svg data-barkod="..."> bırakılır).
+    function etiketHtml(s) {
+      const parcalar = [];
+      if (a.icerikAd) parcalar.push(`<div style="font-size:11px;font-weight:800;line-height:1.15;overflow:hidden;max-height:2.3em;color:#000">${escapeHtml(s.name)}</div>`);
+      if (a.icerikKod && s.productCode) parcalar.push(`<div style="font-size:8px;color:#333">${escapeHtml(s.productCode)}</div>`);
+      if (a.icerikBarkod && s.barcode) parcalar.push(`<svg class="et-barkod" data-barkod="${escapeHtml(s.barcode)}" style="width:100%;max-height:${Math.max(10, a.yukseklik * 0.4)}mm"></svg>`);
+      if (a.icerikFiyat) parcalar.push(`<div style="font-size:12.5px;font-weight:800;color:#000">${fiyatStr(s.sellPrice)} TL</div>`);
+      return `<div class="et-kutu" style="width:${a.genislik}mm;height:${a.yukseklik}mm;box-sizing:border-box;padding:1.2mm 1.8mm;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.6mm;text-align:center;border:0.2mm dotted #999">${parcalar.join('')}</div>`;
+    }
+    // liste -> her ürün kendi adedince tekrarlanmış düz dizi
+    const tumEtiketler = [];
+    liste.forEach(({ s, adet }) => { for (let i = 0; i < adet; i++) tumEtiketler.push(s); });
+    const sayfalar = [];
+    for (let i = 0; i < tumEtiketler.length; i += perSayfa) {
+      const sayfaKalemleri = tumEtiketler.slice(i, i + perSayfa);
+      sayfalar.push(`
+        <div style="width:210mm;height:297mm;box-sizing:border-box;position:relative;page-break-after:always;overflow:hidden">
+          <div style="position:absolute;top:${ustBosluk}mm;left:${solBosluk}mm;width:${toplamGenislik}mm;display:flex;flex-wrap:wrap;align-content:flex-start;gap:${a.dikeyBosluk}mm ${a.yatayBosluk}mm">
+            ${sayfaKalemleri.map((s) => etiketHtml(s)).join('')}
+          </div>
+        </div>`);
+    }
+    document.getElementById('printArea').innerHTML = `<div style="font-family:sans-serif">${sayfalar.join('')}</div>`;
+    // Barkodları çiz (senkron, DOM'a eklendikten hemen sonra) — görsel bekleme gerekmez.
+    document.querySelectorAll('#printArea .et-barkod').forEach((el) => {
+      const deger = el.dataset.barkod;
+      if (!deger) return;
+      try { JsBarcode(el, deger, { format: 'CODE128', displayValue: false, margin: 0, height: 40, width: 1.4 }); }
+      catch (e) { el.remove(); } // Barkod üretilemezse (ör. desteklenmeyen karakter) sessizce boş bırak.
+    });
+    window.print();
+  }
   // "Stoklarım" başlığı: kayıt sayısı 1-2 haneliyse yanında yazılır; 3-4 haneli olunca (yan yana sığmadığı için)
   // başlığın ALTINA, ayrı satıra yazılır. Çok dar ekranda 1-2 haneli sayı da sığmazsa kendiliğinden alta iner.
   function stokBaslikYaz(n) {
@@ -3671,7 +3900,8 @@
       { a: 'markalar', label: 'Markalar' },
       { a: 'depolar', label: 'Depolar' },
       { a: 'fiyatlistesi', label: 'Özel Fiyat Listeleri' },
-      { a: 'katalog', label: '📄 Satış Kataloğu Oluştur' }
+      { a: 'katalog', label: '📄 Satış Kataloğu Oluştur' },
+      { a: 'urunetiket', label: '🏷️ Ürün Etiketi Oluştur' }
     ];
     openModal(`
       <h3>İşlemler</h3>
@@ -3691,6 +3921,7 @@
       else if (action === 'depolar') enterDepo();
       else if (action === 'fiyatlistesi') enterFiyatListesi();
       else if (action === 'katalog') enterKatalogSec();
+      else if (action === 'urunetiket') enterEtiketSec();
     });
   });
   document.getElementById('stokFilterChips').addEventListener('click', (e) => {
