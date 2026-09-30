@@ -2503,26 +2503,50 @@
   function enterTanimListe(key) { currentTanimKey = key; showView('view-tanim-liste', { showBack: true, onBack: enterTanimlar }); renderTanimListe(); setDrawerActive('ayarlar'); }
   function enterVeriYonetimi() { showView('view-veri-yonetimi', { showBack: true, onBack: enterAyarlar }); document.getElementById('veriStatus').textContent = ''; renderVeriBoyutKarti(); setDrawerActive('ayarlar'); }
   // Kaydetme/açılışın yavaş olması durumunda TAHMİN yerine GERÇEK ölçüm görülsün diye: state'in hangi
-  // bölümünün ne kadar yer kapladığını gösterir. "Diğer" = fatura/cari hareketi/stok hareketi gibi metin
-  // ağırlıklı, fotoğraf içermeyen kayıtların toplamı — bunlar da SAYI çok fazlaysa (binlerce kayıt) tek
-  // başına büyük bir toplam oluşturabilir.
+  // bölümünün ne kadar yer kapladığını gösterir. Fotoğraflar artık JSON'un içinde DEĞİL, ayrı bir
+  // depoda (Supabase Storage) tutulduğu için "Diğer" burada zaten fatura/cari/stok gibi metin
+  // ağırlıklı kayıtların TAMAMını temsil eder — bunlar da SAYI çok fazlaysa (binlerce kayıt) tek
+  // başına büyük bir toplam oluşturabilir. Fotoğraf deposu kullanımı AYRICA, aşağıda gerçek zamanlı
+  // sorgulanarak gösterilir (bkz. storageBoyutuGetirVeGoster).
   function renderVeriBoyutKarti() {
-    const b = (v) => (v ? v.length : 0);
-    let stokFoto = 0; state.stok.forEach((s) => { if (Array.isArray(s.photos)) s.photos.forEach((p) => { stokFoto += b(p); }); });
-    let fisFoto = 0; state.transactions.forEach((t) => { fisFoto += b(t.receiptPhoto); });
-    const logo = b((state.sirketBilgileri || {}).logo);
     const toplam = JSON.stringify(state).length;
-    const diger = Math.max(0, toplam - stokFoto - fisFoto - logo);
     const fmt = (n) => n > 1024 * 1024 ? (n / 1024 / 1024).toFixed(2) + ' MB' : (n / 1024).toFixed(0) + ' KB';
-    const satir = (etiket, deger, aciklama) => deger > 0 ? `<div class="list-row"><div class="main"><div class="title">${etiket}</div>${aciklama ? `<div class="sub">${aciklama}</div>` : ''}</div><div class="amt mono">${fmt(deger)}</div></div>` : '';
     document.getElementById('veriBoyutKarti').innerHTML = `
-      <div class="label" style="font-size:12px;color:var(--ink-soft)">Toplam Veri Boyutu</div>
+      <div class="label" style="font-size:12px;color:var(--ink-soft)">Veritabanı Boyutu</div>
       <div class="mono" style="font-size:22px;font-weight:700;margin-bottom:6px">${fmt(toplam)}</div>
-      ${satir('Ürün fotoğrafları', stokFoto, state.stok.length + ' ürün')}
-      ${satir('Fiş fotoğrafları', fisFoto, state.transactions.length + ' kayıt içinde')}
-      ${satir('Logo', logo, '')}
-      ${satir('Diğer (fatura/cari/stok kayıtları vb.)', diger, `${state.faturalar.length} belge · ${state.cariler.length} cari · ${state.stok.length} ürün`)}
+      <div class="sub" style="font-size:12px;color:var(--ink-soft)">${state.faturalar.length} belge · ${state.cariler.length} cari · ${state.stok.length} ürün</div>
+      <div style="height:14px"></div>
+      <div class="label" style="font-size:12px;color:var(--ink-soft)">Fotoğraf Deposu (Storage)</div>
+      <div class="mono" id="storageBoyutDeger" style="font-size:22px;font-weight:700;margin-bottom:2px">Yükleniyor…</div>
+      <div class="sub" id="storageBoyutAciklama" style="font-size:12px;color:var(--ink-soft)"></div>
     `;
+    storageBoyutuGetirVeGoster();
+  }
+  // Supabase Storage'daki "defter-media" bucket'ında bu FİRMAYA ait klasördeki tüm dosyaların
+  // gerçek toplam boyutunu sorgular (list() 1000'e kadar döner; daha fazlası için sayfalanır).
+  async function storageBoyutuGetirVeGoster() {
+    const el = document.getElementById('storageBoyutDeger');
+    const alt = document.getElementById('storageBoyutAciklama');
+    if (!el || !currentSirketId) return;
+    try {
+      let toplamBayt = 0, sayfaNo = 0, dosyaSayisi = 0;
+      while (true) {
+        const { data, error } = await sb.storage.from('defter-media').list(currentSirketId, { limit: 1000, offset: sayfaNo * 1000 });
+        if (error) throw error;
+        (data || []).forEach((f) => { if (f && f.metadata && typeof f.metadata.size === 'number') { toplamBayt += f.metadata.size; dosyaSayisi++; } });
+        if (!data || data.length < 1000) break;
+        sayfaNo++;
+      }
+      const MB = toplamBayt / 1024 / 1024;
+      const LIMIT_MB = 1024; // Supabase Free plan: ~1 GB dosya deposu (plan yükseltilirse bu üst sınır artar)
+      const yuzde = Math.min(100, (MB / LIMIT_MB) * 100);
+      if (!el) return;
+      document.getElementById('storageBoyutDeger').textContent = (MB < 1 ? (toplamBayt / 1024).toFixed(0) + ' KB' : MB.toFixed(1) + ' MB') + ' / ~1 GB';
+      document.getElementById('storageBoyutAciklama').textContent = `${dosyaSayisi} dosya · yaklaşık %${yuzde.toFixed(1)} (Free plan sınırına göre)`;
+    } catch (e) {
+      if (document.getElementById('storageBoyutDeger')) document.getElementById('storageBoyutDeger').textContent = 'Ölçülemedi';
+      if (document.getElementById('storageBoyutAciklama')) document.getElementById('storageBoyutAciklama').textContent = 'Bağlantı sorunu — tekrar açmayı dene.';
+    }
   }
   function enterKullanicilar() { showView('view-kullanicilar', { showBack: true, onBack: enterAyarlar }); renderKullaniciList(); setDrawerActive('ayarlar'); }
   function enterCariDetail(id) { currentCariDetailId = id; const c0 = state.cariler.find((x) => x.id === id); if (c0) cariFilter = c0.type; showView('view-cari-detail', { showBack: true, onBack: backToCariList }); renderCariDetail(); setDrawerActive(cariFilter === 'tedarikci' ? 'tedarikci' : 'musteri'); }
