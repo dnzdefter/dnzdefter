@@ -117,6 +117,7 @@
   #saveBanner.show { transform: translateY(0); }
   #saveBanner.save-banner-error { background: var(--expense); }
   #saveBanner.save-banner-ok { background: var(--income); }
+  #saveBanner.save-banner-offline { background: #b45309; }
   #saveBanner .save-spinner {
     width: 13px; height: 13px; border: 2px solid rgba(255,255,255,0.45); border-top-color: #fff;
     border-radius: 50%; animation: authSpin 0.7s linear infinite; flex-shrink: 0;
@@ -1442,6 +1443,7 @@
 
     <!-- VERİ YÖNETİMİ -->
     <section class="view" id="view-veri-yonetimi">
+      <div class="card" id="veriBoyutKarti" style="margin-bottom:14px"></div>
       <div class="menu-row-wrap">
         <div class="menu-row" data-v="export"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 18v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg></div><div><div class="title">Yedek Al</div><div class="sub">Tüm verileri bir JSON dosyası olarak indir</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-v="import"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 21V9M7 14l5-5 5 5"/><path d="M4 6V4a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"/></svg></div><div><div class="title">Yedekten Geri Yükle</div><div class="sub">Bir JSON yedek dosyasından verileri geri getir</div></div><span class="chev">›</span></div>
@@ -1573,6 +1575,114 @@
   const SUPABASE_KEY = 'sb_publishable_dbY8u3ydeO0bsSgXA2ogHg_TvFc2L1r';
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   let currentOwnerId = null;
+  // ================= BÜYÜK KOLEKSİYONLAR: KAYIT BAŞINA SENKRONİZASYON =================
+  // Bu 5 koleksiyon (fatura, cari, ürün, gelir/gider, stok hareketi) veri arttıkça hızla
+  // büyüyebilir — binlerce kayda ulaşabilir. Bu yüzden artık defter_state.data İÇİNDEKİ tek JSON
+  // parçasında DEĞİL, "defter_records" tablosunda HER KAYIT kendi satırında tutulur. Bir faturayı
+  // kaydetmek artık SADECE o faturayı gönderir, binlerce başka kaydı değil. Geri kalan (hesaplar,
+  // kategoriler, tanımlar gibi sayıca az/sabit kalan) bölümler hâlâ tek küçük parçada (defter_state)
+  // tutulmaya devam eder.
+  const BUYUK_KOLEKSIYONLAR = ['faturalar', 'cariler', 'stok', 'transactions', 'stokHareketleri'];
+  // Son SENKRONİZE (sunucuya en son başarıyla gönderilmiş) durumun anlık görüntüsü — saveState() her
+  // çağrıldığında bununla karşılaştırılıp SADECE değişen (eklenen/düzenlenen/silinen) kayıtlar
+  // gönderilir. { faturalar: Map(id -> JSON string), ... }
+  let sonSenkronSnapshot = {};
+  function koleksiyonSnapshotAl(entity) {
+    const map = new Map();
+    (state[entity] || []).forEach((rec) => { if (rec && rec.id) map.set(rec.id, JSON.stringify(rec)); });
+    return map;
+  }
+  function tumSnapshotlariAl() { BUYUK_KOLEKSIYONLAR.forEach((e) => { sonSenkronSnapshot[e] = koleksiyonSnapshotAl(e); }); }
+  // state'in geri kalanı (5 büyük koleksiyon HARİÇ) — defter_state.data'ya bu gider, artık küçük kalır.
+  function miscStateOlustur() {
+    const kopya = Object.assign({}, state);
+    BUYUK_KOLEKSIYONLAR.forEach((e) => { delete kopya[e]; });
+    return kopya;
+  }
+  // Tek bir büyük koleksiyonu son senkron anlık görüntüsüyle karşılaştırıp SADECE değişen kayıtları
+  // defter_records'a yazar/siler. Hiç değişiklik yoksa hiçbir ağ isteği yapmaz.
+  async function buyukKoleksiyonSenkronEt(entity) {
+    const yeni = koleksiyonSnapshotAl(entity);
+    const eski = sonSenkronSnapshot[entity] || new Map();
+    const degisenIdler = [];
+    for (const [id, json] of yeni) { if (eski.get(id) !== json) degisenIdler.push(id); }
+    const silinenIdler = [];
+    for (const id of eski.keys()) { if (!yeni.has(id)) silinenIdler.push(id); }
+    if (!degisenIdler.length && !silinenIdler.length) return; // bu koleksiyonda değişiklik yok
+    if (degisenIdler.length) {
+      const kayitMap = new Map((state[entity] || []).map((r) => [r.id, r]));
+      const rows = degisenIdler.map((id) => ({ sirket_id: currentSirketId, entity, id, data: kayitMap.get(id), updated_at: new Date().toISOString() }));
+      const { error } = await sb.from('defter_records').upsert(rows);
+      if (error) throw error;
+    }
+    if (silinenIdler.length) {
+      const { error } = await sb.from('defter_records').delete().eq('sirket_id', currentSirketId).eq('entity', entity).in('id', silinenIdler);
+      if (error) throw error;
+    }
+    sonSenkronSnapshot[entity] = yeni; // sadece BAŞARILI olduysa güncelle
+  }
+  // defter_records tablosunun tamamını (bu firma için) sayfalayarak getirir — PostgREST'in tek
+  // istekteki varsayılan satır sınırını (binlerce kayıtta aşılabilir) aşmamak için.
+  async function tumBuyukKayitlariGetir() {
+    const SAYFA = 1000;
+    let sonuc = [], sayfaNo = 0;
+    while (true) {
+      const { data, error } = await sb.from('defter_records').select('entity, id, data').eq('sirket_id', currentSirketId).range(sayfaNo * SAYFA, sayfaNo * SAYFA + SAYFA - 1);
+      if (error) throw error;
+      sonuc = sonuc.concat(data || []);
+      if (!data || data.length < SAYFA) break;
+      sayfaNo++;
+    }
+    return sonuc;
+  }
+  // ================= YEREL ÖNBELLEK (IndexedDB) =================
+  // Kaydetme/yükleme artık İKİ katmanlı: (1) HER değişiklik ANINDA, ağ beklemeden bu yerel önbelleğe
+  // yazılır — kullanıcı "kaydedildi" hissini asla geciktirmez; (2) arka planda, internet varsa aynı veri
+  // sunucuya (Supabase) gönderilir. İnternet yoksa/başarısız olursa veri YEREL ÖNBELLEKTE güvende kalır
+  // ve bağlantı geldiğinde otomatik gönderilir — hiçbir değişiklik kaybolmaz, uygulama çevrimdışıyken de
+  // (önceden en az bir kez açılmışsa) normal şekilde kullanılabilir.
+  const CACHE_DB = 'dnzDefterCache', CACHE_STORE = 'state';
+  let cacheDbPromise = null;
+  function openCacheDb() {
+    if (cacheDbPromise) return cacheDbPromise;
+    cacheDbPromise = new Promise((resolve, reject) => {
+      if (!window.indexedDB) { reject(new Error('IndexedDB yok')); return; }
+      const req = indexedDB.open(CACHE_DB, 1);
+      req.onupgradeneeded = () => { req.result.createObjectStore(CACHE_STORE); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    return cacheDbPromise;
+  }
+  async function cacheGet(key) {
+    try {
+      const db = await openCacheDb();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(CACHE_STORE, 'readonly');
+        const req = tx.objectStore(CACHE_STORE).get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) { return null; /* IndexedDB kullanılamıyor (özel gezinme vb.) — sessizce yok say */ }
+  }
+  async function cacheSet(key, value) {
+    try {
+      const db = await openCacheDb();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(CACHE_STORE, 'readwrite');
+        tx.objectStore(CACHE_STORE).put(value, key);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch (e) { return false; }
+  }
+  // Bir hatanın "sunucu gerçekten reddetti" mi yoksa "bağlantı yok/koptu" mu olduğunu ayırt eder — ikisi
+  // farklı mesajlar gösterir (biri sakin "çevrimdışı" durumu, diğeri gerçek bir sorunu işaret eder).
+  function baglantiHatasiMi(e) {
+    if (!navigator.onLine) return true;
+    const m = ((e && e.message) || '').toLowerCase();
+    return /failed to fetch|networkerror|network request failed|load failed|ağ|internet|timeout|fetch/.test(m);
+  }
   let currentUserRole = null;
   let currentSirketId = null;
   let currentSirketAdi = '';
@@ -1593,18 +1703,63 @@
       return data || [];
     } catch (e) { console.error('Şirketler alınamadı', e); return []; }
   }
-  let state = { transactions: [], cariler: [], stok: [], faturalar: [], hesaplar: [], cekSenet: [], calisanlar: [], hatirlatmalar: [], notlar: [], stokHareketleri: [], kurlar: {}, kategoriler: [], markalar: [], depolar: [], krediler: [], demirbaslar: [], projeler: [], fiyatListeleri: [], sirketBilgileri: {}, tanimlar: {}, tekrarlamaSablonlari: [] };
-  function emptyState() { return { transactions: [], cariler: [], stok: [], faturalar: [], hesaplar: [], cekSenet: [], calisanlar: [], hatirlatmalar: [], notlar: [], stokHareketleri: [], kurlar: {}, kategoriler: [], markalar: [], depolar: [], krediler: [], demirbaslar: [], projeler: [], fiyatListeleri: [], sirketBilgileri: {}, tanimlar: {}, tekrarlamaSablonlari: [] }; }
+  let state = { transactions: [], cariler: [], stok: [], faturalar: [], hesaplar: [], cekSenet: [], calisanlar: [], hatirlatmalar: [], notlar: [], stokHareketleri: [], kurlar: {}, kategoriler: [], markalar: [], depolar: [], krediler: [], demirbaslar: [], projeler: [], fiyatListeleri: [], sirketBilgileri: {}, tanimlar: {}, tekrarlamaSablonlari: [], firsatlar: [] };
+  function emptyState() { return { transactions: [], cariler: [], stok: [], faturalar: [], hesaplar: [], cekSenet: [], calisanlar: [], hatirlatmalar: [], notlar: [], stokHareketleri: [], kurlar: {}, kategoriler: [], markalar: [], depolar: [], krediler: [], demirbaslar: [], projeler: [], fiyatListeleri: [], sirketBilgileri: {}, tanimlar: {}, tekrarlamaSablonlari: [], firsatlar: [] }; }
 
   async function loadState() {
+    if (!currentSirketId) { state = emptyState(); migrateState(); tumSnapshotlariAl(); return; }
+    const cacheKey = 'sirket_' + currentSirketId;
+    const cached = await cacheGet(cacheKey);
+    // 1) Önce YEREL önbellekten yükle (varsa) — ağ beklemeden, anında. Uygulama çevrimdışıyken de
+    // (daha önce en az bir kez açıldıysa) bu sayede normal çalışır.
+    if (cached && cached.data) state = cached.data;
     try {
-      if (!currentSirketId) { state = emptyState(); migrateState(); return; }
-      const { data, error } = await sb.from('defter_state').select('data').eq('sirket_id', currentSirketId).maybeSingle();
+      if (!navigator.onLine) throw new Error('offline');
+      const [{ data, error }, buyukKayitlar] = await Promise.all([
+        sb.from('defter_state').select('data').eq('sirket_id', currentSirketId).maybeSingle(),
+        tumBuyukKayitlariGetir()
+      ]);
       if (error) throw error;
-      state = (data && data.data && Object.keys(data.data).length) ? data.data : emptyState();
-    } catch (e) { console.error('Yüklenemedi', e); state = emptyState(); }
+      const misc = (data && data.data && Object.keys(data.data).length) ? data.data : null;
+      const buyukVeri = {};
+      BUYUK_KOLEKSIYONLAR.forEach((e) => { buyukVeri[e] = []; });
+      buyukKayitlar.forEach((row) => { if (buyukVeri[row.entity]) buyukVeri[row.entity].push(row.data); });
+      const buyukVeriVarMi = Object.values(buyukVeri).some((a) => a.length);
+      const sunucuVeri = (misc || buyukVeriVarMi) ? Object.assign({}, emptyState(), misc || {}, buyukVeri) : null;
+      if (sunucuVeri) {
+        if (cached && cached.dirty) {
+          // Yerelde SUNUCUYA henüz gönderilmemiş bir değişiklik var — bunu, muhtemelen daha eski olan
+          // sunucu verisiyle EZME. Yerel değişiklik zaten bir sonraki senkronizasyonda (flushSaveState /
+          // "online" olayı ile) otomatik gönderilecek.
+          state = cached.data;
+        } else {
+          // Yerelde bekleyen bir değişiklik yok — sunucudaki (başka bir cihazdan gelmiş olabilecek en
+          // güncel) veriyi güvenle kullanabiliriz.
+          state = sunucuVeri;
+          cacheSet(cacheKey, { data: sunucuVeri, updatedAt: new Date().toISOString(), dirty: false });
+        }
+      } else if (!cached) {
+        state = emptyState(); // ne yerelde ne sunucuda veri var — gerçekten yeni bir firma
+      }
+    } catch (e) {
+      if (!cached) {
+        // Çevrimdışıyız VE bu cihazda hiç önbellek yok (uygulama ilk kez açılıyor) — gösterecek veri
+        // yok, boş başlamak zorundayız. Kullanıcıya durumu net söylüyoruz ki "verilerim mi silindi"
+        // diye endişelenmesin.
+        console.error('Yüklenemedi (çevrimdışı, önbellek yok)', e);
+        state = emptyState();
+        setTimeout(() => setSaveBanner('Çevrimdışısın ve bu cihazda daha önce açılmış bir kayıt yok — internete bağlanıp tekrar dene', 'offline'), 300);
+      } else {
+        // Çevrimdışıyız ama önbellekte veri VAR — onu kullanmaya devam ediyoruz, uygulama normal çalışır.
+        console.warn('Sunucudan güncel veri alınamadı, önbellek kullanılıyor', e);
+      }
+    }
     migrateState();
+    // Yüklenen (ya da önbellekten gelen) haliyle "senkron" kabul et — bir sonraki saveState() çağrısı
+    // her şeyi yeniden göndermeye çalışmasın, sadece BUNDAN SONRA değişenleri.
+    tumSnapshotlariAl();
   }
+  let migrasyonTemizlikYapti = false;
   function migrateState() {
     state.hesaplar = state.hesaplar || [];
     state.hesaplar.forEach((h) => {
@@ -1663,10 +1818,14 @@
         s.brandId = match.id;
       }
       if (s.brandId === undefined) s.brandId = null;
-      if (s.photo === undefined) s.photo = null;
       // Çoklu fotoğraf desteği: eskiden tek "photo" alanı vardı, artık "photos" bir dizi. Daha
       // önce tek fotoğraf kaydedilmiş ürünler için bu fotoğrafı dizinin ilk (tek) elemanı yapıyoruz.
       if (!Array.isArray(s.photos)) s.photos = s.photo ? [s.photo] : [];
+      // "photo" alanı artık AYRICA saklanmıyor — photos[0] ile birebir aynı veriyi (genelde onlarca KB'lık
+      // bir fotoğrafı) bir de burada TEKRAR tutmak, her ürünün kapak fotoğrafını gereksiz yere iki katına
+      // çıkarıp state'i şişiriyordu. Kod içinde her yerde artık photos[0] okunuyor, bu alana gerek yok.
+      if (s.photo) migrasyonTemizlikYapti = true;
+      delete s.photo;
       if (s.variants === undefined) s.variants = [];
       if (s.minStock === undefined) s.minStock = 0;
       if (s.gtip === undefined) s.gtip = '';
@@ -1708,18 +1867,31 @@
     if (state.tanimlar.etiketSablonu.yKaydirma === undefined) state.tanimlar.etiketSablonu.yKaydirma = 0;
   }
   let pendingSaves = 0;
+  // saveState() eskiden HER çağrıda anında ayrı bir ağ isteği kuyruğa alıyordu — art arda birkaç alan
+  // düzenlenince (ör. bir faturayı kaydedip hemen ardından bir ödeme girmek) her biri TÜM state'i
+  // (fotoğraflar dahil) yeniden sunucuya gönderen ayrı ayrı istekler oluşturuyor, bu da "geç kaydediyor"
+  // hissi yaratıyordu. Şimdi kısa bir süre (500ms) içinde gelen çağrılar TEK bir isteğe birleştiriliyor;
+  // "Kaydediliyor…" göstergesi yine anında çıkıyor, sadece ASIL ağ isteği geciktiriliyor.
+  let saveDebounceTimer = null;
+  let saveDebouncePending = false;
   window.addEventListener('beforeunload', (e) => {
-    if (pendingSaves > 0) { e.preventDefault(); e.returnValue = ''; return ''; }
+    // pendingSyncDirty: değişiklik zaten YEREL önbellekte güvende (kaybolmaz) — bu uyarı sadece "sunucuya
+    // henüz ulaşmadı, başka bir cihaz bunu henüz göremeyebilir" bilgisi içindir.
+    if (pendingSyncDirty) { e.preventDefault(); e.returnValue = ''; return ''; }
   });
+  // Sekme arka plana alınırken/kapanırken bekleyen (henüz gönderilmemiş) kaydı hemen gönderir —
+  // debounce penceresi (500ms) dolmadan uygulamadan çıkılırsa veri kaybını önler.
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && saveDebouncePending) flushSaveState(); });
   let saveBannerHideTimer = null;
   function setSaveBanner(text, mode) {
     const el = document.getElementById('saveBanner');
     if (!el) return;
     clearTimeout(saveBannerHideTimer);
     if (!text) { el.classList.remove('show'); return; }
-    el.classList.remove('save-banner-error', 'save-banner-ok');
+    el.classList.remove('save-banner-error', 'save-banner-ok', 'save-banner-offline');
     if (mode === 'error') el.classList.add('save-banner-error');
     if (mode === 'ok') el.classList.add('save-banner-ok');
+    if (mode === 'offline') el.classList.add('save-banner-offline');
     el.innerHTML = (mode === 'saving' ? '<span class="save-spinner"></span>' : '') + '<span>' + text + '</span>';
     el.classList.add('show');
   }
@@ -1727,29 +1899,103 @@
   // Böylece ağ gecikmesi yüzünden ESKİ bir kayıt isteğinin YENİ bir değişikliğin üzerine geç tamamlanıp
   // onu ezmesi (örn. bir alış faturasıyla artan stoğun, sırası karışan bir önceki kayıtla eski haline dönmesi) engellenir.
   let saveChain = Promise.resolve();
-  function saveState() {
-    const p = saveChain.then(() => saveStateNow());
-    saveChain = p.catch(() => {});
-    return p;
+  let pendingFlushPromise = null, pendingFlushResolve = null;
+  // Arka planda kendiliğinden çalışan bakım işlemleri (ör. eski fotoğrafları Storage'a taşıma) her
+  // birkaç kayıtta bir saveState() çağırınca "Kaydediliyor…/Kaydedildi" göstergesi ART ARDA yanıp
+  // sönüyordu — kullanıcı hiçbir şey yapmadığı halde sürekli "kaydediliyor" görmesine yol açıyordu.
+  // saveIsSilent, o anki 500ms'lik pencere içinde SADECE sessiz (arka plan) çağrı mı yapıldığını, yoksa
+  // kullanıcının kendi bir değişikliği de mi araya girdiğini izler — sadece TAMAMEN sessizse gösterge
+  // hiç görünmez; kullanıcı kaynaklı bir çağrı varsa (aynı pencerede olsa bile) normal şekilde görünür.
+  let saveIsSilent = true;
+  // Sunucuya gönderilmeyi bekleyen (henüz senkronize edilmemiş) bir değişiklik var mı? Bu true iken
+  // sekme kapatılırsa değişiklik YEREL önbellekte güvende kalır (kaybolmaz), ama başka bir cihaz/tarayıcı
+  // bunu henüz göremez — bu yüzden beforeunload yine hafif bir uyarı gösterir.
+  let pendingSyncDirty = false;
+  let onlineRetryTimer = null;
+  function saveStateInternal() {
+    saveDebouncePending = true;
+    if (!saveIsSilent) setSaveBanner('Kaydediliyor…', 'saving');
+    // ANINDA (ağ beklemeden) yerel önbelleğe yaz — kullanıcının "kaydedildi" hissi burada, hiç
+    // gecikmeden oluşur. Sunucuya gönderme ayrı, aşağıdaki debounce ile birkaç yüz ms sonra denenir.
+    pendingSyncDirty = true;
+    if (currentSirketId) cacheSet('sirket_' + currentSirketId, { data: state, updatedAt: new Date().toISOString(), dirty: true });
+    clearTimeout(saveDebounceTimer);
+    saveDebounceTimer = setTimeout(flushSaveState, 500);
+    // Aynı 500ms'lik pencere içinde yapılan TÜM saveState() çağrıları aynı promise'i paylaşır — bu
+    // promise, gerçek ağ isteği (flushSaveState) bitene kadar çözülmez. Böylece "await saveState()"
+    // kullanan (yedek geri yükleme, tüm verileri silme gibi) nadir ama kritik yerler yine doğru çalışır.
+    if (!pendingFlushPromise) pendingFlushPromise = new Promise((resolve) => { pendingFlushResolve = resolve; });
+    return pendingFlushPromise;
   }
-  async function saveStateNow() {
+  function saveState() {
+    saveIsSilent = false; // kullanıcı kaynaklı bir değişiklik — bu pencere (ve göstergesi) artık görünür olmalı
+    return saveStateInternal();
+  }
+  // SADECE arka plan bakım işlemleri (kullanıcının fark etmesine gerek olmayan) için — bkz. yukarıdaki not.
+  function saveStateSessiz() {
+    return saveStateInternal();
+  }
+  function flushSaveState() {
+    clearTimeout(saveDebounceTimer);
+    saveDebouncePending = false;
+    const resolve = pendingFlushResolve;
+    const sessizMi = saveIsSilent;
+    pendingFlushPromise = null; pendingFlushResolve = null;
+    // NOT: saveIsSilent BURADA sıfırlanmıyor — sadece BAŞARILI bir kayıttan sonra (saveStateNow içinde)
+    // sıfırlanır. Aksi halde çevrimdışı olduğu için başarısız olan görünür bir kayıt, bağlantı gelince
+    // yeniden denendiğinde (baglantiGelinceGonder) yanlışlıkla "sessiz" sayılır ve kullanıcı sonunda
+    // "Kaydedildi" onayını hiç göremezdi.
+    const p = saveChain.then(() => saveStateNow(sessizMi));
+    saveChain = p.catch(() => {});
+    saveChain.then(() => { if (resolve) resolve(); });
+    return saveChain;
+  }
+  // Bağlantı geldiğinde (veya periyodik olarak, "online" olayı bazı tarayıcı/ağ geçişlerinde güvenilir
+  // tetiklenmediği için) bekleyen bir değişiklik varsa otomatik olarak yeniden dener.
+  function baglantiGelinceGonder() {
+    if (pendingSyncDirty && navigator.onLine) flushSaveState();
+  }
+  window.addEventListener('online', baglantiGelinceGonder);
+  onlineRetryTimer = setInterval(baglantiGelinceGonder, 15000);
+  async function saveStateNow(sessiz) {
     pendingSaves++;
-    setSaveBanner('Kaydediliyor…', 'saving');
+    if (!sessiz) setSaveBanner('Kaydediliyor…', 'saving');
     try {
-      if (!currentSirketId) { setSaveBanner('', null); return; }
-      const { error } = await sb.from('defter_state').upsert({ sirket_id: currentSirketId, user_id: currentOwnerId, data: state, updated_at: new Date().toISOString() });
+      if (!currentSirketId) { if (!sessiz) setSaveBanner('', null); return; }
+      if (!navigator.onLine) throw new Error('offline'); // gereksiz bir ağ denemesi başlatmadan önce kısa yoldan çık
+      const { error } = await sb.from('defter_state').upsert({ sirket_id: currentSirketId, user_id: currentOwnerId, data: miscStateOlustur(), updated_at: new Date().toISOString() });
       if (error) throw error;
+      // 5 büyük koleksiyon (fatura/cari/ürün/gelir-gider/stok hareketi) ayrı ayrı, SADECE değişen
+      // kayıtlarla senkronize edilir — bkz. yukarıdaki "BÜYÜK KOLEKSİYONLAR" bloğu.
+      for (const entity of BUYUK_KOLEKSIYONLAR) { await buyukKoleksiyonSenkronEt(entity); }
+      pendingSyncDirty = false;
+      saveIsSilent = true; // BAŞARILI oldu — bir sonraki pencere yeniden "sessiz" varsayımıyla başlayabilir
+      cacheSet('sirket_' + currentSirketId, { data: state, updatedAt: new Date().toISOString(), dirty: false });
       const statusEl = document.getElementById('veriStatus');
       if (statusEl) statusEl.textContent = '';
-      if (pendingSaves === 1) {
+      if (pendingSaves === 1 && !sessiz) {
         setSaveBanner('Kaydedildi ✓', 'ok');
         saveBannerHideTimer = setTimeout(() => { if (pendingSaves === 0) setSaveBanner('', null); }, 1100);
       }
     } catch (e) {
-      console.error('Kaydedilemedi', e, 'Veri boyutu (karakter):', JSON.stringify(state).length);
-      const statusEl = document.getElementById('veriStatus');
-      if (statusEl) { statusEl.textContent = 'Kaydedilemedi: ' + (e.message || 'bağlantı sorunu'); statusEl.classList.add('error'); }
-      setSaveBanner('Kaydedilemedi ✕ — ' + (e.message || 'bağlantı sorunu') + ' — sayfayı yenileme!', 'error');
+      if (baglantiHatasiMi(e)) {
+        // Bağlantı yok/koptu — bu bir HATA değil, beklenen bir durum: değişiklik zaten yerel önbellekte
+        // güvende, bağlantı gelince otomatik gönderilecek. Sakin bir bildirim yeterli, "sayfayı
+        // yenileme" gibi korkutucu bir uyarıya gerek yok.
+        console.warn('Çevrimdışı — değişiklik yerelde bekliyor', e);
+        if (!sessiz) {
+          setSaveBanner('Çevrimdışı — değişiklik cihazda kaydedildi, bağlantı gelince gönderilecek', 'offline');
+          saveBannerHideTimer = setTimeout(() => { if (pendingSaves <= 1) setSaveBanner('', null); }, 2600);
+        }
+      } else {
+        // Bağlantı VAR ama sunucu gerçekten reddetti (yetki sorunu, beklenmeyen bir hata vb.) — bu
+        // gerçek bir sorun, kullanıcı bunu bilmeli. Değişiklik yine de yerel önbellekte durduğu için
+        // veri kaybolmaz; en son bağlantı gelince (veya sayfa yenilendiğinde) tekrar denenir.
+        console.error('Kaydedilemedi', e, 'Veri boyutu (karakter):', JSON.stringify(state).length);
+        const statusEl = document.getElementById('veriStatus');
+        if (statusEl) { statusEl.textContent = 'Kaydedilemedi: ' + (e.message || 'bilinmeyen hata'); statusEl.classList.add('error'); }
+        setSaveBanner('Kaydedilemedi ✕ — ' + (e.message || 'bilinmeyen hata') + ' — değişiklik cihazda duruyor', 'error');
+      }
     } finally {
       pendingSaves--;
     }
@@ -1757,6 +2003,20 @@
 
   // ---------------- Utils ----------------
   function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  // Bir base64 data URL'ini "defter-media" bucket'ına (Supabase Storage) yükler ve genel (public)
+  // URL'ini döner. Fotoğraflar artık defter_state.data JSON'unun İÇİNE gömülmüyor — sadece bu küçük
+  // URL string'i (birkaç kelime) state'te tutulur. Bu, her kayıt/açılışta sunucuya taşınan veri
+  // miktarını (özellikle çok sayıda fotoğraf birikince) büyük ölçüde azaltır.
+  async function fotografiStorageyeYukle(dataUrl) {
+    if (!currentSirketId) throw new Error('Aktif firma bulunamadı');
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    const yol = `${currentSirketId}/${genId()}.jpg`;
+    const { error } = await sb.storage.from('defter-media').upload(yol, blob, { contentType: 'image/jpeg', upsert: false });
+    if (error) throw error;
+    const { data } = sb.storage.from('defter-media').getPublicUrl(yol);
+    return data.publicUrl;
+  }
   // "YYYY-MM-DD" / "YYYY-MM" değerini YEREL tarihten üretir — toISOString() önce UTC'ye çevirdiği
   // için, UTC'nin önündeki saat dilimlerinde (ör. Türkiye, UTC+3) "ayın/günün biri" gece yarısı bir
   // önceki güne/aya kayardı. Bu iki fonksiyon her yerde bunun yerine kullanılmalı.
@@ -2184,7 +2444,29 @@
   function enterTanimlar() { showView('view-tanimlar', { showBack: true, onBack: enterAyarlar }); setDrawerActive('ayarlar'); }
   let currentTanimKey = null;
   function enterTanimListe(key) { currentTanimKey = key; showView('view-tanim-liste', { showBack: true, onBack: enterTanimlar }); renderTanimListe(); setDrawerActive('ayarlar'); }
-  function enterVeriYonetimi() { showView('view-veri-yonetimi', { showBack: true, onBack: enterAyarlar }); document.getElementById('veriStatus').textContent = ''; setDrawerActive('ayarlar'); }
+  function enterVeriYonetimi() { showView('view-veri-yonetimi', { showBack: true, onBack: enterAyarlar }); document.getElementById('veriStatus').textContent = ''; renderVeriBoyutKarti(); setDrawerActive('ayarlar'); }
+  // Kaydetme/açılışın yavaş olması durumunda TAHMİN yerine GERÇEK ölçüm görülsün diye: state'in hangi
+  // bölümünün ne kadar yer kapladığını gösterir. "Diğer" = fatura/cari hareketi/stok hareketi gibi metin
+  // ağırlıklı, fotoğraf içermeyen kayıtların toplamı — bunlar da SAYI çok fazlaysa (binlerce kayıt) tek
+  // başına büyük bir toplam oluşturabilir.
+  function renderVeriBoyutKarti() {
+    const b = (v) => (v ? v.length : 0);
+    let stokFoto = 0; state.stok.forEach((s) => { if (Array.isArray(s.photos)) s.photos.forEach((p) => { stokFoto += b(p); }); });
+    let fisFoto = 0; state.transactions.forEach((t) => { fisFoto += b(t.receiptPhoto); });
+    const logo = b((state.sirketBilgileri || {}).logo);
+    const toplam = JSON.stringify(state).length;
+    const diger = Math.max(0, toplam - stokFoto - fisFoto - logo);
+    const fmt = (n) => n > 1024 * 1024 ? (n / 1024 / 1024).toFixed(2) + ' MB' : (n / 1024).toFixed(0) + ' KB';
+    const satir = (etiket, deger, aciklama) => deger > 0 ? `<div class="list-row"><div class="main"><div class="title">${etiket}</div>${aciklama ? `<div class="sub">${aciklama}</div>` : ''}</div><div class="amt mono">${fmt(deger)}</div></div>` : '';
+    document.getElementById('veriBoyutKarti').innerHTML = `
+      <div class="label" style="font-size:12px;color:var(--ink-soft)">Toplam Veri Boyutu</div>
+      <div class="mono" style="font-size:22px;font-weight:700;margin-bottom:6px">${fmt(toplam)}</div>
+      ${satir('Ürün fotoğrafları', stokFoto, state.stok.length + ' ürün')}
+      ${satir('Fiş fotoğrafları', fisFoto, state.transactions.length + ' kayıt içinde')}
+      ${satir('Logo', logo, '')}
+      ${satir('Diğer (fatura/cari/stok kayıtları vb.)', diger, `${state.faturalar.length} belge · ${state.cariler.length} cari · ${state.stok.length} ürün`)}
+    `;
+  }
   function enterKullanicilar() { showView('view-kullanicilar', { showBack: true, onBack: enterAyarlar }); renderKullaniciList(); setDrawerActive('ayarlar'); }
   function enterCariDetail(id) { currentCariDetailId = id; const c0 = state.cariler.find((x) => x.id === id); if (c0) cariFilter = c0.type; showView('view-cari-detail', { showBack: true, onBack: backToCariList }); renderCariDetail(); setDrawerActive(cariFilter === 'tedarikci' ? 'tedarikci' : 'musteri'); }
   function enterCariForm(id) { openCariForm(id); showView('view-cari-form', { showBack: true, onBack: id ? (() => enterCariDetail(id)) : backToCariList }); setDrawerActive(cariFilter === 'tedarikci' ? 'tedarikci' : 'musteri'); }
@@ -2647,7 +2929,11 @@
         e.target.value = '';
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = (ev) => { resizeImageDataUrl(ev.target.result, 500, 0.8, (resized) => { masrafPhoto = resized; const img = document.getElementById('mReceiptPreview'); img.src = resized; img.style.display = 'block'; }); };
+        reader.onload = (ev) => { resizeImageDataUrl(ev.target.result, 1000, 0.85, async (resized) => {
+          const img = document.getElementById('mReceiptPreview'); img.src = resized; img.style.display = 'block'; // anlık önizleme
+          try { masrafPhoto = await fotografiStorageyeYukle(resized); }
+          catch (err) { alert('Fiş fotoğrafı yüklenemedi: ' + (err && err.message ? err.message : 'bağlantı hatası') + '\nLütfen tekrar dene.'); masrafPhoto = null; img.style.display = 'none'; }
+        }); };
         reader.readAsDataURL(file);
       });
     }
@@ -3828,11 +4114,12 @@
       const isHizmet = (s.kind || 'urun') === 'hizmet';
       const isKritik = !isHizmet && s.minStock > 0 && s.quantity > 0 && s.quantity <= s.minStock;
       const isBitti = !isHizmet && s.quantity <= 0;
+      const kapakFoto = (s.photos && s.photos[0]) || null;
       return `
       <div class="card" style="padding:0;margin-bottom:9px">
       <div class="list-row" data-id="${s.id}" style="border-bottom:none;padding:10px 14px">
-        <div style="width:44px;height:44px;min-width:44px;min-height:44px;max-width:44px;max-height:44px;border-radius:10px;flex-shrink:0;background:${s.photo ? `url('${s.photo.replace(/'/g, "%27")}') center/cover no-repeat` : 'var(--flame-soft)'};display:flex;align-items:center;justify-content:center">
-          ${!s.photo ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--glass-border)" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="M21 16l-5-5-4 4-3-3-6 6"/></svg>` : ''}
+        <div style="width:44px;height:44px;min-width:44px;min-height:44px;max-width:44px;max-height:44px;border-radius:10px;flex-shrink:0;background:${kapakFoto ? `url('${kapakFoto.replace(/'/g, "%27")}') center/cover no-repeat` : 'var(--flame-soft)'};display:flex;align-items:center;justify-content:center">
+          ${!kapakFoto ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--glass-border)" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="M21 16l-5-5-4 4-3-3-6 6"/></svg>` : ''}
         </div>
         <div class="main">
           <div>
@@ -4097,9 +4384,13 @@
     Array.from(files).forEach((file) => {
       const reader = new FileReader();
       reader.onload = (e) => {
-        resizeImageDataUrl(e.target.result, 640, 0.82, (resized) => {
-          s.photos.push(resized);
-          s.photo = s.photos[0];
+        resizeImageDataUrl(e.target.result, 1000, 0.85, async (resized) => {
+          try {
+            const url = await fotografiStorageyeYukle(resized);
+            s.photos.push(url);
+          } catch (err) {
+            alert('Fotoğraf yüklenemedi: ' + (err && err.message ? err.message : 'bağlantı hatası') + '\nLütfen tekrar dene.');
+          }
           kalan--;
           if (kalan === 0) { saveState(); renderStokDetail(); renderStokList(); }
         });
@@ -4386,7 +4677,11 @@
     let kalan = files.length;
     Array.from(files).forEach((file) => {
       const reader = new FileReader();
-      reader.onload = (e) => { resizeImageDataUrl(e.target.result, 640, 0.82, (resized) => { sfPhotos.push(resized); kalan--; if (kalan === 0) updateSfPhotoPreview(); }); };
+      reader.onload = (e) => { resizeImageDataUrl(e.target.result, 1000, 0.85, async (resized) => {
+        try { const url = await fotografiStorageyeYukle(resized); sfPhotos.push(url); }
+        catch (err) { alert('Fotoğraf yüklenemedi: ' + (err && err.message ? err.message : 'bağlantı hatası') + '\nLütfen tekrar dene.'); }
+        kalan--; if (kalan === 0) updateSfPhotoPreview();
+      }); };
       reader.readAsDataURL(file);
     });
   }
@@ -4691,7 +4986,7 @@
       buyVat: parseFloat(document.getElementById('sfBuyVat').value),
       buyVatIncluded: document.getElementById('sfBuyVatIncluded').value,
       buyDiscount: parseFloat(document.getElementById('sfBuyDiscount').value) || 0,
-      categoryId: sfCategoryId, subCategoryId: sfSubCategoryId, brandId: sfBrandId, photo: sfPhotos[0] || null, photos: sfPhotos.slice(), depoId: sfDepoId,
+      categoryId: sfCategoryId, subCategoryId: sfSubCategoryId, brandId: sfBrandId, photos: sfPhotos.slice(), depoId: sfDepoId,
       category: catObj ? catObj.name + (subObj ? ' / ' + subObj.name : '') : '',
       brand: brandObj ? brandObj.name : '',
       barcode: document.getElementById('sfBarcode').value.trim(),
@@ -6395,10 +6690,10 @@
             <p style="font-size:11.5px;font-style:italic;color:#333;margin:0 0 4px;border-top:1px solid #ddd;padding-top:7px">Yukarıda cinsi ve tutarı yazılı bedeli ${odemeSekliKelime} ${isMusteri ? 'tahsil ettim.' : 'ödedim.'}</p>
             <div style="display:flex;justify-content:space-between;margin-top:22px;font-size:12px">
               <div style="text-align:center;width:42%">
-                <div style="border-top:1px solid #000;padding-top:6px">Ödeyen<br><span style="font-size:10px;color:#777">${escapeHtml(isMusteri ? c.name : bizimAd)} — İmza</span></div>
+                <div style="border-top:1px solid #000;padding-top:6px">Ödeyen<br><span style="font-size:10px;color:#777">${escapeHtml(isMusteri ? c.name : bizimAd)}</span></div>
               </div>
               <div style="text-align:center;width:42%">
-                <div style="border-top:1px solid #000;padding-top:6px">Ödemeyi Alan<br><span style="font-size:10px;color:#777">${escapeHtml(isMusteri ? bizimAd : c.name)} — İmza / Kaşe</span></div>
+                <div style="border-top:1px solid #000;padding-top:6px">Ödemeyi Alan<br><span style="font-size:10px;color:#777">${escapeHtml(isMusteri ? bizimAd : c.name)}</span></div>
               </div>
             </div>
           </div>
@@ -6876,7 +7171,8 @@
               // Açıklama sütunu: kalemin kendi notu ve paketleme dağılımı — ürün adıyla AYNI
               // satırda değil, ayrı bir sütunda gösterilir.
               const aciklamaSutunu = [it.aciklama ? escapeHtml(it.aciklama) : '', paketlemeStr ? escapeHtml(paketlemeStr) : ''].filter(Boolean).join('<br>');
-              return `<tr style="border-bottom:1px solid #ccc;page-break-inside:avoid"><td style="padding:4px 4px;white-space:nowrap">${idx + 1}</td>${sa.urunFotografi ? `<td style="padding:4px 4px"><div style="width:36px;height:36px;border-radius:6px;overflow:hidden;background:#eee">${s && s.photo ? `<img src="${s.photo}" style="width:36px;height:36px;object-fit:cover;display:block">` : ''}</div></td>` : ''}<td style="padding:4px 4px">${escapeHtml(it.name)}${detaylar.length ? `<div style="font-size:10px;color:#666;font-style:italic">${detaylar.join(' · ')}</div>` : ''}</td><td style="padding:4px 4px;font-size:10.5px;color:#333">${aciklamaSutunu}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">${it.qty}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">${escapeHtml(it.unit || 'Adet')}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">${formatUnitPrice(it.unitPrice, f.paraBirimi || 'TL')}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">%${it.vat}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">${formatMoney(it.qty * it.unitPrice * (1 + it.vat / 100), f.paraBirimi || 'TL')}</td></tr>`;
+              const kapakFoto = s && ((s.photos && s.photos[0]) || null);
+              return `<tr style="border-bottom:1px solid #ccc;page-break-inside:avoid"><td style="padding:4px 4px;white-space:nowrap">${idx + 1}</td>${sa.urunFotografi ? `<td style="padding:4px 4px"><div style="width:36px;height:36px;border-radius:6px;overflow:hidden;background:#eee">${kapakFoto ? `<img src="${kapakFoto}" style="width:36px;height:36px;object-fit:cover;display:block">` : ''}</div></td>` : ''}<td style="padding:4px 4px">${escapeHtml(it.name)}${detaylar.length ? `<div style="font-size:10px;color:#666;font-style:italic">${detaylar.join(' · ')}</div>` : ''}</td><td style="padding:4px 4px;font-size:10.5px;color:#333">${aciklamaSutunu}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">${it.qty}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">${escapeHtml(it.unit || 'Adet')}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">${formatUnitPrice(it.unitPrice, f.paraBirimi || 'TL')}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">%${it.vat}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">${formatMoney(it.qty * it.unitPrice * (1 + it.vat / 100), f.paraBirimi || 'TL')}</td></tr>`;
             }).join('')}
           </tbody>
         </table>
@@ -6929,7 +7225,7 @@
     // kendi "TL" yazımızı eklersek "80,00 TL TL / Adet" gibi çift TL çıkardı).
     const fiyatStr = (n) => Number(n || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const kartHtml = (s, i) => {
-      const foto = (s.photos && s.photos[0]) || s.photo || null;
+      const foto = (s.photos && s.photos[0]) || null;
       return `
       <div style="flex:1;min-width:0;border:1px solid #cfe0f5;border-radius:10px;overflow:hidden;background:#fff">
         <div style="position:relative;background:linear-gradient(135deg,#eaf3ff,#dce9fb);height:92px;display:flex;align-items:center;justify-content:center">
@@ -8702,7 +8998,10 @@
     e.target.value = '';
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => { resizeImageDataUrl(ev.target.result, 320, 0.85, (resized) => { sbLogo = resized; updateSbLogoPreview(); }); };
+    reader.onload = (ev) => { resizeImageDataUrl(ev.target.result, 480, 0.92, async (resized) => {
+      try { sbLogo = await fotografiStorageyeYukle(resized); updateSbLogoPreview(); }
+      catch (err) { alert('Logo yüklenemedi: ' + (err && err.message ? err.message : 'bağlantı hatası') + '\nLütfen tekrar dene.'); }
+    }); };
     reader.readAsDataURL(file);
   });
   document.getElementById('sbLogoRemoveBtn').addEventListener('click', () => { sbLogo = null; updateSbLogoPreview(); });
@@ -8909,6 +9208,53 @@
     await loadState();
     renderAll();
     setDrawerActive('ozet');
+    eskiFotograflariStorageyeTasi(); // arka planda, ekranı bloklamadan — bkz. fonksiyon tanımı
+  }
+  // Kaydetme/açılışın veri arttıkça giderek yavaşlamasının en büyük sebebi: TÜM state (ürün fotoğrafları
+  // VE masraf fişi fotoğrafları dahil) her kaydetmede/açılışta TEK bir JSON parçası olarak sunucuya
+  // gönderiliyor/oradan indiriliyor. Yeni yüklenen fotoğraflar artık state'e gömülmüyor, doğrudan
+  // Storage'a yükleniyor (bkz. fotografiStorageyeYukle). Bu fonksiyon uygulama açılışında ARKA PLANDA
+  // (ekranı bloklamadan) GEÇMİŞTE state İÇİNE gömülmüş (base64 "data:" ile başlayan) eski fotoğrafları
+  // bulup Storage'a taşır, state'te sadece küçük bir URL bırakır. Her 10 fotoğrafta bir ara kayıt
+  // yapılır — süreç yarıda kesilse (sekme kapansa) bile o ana kadarki ilerleme kaybolmaz.
+  async function eskiFotograflariStorageyeTasi() {
+    // migrateState() sırasında ürünlerdeki kopya "photo" alanı silinmişse (bkz. migrasyonTemizlikYapti),
+    // bu temizliğin de kaydedilmesi gerekir — yoksa sadece hafızada kalır, bir sonraki açılışta eski
+    // (kopyalı) veri sunucudan yine gelir.
+    let degisti = migrasyonTemizlikYapti;
+    let sayac = 0;
+    async function tasi(foto) {
+      if (typeof foto !== 'string' || !foto.startsWith('data:')) return null; // zaten Storage URL'i ya da boş
+      let veri = foto;
+      try {
+        // Storage'a atmadan önce küçültmeyi dene — başarısız olursa/zaman aşımına uğrarsa (bozuk veri
+        // vb.) SONSUZA KADAR beklemeden orijinal veriyle devam edilir; asıl amaç JSON'dan çıkarmak,
+        // küçültme sadece ekstra fayda.
+        const kucuk = await Promise.race([
+          new Promise((resolve, reject) => { try { resizeImageDataUrl(foto, 1000, 0.85, resolve); } catch (e) { reject(e); } }),
+          new Promise((resolve) => setTimeout(() => resolve(null), 4000))
+        ]);
+        if (kucuk) veri = kucuk;
+      } catch (e) { /* orijinal veriyle devam */ }
+      try { return await fotografiStorageyeYukle(veri); }
+      catch (e) { return null; /* yükleme başarısız (ağ vb.) — bu fotoğrafı ATLA, state'te olduğu gibi kalsın */ }
+    }
+    for (const s of state.stok) {
+      if (!Array.isArray(s.photos) || !s.photos.length) continue;
+      for (let i = 0; i < s.photos.length; i++) {
+        const url = await tasi(s.photos[i]);
+        if (url) { s.photos[i] = url; degisti = true; sayac++; if (sayac % 25 === 0) saveStateSessiz(); }
+      }
+    }
+    for (const t of state.transactions) {
+      const url = await tasi(t.receiptPhoto);
+      if (url) { t.receiptPhoto = url; degisti = true; sayac++; if (sayac % 25 === 0) saveStateSessiz(); }
+    }
+    if (state.sirketBilgileri) {
+      const url = await tasi(state.sirketBilgileri.logo);
+      if (url) { state.sirketBilgileri.logo = url; degisti = true; }
+    }
+    if (degisti) saveStateSessiz();
   }
   function showPendingScreen() {
     document.getElementById('authScreen').style.display = 'none';
@@ -8939,6 +9285,15 @@
     document.getElementById('sirketSecScreen').style.display = 'flex';
     renderSirketSecList();
   }
+  // Çevrimdışı açılışta (sunucuya sorulamadığında) hangi firmaya, hangi rolle girileceğini bilebilmek
+  // için son başarılı girişi küçük ve senkron olan localStorage'da tutuyoruz (IndexedDB'deki asıl veri
+  // önbelleğinden ayrı — bu sadece "hangi firma" bilgisi, birkaç yüz bayt).
+  function sonOturumuKaydet() {
+    try { localStorage.setItem('dnz_son_oturum', JSON.stringify({ sirketId: currentSirketId, sirketAdi: currentSirketAdi, role: currentUserRole, ownerId: currentOwnerId })); } catch (e) { /* localStorage yok/dolu — sorun değil, sadece çevrimdışı ilk açılış desteği azalır */ }
+  }
+  function sonOturumuOku() {
+    try { return JSON.parse(localStorage.getItem('dnz_son_oturum')); } catch (e) { return null; }
+  }
   async function selectSirketAndEnter(sirketId, sirketAdi) {
     currentSirketId = sirketId;
     currentSirketAdi = sirketAdi;
@@ -8947,6 +9302,7 @@
     // rolü ayrı ayrı verdiği için, seçilen firmanın rolünü buradan alıp güncelliyoruz.
     const secilen = mySirketler.find((s) => s.sirket_id === sirketId);
     if (secilen) currentUserRole = secilen.role;
+    sonOturumuKaydet();
     await showApp();
   }
   document.getElementById('sirketSecList').addEventListener('click', async (e) => {
@@ -9081,11 +9437,32 @@
     if (session && session.user) {
       if (appStarted) return;
       appStarted = true;
+      // Çevrimdışıyken üyelik/firma listesini sunucudan SORAMAYIZ — bu durumda, daha önce bu cihazda
+      // başarıyla girilmiş son firmaya (varsa) doğrudan gir. Böylece "internetin yok" diye kullanıcı
+      // kendi verisine hiç erişemez duruma düşmez.
+      if (!navigator.onLine) {
+        const son = sonOturumuOku();
+        if (son && son.sirketId) {
+          currentOwnerId = son.ownerId;
+          currentUserRole = son.role;
+          mySirketler = [{ sirket_id: son.sirketId, sirket_adi: son.sirketAdi, role: son.role }];
+          await selectSirketAndEnter(son.sirketId, son.sirketAdi);
+          return;
+        }
+        // Çevrimdışı VE hiç önbelleklenmiş oturum yok — aşağıdaki normal akışa devam eder (bu, muhtemelen
+        // başarısız olacak bir ağ denemesidir, ama en azından tutarlı/anlaşılır bir sonuca varır).
+      }
       const membership = await resolveMembership(session.user.id);
       currentOwnerId = membership ? membership.ownerId : null;
       currentUserRole = membership ? membership.role : null;
       mySirketler = await resolveSirketler();
       if (!mySirketler.length) {
+        // Sunucuya ulaşılamadığı (çevrimdışı/ağ hatası) için boş döndüyse VE önbellekte bir son oturum
+        // varsa, "üyeliğin/firman yok" gibi YANLIŞ bir ekran göstermek yerine yine önbellekteki firmaya gir.
+        if (!navigator.onLine) {
+          const son = sonOturumuOku();
+          if (son && son.sirketId) { await selectSirketAndEnter(son.sirketId, son.sirketAdi); return; }
+        }
         if (!membership) { appStarted = false; showPendingScreen(); return; }
         // Üyeliği var ama hiç firması yok (olağandışı bir durum) — yeni firma oluşturmasına izin ver.
         showSirketSecScreen();
