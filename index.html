@@ -1794,7 +1794,7 @@
     state.markalar = state.markalar || [];
     state.depolar = state.depolar || [];
     state.firsatlar = state.firsatlar || [];
-    state.sablonAyarlari = Object.assign({ logo: true, urunFotografi: false, urunKodu: true, barkod: false, rafYeri: false, notlar: true }, state.sablonAyarlari || {});
+    state.sablonAyarlari = Object.assign({ logo: true, urunFotografi: false, urunKodu: false, barkod: false, rafYeri: false, notlar: true }, state.sablonAyarlari || {});
     if (!state.depolar.length) state.depolar.push({ id: genId(), name: 'Ana Depo', address: '' });
     const anaDepoId = state.depolar[0].id;
     state.cariler.forEach((c) => {
@@ -5698,13 +5698,42 @@
     const b = e.target.closest('button'); if (!b) return;
     setCariMode(b.dataset.m);
   });
+  document.getElementById('fCari').addEventListener('change', (e) => {
+    if (e.target.value === '__yeni__') openYeniCariHizliEkleModal();
+  });
 
   let draftItems = [];
   function emptyItem() { return { stokId: '', name: '', unit: 'Adet', qty: 1, unitPrice: 0, vat: 20, tevkifatOrani: 0 }; }
   function renderAllCariSelects() {
     const opts = state.cariler.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
     const fCari = document.getElementById('fCari');
-    if (fCari) fCari.innerHTML = '<option value="">— Cari seçilmedi —</option>' + opts;
+    if (fCari) fCari.innerHTML = '<option value="">— Cari seçilmedi —</option><option value="__yeni__">+ Yeni Cari Ekle</option>' + opts;
+  }
+  // "Kayıtlı Cari" listesinde o an kayıtlı olmayan bir müşteri/tedarikçi varsa, satış ekranından hiç
+  // çıkmadan hızlıca (sadece isim + opsiyonel telefon ile) gerçek, kalıcı bir cari oluşturup faturaya
+  // bağlar — "Perakende" modundan farklı olarak bu cari ileride Müşteriler/Tedarikçiler listesinde,
+  // bakiyesiyle birlikte kalıcı olarak görünür.
+  function openYeniCariHizliEkleModal() {
+    const yon = document.getElementById('fYon').value;
+    const tip = yon === 'alis' ? 'tedarikci' : 'musteri';
+    openModal(`
+      <h3>${tip === 'tedarikci' ? 'Yeni Tedarikçi' : 'Yeni Müşteri'}</h3>
+      <div class="field"><label>Ad Soyad / Unvan</label><input type="text" id="qcName" autofocus></div>
+      <div class="field"><label>Telefon (opsiyonel)</label><input type="tel" id="qcPhone" placeholder="isteğe bağlı"></div>
+      <p class="sub" style="margin:-6px 0 12px">Diğer bilgileri (adres, vergi no vb.) daha sonra ${tip === 'tedarikci' ? 'Tedarikçiler' : 'Müşteriler'} ekranından ekleyebilirsin.</p>
+      <div class="modal-actions"><button class="btn" id="mCancel">Vazgeç</button><button class="btn btn-primary" id="mSave">Ekle ve Seç</button></div>
+    `);
+    document.getElementById('mCancel').onclick = () => { closeModal(); document.getElementById('fCari').value = ''; };
+    document.getElementById('mSave').onclick = () => {
+      const name = document.getElementById('qcName').value.trim();
+      if (!name) { alert('Ad gerekli.'); return; }
+      const c = { id: genId(), type: tip, name, phone: document.getElementById('qcPhone').value.trim(), address: '', taxOffice: '', taxNo: '', email: '', currency: 'TL', hareketler: [], etiketler: [], aktiviteler: [] };
+      state.cariler.push(c);
+      saveState();
+      closeModal();
+      renderAllCariSelects();
+      document.getElementById('fCari').value = c.id;
+    };
   }
 
   // ---- Item summary (compact, tap to edit) ----
