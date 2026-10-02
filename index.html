@@ -870,6 +870,11 @@
           <label>Raf Yeri (opsiyonel)</label>
           <input type="text" id="sfRafYeri" placeholder="örn. A Blok - 3. Raf">
         </div>
+        <div class="field">
+          <label>Birim Ağırlık (kg, opsiyonel)</label>
+          <input type="number" id="sfAgirlikKg" step="0.001" min="0" placeholder="örn. 0.5">
+          <p style="font-size:12px;color:var(--ink-soft);margin:4px 0 0">Satış biriminin (bir Adet/mt/m²/kg vb.) ağırlığı — çıktılarda toplam sipariş ağırlığını göstermek için kullanılır (nakliye planlaması, özellikle toz/demir gibi ağır malzemelerde faydalı).</p>
+        </div>
         <div class="field-row">
           <div class="field"><label>GTİP (opsiyonel)</label><input type="text" id="sfGtip" placeholder="gümrük tarife kodu"></div>
           <div class="field"><label>GTIN (opsiyonel)</label><input type="text" id="sfGtin" placeholder="küresel ticaret no"></div>
@@ -1369,7 +1374,17 @@
 
     <!-- ŞABLON AYARLARI -->
     <section class="view" id="view-sablon-ayarlari">
-      <p style="font-size:12.5px;color:var(--ink-soft);padding:0 4px;margin-bottom:14px">Bu ayarlar; Alış, Satış, Teklif, Sipariş ve İrsaliye çıktılarının (yazdırma/PDF) görünümünü belirler.</p>
+      <p style="font-size:12.5px;color:var(--ink-soft);padding:0 4px;margin-bottom:10px">Bu ayarlar; Alış, Satış, Teklif, Sipariş ve İrsaliye çıktılarının (yazdırma/PDF) görünümünü belirler — her belge türü için AYRI AYRI ayarlanır.</p>
+      <div class="field" style="margin-bottom:14px">
+        <label>Belge Türü</label>
+        <select id="saDocType">
+          <option value="satis">Satış Faturası</option>
+          <option value="alis">Alış Faturası</option>
+          <option value="teklif">Teklif</option>
+          <option value="siparis">Sipariş</option>
+          <option value="irsaliye">İrsaliye</option>
+        </select>
+      </div>
       <div class="card">
         <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)">
           <span>Logo görünsün</span>
@@ -1391,9 +1406,25 @@
           <span>Kalemlerde raf yeri görünsün</span>
           <input type="checkbox" id="saRafYeri" style="width:auto;transform:scale(1.3)">
         </label>
-        <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0">
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)">
+          <span>Birim fiyat görünsün</span>
+          <input type="checkbox" id="saBirimFiyat" style="width:auto;transform:scale(1.3)">
+        </label>
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)">
+          <span>Ara toplam / KDV toplamı görünsün</span>
+          <input type="checkbox" id="saAltToplam" style="width:auto;transform:scale(1.3)">
+        </label>
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)">
+          <span>Genel toplam tutar görünsün</span>
+          <input type="checkbox" id="saToplamTutar" style="width:auto;transform:scale(1.3)">
+        </label>
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)">
           <span>Notlar/Açıklama görünsün</span>
           <input type="checkbox" id="saNotlar" style="width:auto;transform:scale(1.3)">
+        </label>
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0">
+          <span>Müşterinin güncel bakiyesi görünsün</span>
+          <input type="checkbox" id="saCariBakiye" style="width:auto;transform:scale(1.3)">
         </label>
       </div>
     </section>
@@ -1794,7 +1825,20 @@
     state.markalar = state.markalar || [];
     state.depolar = state.depolar || [];
     state.firsatlar = state.firsatlar || [];
-    state.sablonAyarlari = Object.assign({ logo: true, urunFotografi: false, urunKodu: false, barkod: false, rafYeri: false, notlar: true }, state.sablonAyarlari || {});
+    // Yazdırma/PDF görünüm ayarları artık Satış/Alış/Teklif/Sipariş/İrsaliye için AYRI AYRI tutulur —
+    // ör. İrsaliye'de fiyat/toplam gizlenip Teklif'te açık bırakılabilir. Eskiden TEK, ortak bir ayar
+    // nesnesiydi (ör. state.sablonAyarlari.logo doğrudan üstte dururdu) — bu eski biçimi tespit edip
+    // (varsa) 5 belge türünün hepsine BAŞLANGIÇ noktası olarak kopyalar, böylece kullanıcının önceden
+    // seçtiği tercihler kaybolmaz.
+    (function migrateSablonAyarlari() {
+      const VARSAYILAN = { logo: true, urunFotografi: false, urunKodu: false, barkod: false, rafYeri: false, notlar: true, cariBakiye: false, birimFiyat: true, altToplam: true, toplamTutar: true };
+      const eski = state.sablonAyarlari || {};
+      const eskiFormat = eski.logo !== undefined && !eski.satis;
+      const baslangic = eskiFormat ? Object.assign({}, VARSAYILAN, eski) : VARSAYILAN;
+      const yeni = {};
+      ['satis', 'alis', 'teklif', 'siparis', 'irsaliye'].forEach((k) => { yeni[k] = Object.assign({}, baslangic, eski[k] || {}); });
+      state.sablonAyarlari = yeni;
+    })();
     if (!state.depolar.length) state.depolar.push({ id: genId(), name: 'Ana Depo', address: '' });
     const anaDepoId = state.depolar[0].id;
     state.cariler.forEach((c) => {
@@ -1845,6 +1889,7 @@
       if (s.gtin === undefined) s.gtin = '';
       if (s.ulkeKodu === undefined) s.ulkeKodu = '';
       if (s.rafYeri === undefined) s.rafYeri = '';
+      if (s.agirlikKg === undefined) s.agirlikKg = 0;
       if (s.faturaBasligi === undefined) s.faturaBasligi = '';
       if (s.aciklama === undefined) s.aciklama = '';
       if (s.aciklamaFaturada === undefined) s.aciklamaFaturada = true;
@@ -2480,21 +2525,37 @@
   function enterFihrist() { showView('view-fihrist'); document.getElementById('fihristSearch').value = ''; renderFihrist(''); setDrawerActive('fihrist'); }
   function enterAyarlar() { showView('view-ayarlar'); setDrawerActive('ayarlar'); }
   function enterSirketBilgileri() { showView('view-sirket-bilgileri', { showBack: true, onBack: enterAyarlar }); openSirketBilgileriForm(); setDrawerActive('ayarlar'); }
-  function enterSablonAyarlari() {
-    showView('view-sablon-ayarlari', { showBack: true, onBack: enterAyarlar });
-    setDrawerActive('ayarlar');
-    const sa = state.sablonAyarlari;
+  // Hangi belge türünün ayarları şu an ekranda gösteriliyor — Şablon Ayarları ekranı açıkken dropdown
+  // ile değiştirilir, her biri state.sablonAyarlari içinde kendi anahtarında (satis/alis/teklif/
+  // siparis/irsaliye) ayrı ayrı saklanır.
+  let saAktifDocType = 'satis';
+  function renderSablonAyarlariFormu() {
+    const sa = state.sablonAyarlari[saAktifDocType];
     document.getElementById('saLogo').checked = sa.logo;
     document.getElementById('saUrunFotografi').checked = sa.urunFotografi;
     document.getElementById('saUrunKodu').checked = sa.urunKodu;
     document.getElementById('saBarkod').checked = sa.barkod;
     document.getElementById('saRafYeri').checked = sa.rafYeri;
+    document.getElementById('saBirimFiyat').checked = sa.birimFiyat;
+    document.getElementById('saAltToplam').checked = sa.altToplam;
+    document.getElementById('saToplamTutar').checked = sa.toplamTutar;
     document.getElementById('saNotlar').checked = sa.notlar;
+    document.getElementById('saCariBakiye').checked = sa.cariBakiye;
   }
-  ['saLogo', 'saUrunFotografi', 'saUrunKodu', 'saBarkod', 'saRafYeri', 'saNotlar'].forEach((id) => {
+  function enterSablonAyarlari() {
+    showView('view-sablon-ayarlari', { showBack: true, onBack: enterAyarlar });
+    setDrawerActive('ayarlar');
+    document.getElementById('saDocType').value = saAktifDocType;
+    renderSablonAyarlariFormu();
+  }
+  document.getElementById('saDocType').addEventListener('change', (e) => {
+    saAktifDocType = e.target.value;
+    renderSablonAyarlariFormu();
+  });
+  ['saLogo', 'saUrunFotografi', 'saUrunKodu', 'saBarkod', 'saRafYeri', 'saBirimFiyat', 'saAltToplam', 'saToplamTutar', 'saNotlar', 'saCariBakiye'].forEach((id) => {
     document.getElementById(id).addEventListener('change', (e) => {
       const key = id.replace('sa', '').replace(/^./, (c) => c.toLocaleLowerCase('tr-TR'));
-      state.sablonAyarlari[key] = e.target.checked;
+      state.sablonAyarlari[saAktifDocType][key] = e.target.checked;
       saveState();
     });
   });
@@ -5147,6 +5208,7 @@
     document.getElementById('sfBarcode').value = s && s.barcode ? s.barcode : '';
     document.getElementById('sfProductCode').value = s && s.productCode ? s.productCode : '';
     document.getElementById('sfRafYeri').value = s && s.rafYeri ? s.rafYeri : '';
+    document.getElementById('sfAgirlikKg').value = s && s.agirlikKg ? s.agirlikKg : '';
     document.getElementById('sfGtip').value = s && s.gtip ? s.gtip : '';
     document.getElementById('sfGtin').value = s && s.gtin ? s.gtin : '';
     document.getElementById('sfUlkeKodu').value = s && s.ulkeKodu ? s.ulkeKodu : '';
@@ -5197,6 +5259,7 @@
       barcode: document.getElementById('sfBarcode').value.trim(),
       productCode: document.getElementById('sfProductCode').value.trim(),
       rafYeri: document.getElementById('sfRafYeri').value.trim(),
+      agirlikKg: parseFloat(document.getElementById('sfAgirlikKg').value) || 0,
       gtip: document.getElementById('sfGtip').value.trim(),
       gtin: document.getElementById('sfGtin').value.trim(),
       ulkeKodu: document.getElementById('sfUlkeKodu').value.trim(),
@@ -6546,7 +6609,10 @@
         <div class="field"><label>Miktar</label><input type="number" id="mMiktar" min="0.01" step="any" value="1"></div>
         <div class="field"><label>Birim Fiyat</label><input type="number" id="mFiyat" min="0" step="0.01" value="${price}"></div>
       </div>
-      <div class="field"><label>Toplam (KDV dahil)</label><input type="number" id="mToplam" min="0" step="0.01" value="${Math.round(1 * price * (1 + (vat || 0) / 100) * 100) / 100}"></div>
+      <div class="field-row">
+        <div class="field"><label>KDV %</label><select id="mVat"><option ${(vat || 0) === 0 ? 'selected' : ''} value="0">0</option><option ${(vat || 0) === 1 ? 'selected' : ''} value="1">1</option><option ${(vat || 0) === 10 ? 'selected' : ''} value="10">10</option><option ${(vat || 0) === 20 ? 'selected' : ''} value="20">20</option></select></div>
+        <div class="field"><label>Toplam (KDV dahil)</label><input type="number" id="mToplam" min="0" step="0.01" value="${Math.round(1 * price * (1 + (vat || 0) / 100) * 100) / 100}"></div>
+      </div>
       <p style="font-size:11.5px;color:var(--ink-soft);margin-top:-8px">Toplamı değiştirirsen miktar sabit kalır, birim fiyat otomatik yeniden hesaplanır.</p>
       <button type="button" id="mOncekiFiyatlar" style="background:none;border:none;padding:0;margin-top:-6px;color:var(--flame-deep);font-size:12px;text-decoration:underline;cursor:pointer">önceki fiyatlar</button>
       <div class="modal-actions"><button class="btn" id="mCancel">Vazgeç</button><button class="btn btn-primary" id="mEkle">Ekle</button></div>
@@ -6554,15 +6620,16 @@
     const input = document.getElementById('mMiktar');
     const fiyatInput = document.getElementById('mFiyat');
     const toplamInput = document.getElementById('mToplam');
+    const vatSelect = document.getElementById('mVat');
     // Miktar/Birim Fiyat'tan Toplam'ı (KDV dahil) hesapla; Toplam'dan da (miktar sabit kalarak)
     // Birim Fiyat'ı geri hesapla — hangisini değiştirdiğine göre diğer ikisi otomatik güncellenir.
-    const kdvOrani = vat || 0;
+    // KDV oranı artık sabit değil, seçiciden (mVat) okunur — değiştirilince Toplam da güncellenir.
     const toplamiGuncelle = () => {
-      const m = parseFloat(input.value) || 0, f = parseFloat(fiyatInput.value) || 0;
+      const m = parseFloat(input.value) || 0, f = parseFloat(fiyatInput.value) || 0, kdvOrani = parseFloat(vatSelect.value) || 0;
       toplamInput.value = (m && f) ? Math.round(m * f * (1 + kdvOrani / 100) * 100) / 100 : '';
     };
     const fiyatiToplamdanGuncelle = () => {
-      const m = parseFloat(input.value) || 0, t = parseFloat(toplamInput.value) || 0;
+      const m = parseFloat(input.value) || 0, t = parseFloat(toplamInput.value) || 0, kdvOrani = parseFloat(vatSelect.value) || 0;
       // 2 ondalığa yuvarlarsak geri çarpımda girilen toplamı tam tutturamayabiliyor — 4 ondalık
       // kullanınca bu fark pratikte kayboluyor (yazdırmada gene 2 ondalık gösteriliyor).
       if (m > 0) fiyatInput.value = Math.round((t / (1 + kdvOrani / 100) / m) * 10000) / 10000;
@@ -6570,13 +6637,15 @@
     input.addEventListener('input', toplamiGuncelle);
     fiyatInput.addEventListener('input', toplamiGuncelle);
     toplamInput.addEventListener('input', fiyatiToplamdanGuncelle);
+    vatSelect.addEventListener('change', toplamiGuncelle);
     input.focus(); input.select();
     document.getElementById('mCancel').onclick = closeModal;
     document.getElementById('mOncekiFiyatlar').onclick = () => {
-      const qtyKept = input.value, fiyatKept = fiyatInput.value;
+      const qtyKept = input.value, fiyatKept = fiyatInput.value, vatKept = vatSelect.value;
       openOncekiFiyatlarModal(s, () => {
         openMiktarModal(s, v, itemAd, itemAciklama, price, vat);
         document.getElementById('mMiktar').value = qtyKept;
+        document.getElementById('mVat').value = vatKept;
         document.getElementById('mFiyat').value = fiyatKept;
         document.getElementById('mFiyat').dispatchEvent(new Event('input'));
       });
@@ -6586,7 +6655,7 @@
       if (!qty || qty <= 0) { alert('Geçerli bir miktar gir.'); return; }
       const fiyat = parseFloat(fiyatInput.value);
       if (isNaN(fiyat) || fiyat < 0) { alert('Geçerli bir fiyat gir.'); return; }
-      draftItems.push({ stokId: s.id, variantId: v ? v.id : undefined, name: displayName, aciklama: itemAciklama, unit: s.satisBirimi, qty, unitPrice: fiyat, vat: vat !== undefined ? vat : 20 });
+      draftItems.push({ stokId: s.id, variantId: v ? v.id : undefined, name: displayName, aciklama: itemAciklama, unit: s.satisBirimi, qty, unitPrice: fiyat, vat: parseFloat(vatSelect.value) });
       closeModal(); returnToFaturaForm();
     };
     document.getElementById('mEkle').onclick = dogrula;
@@ -7432,8 +7501,16 @@
     return DOC_LABELS[f.docType] || 'Belge';
   }
   // Belgenin yazdırma/PDF görünümünün HTML'i — hem yazdırma hem PDF olarak paylaşma aynı çıktıyı kullanır.
+  // Hangi belge, Şablon Ayarları'ndaki hangi profili kullanacak — Satış/Alış ayrımı fatura ve iade için
+  // f.yon'a göre, diğer üçü (teklif/sipariş/irsaliye) doğrudan docType'a göre belirlenir.
+  function sablonAyarAnahtari(f) {
+    if (f.docType === 'teklif') return 'teklif';
+    if (f.docType === 'siparis') return 'siparis';
+    if (f.docType === 'irsaliye') return 'irsaliye';
+    return f.yon === 'alis' ? 'alis' : 'satis';
+  }
   function buildFaturaPrintHtml(f) {
-    const sa = state.sablonAyarlari;
+    const sa = state.sablonAyarlari[sablonAyarAnahtari(f)];
     const extraMeta = [f.vade ? 'Vade: ' + formatDate(f.vade) : '', f.irsaliyeNo ? 'İrsaliye No: ' + escapeHtml(f.irsaliyeNo) : ''].filter(Boolean).join(' · ');
     return `
       <div style="font-family: sans-serif; padding: 14px; color:#000">
@@ -7442,40 +7519,69 @@
         ${extraMeta ? `<p style="color:#444;margin:0 0 18px;text-align:center">${extraMeta}</p>` : ''}
         <table style="width:100%;border-collapse:collapse;margin-bottom:18px;font-size:11.5px">
           <thead><tr style="border-bottom:2px solid #000">
-            <th style="text-align:left;padding:4px 4px;white-space:nowrap">Sıra No</th>${sa.urunFotografi ? '<th style="text-align:left;padding:4px 4px">Görsel</th>' : ''}<th style="text-align:left;padding:4px 4px">Ürün/Hizmet</th><th style="text-align:left;padding:4px 4px">Açıklama</th><th style="text-align:right;padding:4px 4px">Miktar</th><th style="text-align:right;padding:4px 4px">Birim</th><th style="text-align:right;padding:4px 4px">Birim Fiyat</th><th style="text-align:right;padding:4px 4px">KDV%</th><th style="text-align:right;padding:4px 4px">Toplam</th>
+            <th style="text-align:left;padding:4px 4px;white-space:nowrap">Sıra No</th>${sa.urunFotografi ? '<th style="text-align:left;padding:4px 4px">Görsel</th>' : ''}<th style="text-align:left;padding:4px 4px">Ürün/Hizmet</th><th style="text-align:left;padding:4px 4px">Açıklama</th><th style="text-align:right;padding:4px 4px">Miktar</th><th style="text-align:right;padding:4px 4px">Paketleme</th>${sa.birimFiyat ? '<th style="text-align:right;padding:4px 4px">Birim Fiyat</th>' : ''}<th style="text-align:right;padding:4px 4px">KDV%</th><th style="text-align:right;padding:4px 4px">Toplam</th>
           </tr></thead>
           <tbody>
             ${f.items.map((it, idx) => {
               const s = it.stokId ? state.stok.find((x) => x.id === it.stokId) : null;
               const paketlemeStr = s ? birimDonusumMetni(s, it) : null;
+              // Tevkifat notu bir görünüm tercihi değil, vergisel bir bilgidir — bu yüzden diğer
+              // detaylar (kod/barkod/raf) gibi Şablon Ayarları'ndaki bir açma/kapama anahtarına değil,
+              // doğrudan bu kalemde gerçekten tevkifat uygulanıp uygulanmadığına bağlıdır; her zaman
+              // gösterilir ve göze çarpması için ayrı renkte/kalın yazılır.
               const detaylar = [
                 sa.urunKodu && s && s.productCode ? 'Kod: ' + escapeHtml(s.productCode) : '',
                 sa.barkod && s && s.barcode ? 'Barkod: ' + escapeHtml(s.barcode) : '',
-                sa.rafYeri && s && s.rafYeri ? 'Raf: ' + escapeHtml(s.rafYeri) : ''
+                sa.rafYeri && s && s.rafYeri ? 'Raf: ' + escapeHtml(s.rafYeri) : '',
+                (f.tevkifatli && (it.tevkifatOrani || 0) > 0) ? `<strong style="color:#b45309;font-style:normal">Tevkifat %${it.tevkifatOrani}</strong>` : ''
               ].filter(Boolean);
-              // Açıklama sütunu: kalemin kendi notu ve paketleme dağılımı — ürün adıyla AYNI
-              // satırda değil, ayrı bir sütunda gösterilir.
-              const aciklamaSutunu = [it.aciklama ? escapeHtml(it.aciklama) : '', paketlemeStr ? escapeHtml(paketlemeStr) : ''].filter(Boolean).join('<br>');
+              // Açıklama sütunu: SADECE kalemin kendi (elle yazılmış) notu — paketleme dağılımı artık
+              // burada değil, Miktar sütununda parantez içinde gösteriliyor (bkz. aşağıdaki <td>).
+              // Not yoksa sütun tamamen boş kalır.
+              const aciklamaSutunu = it.aciklama ? escapeHtml(it.aciklama) : '';
               const kapakFoto = s && ((s.photos && s.photos[0]) || null);
-              return `<tr style="border-bottom:1px solid #ccc;page-break-inside:avoid"><td style="padding:4px 4px;white-space:nowrap">${idx + 1}</td>${sa.urunFotografi ? `<td style="padding:4px 4px"><div style="width:36px;height:36px;border-radius:6px;overflow:hidden;background:#eee">${kapakFoto ? `<img src="${gorselUrl(kapakFoto)}" style="width:36px;height:36px;object-fit:cover;display:block">` : ''}</div></td>` : ''}<td style="padding:4px 4px">${escapeHtml(it.name)}${detaylar.length ? `<div style="font-size:10px;color:#666;font-style:italic">${detaylar.join(' · ')}</div>` : ''}</td><td style="padding:4px 4px;font-size:10.5px;color:#333">${aciklamaSutunu}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">${it.qty}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">${escapeHtml(it.unit || 'Adet')}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">${formatUnitPrice(it.unitPrice, f.paraBirimi || 'TL')}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">%${it.vat}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">${formatMoney(it.qty * it.unitPrice * (1 + it.vat / 100), f.paraBirimi || 'TL')}</td></tr>`;
+              return `<tr style="border-bottom:1px solid #ccc;page-break-inside:avoid"><td style="padding:4px 4px;white-space:nowrap">${idx + 1}</td>${sa.urunFotografi ? `<td style="padding:4px 4px"><div style="width:36px;height:36px;border-radius:6px;overflow:hidden;background:#eee">${kapakFoto ? `<img src="${gorselUrl(kapakFoto)}" style="width:36px;height:36px;object-fit:cover;display:block">` : ''}</div></td>` : ''}<td style="padding:4px 4px">${escapeHtml(it.name)}${detaylar.length ? `<div style="font-size:10px;color:#666;font-style:italic">${detaylar.join(' · ')}</div>` : ''}</td><td style="padding:4px 4px;font-size:10.5px;color:#333">${aciklamaSutunu}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">${it.qty} ${escapeHtml(it.unit || 'Adet')}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap;color:#1d4ed8">${paketlemeStr ? escapeHtml(paketlemeStr) : ''}</td>${sa.birimFiyat ? `<td style="text-align:right;padding:4px 4px;white-space:nowrap">${formatUnitPrice(it.unitPrice, f.paraBirimi || 'TL')}</td>` : ''}<td style="text-align:right;padding:4px 4px;white-space:nowrap">%${it.vat}</td><td style="text-align:right;padding:4px 4px;white-space:nowrap">${formatMoney(it.qty * it.unitPrice * (1 + it.vat / 100), f.paraBirimi || 'TL')}</td></tr>`;
             }).join('')}
           </tbody>
         </table>
-        ${f.paraBirimi && f.paraBirimi !== 'TL' ? `
+        ${(f.paraBirimi && f.paraBirimi !== 'TL' && (sa.altToplam || sa.toplamTutar)) ? `
         <table style="width:260px;margin-left:auto;margin-bottom:8px;border-collapse:collapse;page-break-inside:avoid">
-          <tr><td style="padding:3px 0">Ara toplam (${f.paraBirimi})</td><td style="padding:3px 0;text-align:right">${formatMoney(f.dovizAraToplam, f.paraBirimi)}</td></tr>
-          <tr><td style="padding:3px 0">KDV toplamı (${f.paraBirimi})</td><td style="padding:3px 0;text-align:right">${formatMoney(f.dovizKdvToplam, f.paraBirimi)}</td></tr>
-          <tr><td style="padding:6px 0;border-top:1px solid #000;font-weight:bold">Genel toplam (${f.paraBirimi})</td><td style="padding:6px 0;border-top:1px solid #000;font-weight:bold;text-align:right">${formatMoney(f.dovizGenelToplam, f.paraBirimi)}</td></tr>
+          ${sa.altToplam ? `<tr><td style="padding:3px 0">Ara toplam (${f.paraBirimi})</td><td style="padding:3px 0;text-align:right">${formatMoney(f.dovizAraToplam, f.paraBirimi)}</td></tr>
+          <tr><td style="padding:3px 0">KDV toplamı (${f.paraBirimi})</td><td style="padding:3px 0;text-align:right">${formatMoney(f.dovizKdvToplam, f.paraBirimi)}</td></tr>` : ''}
+          ${sa.toplamTutar ? `<tr><td style="padding:6px 0;border-top:1px solid #000;font-weight:bold">Genel toplam (${f.paraBirimi})</td><td style="padding:6px 0;border-top:1px solid #000;font-weight:bold;text-align:right">${formatMoney(f.dovizGenelToplam, f.paraBirimi)}</td></tr>` : ''}
         </table>
         <p style="width:260px;margin-left:auto;text-align:right;color:#666;font-size:11px">Kur: 1 ${f.paraBirimi} = ${f.dovizKuru.toFixed(4)} TL (${f.yon === 'satis' ? 'satış' : 'alış'} kuru) — TL karşılığı:</p>
         ` : ''}
+        ${(sa.altToplam || sa.toplamTutar) ? `
         <table style="width:260px;margin-left:auto;border-collapse:collapse;page-break-inside:avoid">
-          <tr><td style="padding:3px 0">Ara toplam</td><td style="padding:3px 0;text-align:right">${formatTL(f.araToplam)}</td></tr>
+          ${sa.altToplam ? `<tr><td style="padding:3px 0">Ara toplam</td><td style="padding:3px 0;text-align:right">${formatTL(f.araToplam)}</td></tr>
           <tr><td style="padding:3px 0">KDV toplamı</td><td style="padding:3px 0;text-align:right">${formatTL(f.kdvToplam)}</td></tr>
           ${f.tevkifatli ? `<tr><td style="padding:3px 0">Vergiler dahil toplam</td><td style="padding:3px 0;text-align:right">${formatTL(f.vergilerDahilToplam)}</td></tr>
-          <tr><td style="padding:3px 0">Tevkifat edilen KDV (−)</td><td style="padding:3px 0;text-align:right">${formatTL(f.tevkifatToplam)}</td></tr>` : ''}
-          <tr><td style="padding:6px 0;border-top:2px solid #000;font-weight:bold;font-size:16px">${f.tevkifatli ? 'Ödenecek Tutar' : 'Genel toplam'}</td><td style="padding:6px 0;border-top:2px solid #000;font-weight:bold;font-size:16px;text-align:right">${formatTL(f.genelToplam)}</td></tr>
+          <tr><td style="padding:3px 0">Tevkifat edilen KDV (−)</td><td style="padding:3px 0;text-align:right">${formatTL(f.tevkifatToplam)}</td></tr>` : ''}` : ''}
+          ${sa.toplamTutar ? `<tr><td style="padding:6px 0;border-top:2px solid #000;font-weight:bold;font-size:16px">${f.tevkifatli ? 'Ödenecek Tutar' : 'Genel toplam'}</td><td style="padding:6px 0;border-top:2px solid #000;font-weight:bold;font-size:16px;text-align:right">${formatTL(f.genelToplam)}</td></tr>` : ''}
         </table>
+        ` : ''}
+        ${(sa.toplamTutar && (!f.paraBirimi || f.paraBirimi === 'TL')) ? `<p style="width:260px;margin-left:auto;text-align:right;font-size:11px;color:#444;font-style:italic;margin-top:4px">Yalnız: ${tutarYaziyla(f.genelToplam)}</p>` : ''}
+        ${(() => {
+          // Birim ağırlığı (kg) tanımlı ürünlerden toplam sipariş ağırlığını hesaplar — nakliye
+          // planlaması için (özellikle toz/demir gibi ağır malzemelerde). Hiçbir kalemde ağırlık
+          // tanımlı değilse (toplam 0 ise) hiç gösterilmez.
+          let toplamKg = 0;
+          f.items.forEach((it) => {
+            const s = it.stokId ? state.stok.find((x) => x.id === it.stokId) : null;
+            if (s && s.agirlikKg) toplamKg += it.qty * s.agirlikKg;
+          });
+          if (toplamKg <= 0) return '';
+          const kgStr = Math.round(toplamKg * 100) / 100;
+          return `<p style="margin-top:10px;color:#444;font-size:11.5px">Toplam Ürün Ağırlığı: <strong>${kgStr.toLocaleString('tr-TR', { maximumFractionDigits: 2 })} kg</strong></p>`;
+        })()}
+        ${(sa.cariBakiye && f.cariId) ? (() => {
+          const c = state.cariler.find((x) => x.id === f.cariId);
+          if (!c) return '';
+          const bak = cariBalance(c);
+          const durum = bak > 0 ? 'borçlu' : (bak < 0 ? 'alacaklı' : null);
+          return `<p style="margin-top:14px;color:#444;font-size:11.5px">Güncel Hesap Bakiyesi: <strong>${formatTL(Math.abs(bak))}</strong>${durum ? ' (' + durum + ')' : ' (bakiye sıfır)'}</p>`;
+        })() : ''}
         ${(sa.notlar && f.notlar) ? `<p style="margin-top:20px;color:#444">Not: ${escapeHtml(f.notlar)}</p>` : ''}
         <p style="margin-top:36px;color:#888;font-size:11px">Bu belge DNZ Defter uygulamasında oluşturulmuştur. Resmi e-Fatura/e-Arşiv/e-İrsaliye belgesi değildir.</p>
       </div>
@@ -8767,8 +8873,15 @@
     // Kalem alış biriminde (ör. m², kg, mt) girilmiş, ya da satış biriminde girilmiş ama paketleme
     // tanımlı — her iki durumda da önce satış birimine çevrilip (gerekiyorsa) paketlemeye bölünür.
     const satisMiktari = (it.unit === s.alisBirimi && alisFarkli) ? it.qty * (s.donusumOrani || 1) : it.qty;
-    const dagilim = paketlemeVar ? paketlemeDagilimi(s, satisMiktari) : null;
-    return dagilim || (alisFarkli || paketlemeVar ? `${formatMiktar(satisMiktari)} ${s.satisBirimi}` : null);
+    if (paketlemeVar) {
+      // Paketleme tanımlıysa SADECE anlamlı bir dağılım varsa (ör. "3 Paket, 5 Adet") gösterilir —
+      // miktar en küçük paketleme biriminden azsa (paketlemeDagilimi null döner) hiçbir şey gösterilmez;
+      // zaten görünen "6 Adet" gibi bir tekrar oluşmaz.
+      return paketlemeDagilimi(s, satisMiktari);
+    }
+    // Paketleme yok ama kalem alış biriminde girilmiş (alış/satış birimi farklı) — satış birimi
+    // karşılığını göster.
+    return alisFarkli ? `${formatMiktar(satisMiktari)} ${s.satisBirimi}` : null;
   }
   function paketlemeDagilimi(s, miktarSatisBiriminde) {
     const birimler = (s && s.paketlemeBirimleri) || [];
@@ -8778,10 +8891,15 @@
     const seviyeler = birimler.map((b) => { kumulatif *= (b.icerik || 1); return { birim: b.birim, adetKarsiligi: kumulatif }; });
     let kalan = Math.round(miktarSatisBiriminde * 10000) / 10000;
     const parcalar = [];
+    let seviyeKullanildi = false;
     for (let i = seviyeler.length - 1; i >= 0; i--) {
       const sayi = Math.floor(kalan / seviyeler[i].adetKarsiligi + 1e-9);
-      if (sayi > 0) { parcalar.push(`${sayi} ${seviyeler[i].birim}`); kalan = Math.round((kalan - sayi * seviyeler[i].adetKarsiligi) * 10000) / 10000; }
+      if (sayi > 0) { parcalar.push(`${sayi} ${seviyeler[i].birim}`); kalan = Math.round((kalan - sayi * seviyeler[i].adetKarsiligi) * 10000) / 10000; seviyeKullanildi = true; }
     }
+    // Miktar en küçük paketleme biriminden bile azsa (ör. 1 Paket = 12 Adet iken miktar 6), hiçbir
+    // seviye kullanılmaz ve sonuç zaten Miktar/Birim sütunlarında görünen değerle AYNI olur (ör. "6
+    // Adet") — bu durumda göstermenin bir anlamı yok, çağıran yer bunu null alıp hiç göstermeyecek.
+    if (!seviyeKullanildi) return null;
     if (kalan > 0.0001 || parcalar.length === 0) {
       const kalanStr = Number.isInteger(kalan) ? kalan : kalan.toLocaleString('tr-TR', { maximumFractionDigits: 4 });
       parcalar.push(`${kalanStr} ${s.satisBirimi || 'Adet'}`);
