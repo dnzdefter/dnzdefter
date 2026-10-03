@@ -3651,7 +3651,7 @@
             // bir kıymet olduğu için) — ama çekin/senedin kendisi ayrıca Çek/Senet ekranında "bekliyor"
             // durumunda takip edilmeye devam eder, vadesinde tahsil edilip edilmediği orada işaretlenir.
             state.cekSenet = state.cekSenet || [];
-            state.cekSenet.push({ id: genId(), tur: p.odemeAraci, yon: isMusteri ? 'alinan' : 'verilen', tutar: parcaTl, vade: p.vade || date, cariId: c.id, cariAdi: c.name, aciklama: desc, durum: 'bekliyor', odemeId });
+            state.cekSenet.push({ id: genId(), tur: p.odemeAraci, yon: isMusteri ? 'alinan' : 'verilen', tutar: parcaTl, duzenlemeTarihi: date, vade: p.vade || date, cariId: c.id, cariAdi: c.name, aciklama: desc, durum: 'bekliyor', odemeId });
           } else if (p.hesapId) {
             const h = state.hesaplar.find((x) => x.id === p.hesapId);
             if (h) { const hesapTutar = (h.currency === currency) ? p.tutar : parcaTl; h.hareketler = h.hareketler || []; h.hareketler.push({ id: genId(), date, aciklama: desc + (c.name ? ' — ' + c.name : ''), tutar: isMusteri ? hesapTutar : -hesapTutar, odemeId }); }
@@ -5702,17 +5702,43 @@
         <div class="field"><label>Yön</label><select id="mYon"><option value="alinan">Alınan</option><option value="verilen">Verilen</option></select></div>
       </div>
       <div class="field"><label>Tutar (TL)</label><input type="number" id="mAmount" min="0" step="0.01"></div>
-      <div class="field"><label>Vade tarihi</label><input type="date" id="mVade" value="${todayISO()}"></div>
+      <div class="field-row">
+        <div class="field"><label>Düzenlenme tarihi</label><input type="date" id="mDuzenlemeTarihi" value="${todayISO()}"></div>
+        <div class="field"><label>Vade tarihi</label><input type="date" id="mVade" value="${todayISO()}"></div>
+      </div>
       <div class="field"><label>Cari (opsiyonel)</label><select id="mCari"><option value="">— Yok —</option>${cariOptions}</select></div>
+      <p class="sub" id="mCariBilgi" style="margin:-8px 0 0;display:none"></p>
       <div class="field"><label>Açıklama (opsiyonel)</label><input type="text" id="mDesc"></div>
       <div class="modal-actions"><button class="btn" id="mCancel">Vazgeç</button><button class="btn btn-primary" id="mSave">Kaydet</button></div>
     `);
+    // Bir cari seçilince, bu çek/senedin o carinin bakiyesini de etkileyeceğini (sadece ayrı bir kayıt
+    // olarak durmadığını) açıkça belirt — "Alınan" carinin borcunu azaltır, "Verilen" bizim borcumuzu azaltır.
+    const cariBilgiGuncelle = () => {
+      const el = document.getElementById('mCariBilgi');
+      if (!document.getElementById('mCari').value) { el.style.display = 'none'; return; }
+      const yon = document.getElementById('mYon').value;
+      el.textContent = yon === 'alinan' ? 'Bu tutar, carinin bakiyesinden hemen düşülür (borcu azalır).' : 'Bu tutar, carinin bakiyesine hemen eklenir (bizim borcumuz azalır).';
+      el.style.display = 'block';
+    };
+    document.getElementById('mCari').addEventListener('change', cariBilgiGuncelle);
+    document.getElementById('mYon').addEventListener('change', cariBilgiGuncelle);
     document.getElementById('mCancel').onclick = closeModal;
     document.getElementById('mSave').onclick = () => {
       const amount = parseFloat(document.getElementById('mAmount').value);
       if (!amount || amount <= 0) { alert('Geçerli bir tutar gir.'); return; }
       const cariId = document.getElementById('mCari').value || null;
-      state.cekSenet.push({ id: genId(), tur: document.getElementById('mTur').value, yon: document.getElementById('mYon').value, tutar: amount, vade: document.getElementById('mVade').value || todayISO(), cariId, cariAdi: cariId ? cariAdi(cariId) : null, aciklama: document.getElementById('mDesc').value.trim(), durum: 'bekliyor' });
+      const yon = document.getElementById('mYon').value;
+      const yeniId = genId();
+      state.cekSenet.push({ id: yeniId, tur: document.getElementById('mTur').value, yon, tutar: amount, duzenlemeTarihi: document.getElementById('mDuzenlemeTarihi').value || todayISO(), vade: document.getElementById('mVade').value || todayISO(), cariId, cariAdi: cariId ? cariAdi(cariId) : null, aciklama: document.getElementById('mDesc').value.trim(), durum: 'bekliyor' });
+      // Cari seçildiyse, invoice/tahsilat akışlarındaki AYNI kuralla bakiyesini hemen güncelle: "Alınan"
+      // bir çek/senet carinin borcunu kapatır (negatif), "Verilen" bizim borcumuzu kapatır (pozitif).
+      if (cariId) {
+        const c = state.cariler.find((x) => x.id === cariId);
+        if (c) {
+          c.hareketler = c.hareketler || [];
+          c.hareketler.push({ id: genId(), date: document.getElementById('mDuzenlemeTarihi').value || todayISO(), aciklama: (document.getElementById('mTur').value === 'cek' ? 'Çek' : 'Senet') + ' (' + (yon === 'alinan' ? 'alınan' : 'verilen') + ')' + (document.getElementById('mDesc').value.trim() ? ' — ' + document.getElementById('mDesc').value.trim() : ''), tutar: yon === 'alinan' ? -amount : amount, cekSenetId: yeniId });
+        }
+      }
       saveState(); closeModal(); renderCekList();
     };
   });
@@ -5727,7 +5753,7 @@
     const hesapOptions = state.hesaplar.map((h) => `<option value="${h.id}">${escapeHtml(h.name)}</option>`).join('');
     openModal(`
       <h3>${c.tur === 'cek' ? 'Çek' : 'Senet'} · ${formatTL(c.tutar)}</h3>
-      <p style="font-size:13px;color:var(--ink-soft);margin-top:-8px">Vade: ${formatDate(c.vade)}${c.cariAdi ? ' · ' + escapeHtml(c.cariAdi) : ''}</p>
+      <p style="font-size:13px;color:var(--ink-soft);margin-top:-8px">${c.duzenlemeTarihi ? 'Düzenlenme: ' + formatDate(c.duzenlemeTarihi) + ' · ' : ''}Vade: ${formatDate(c.vade)}${c.cariAdi ? ' · ' + escapeHtml(c.cariAdi) : ''}</p>
       <div class="field"><label>Durumu güncelle</label>
         <select id="mDurum">
           <option value="bekliyor" ${c.durum === 'bekliyor' ? 'selected' : ''}>Bekliyor</option>
@@ -5736,13 +5762,24 @@
         </select>
       </div>
       <div class="field"><label>İşlenecek hesap (tahsil/ödeme ise, opsiyonel)</label><select id="mHesap"><option value="">— Kasaya işleme —</option>${hesapOptions}</select></div>
+      ${c.tur === 'senet' ? `<div class="modal-actions" style="margin-bottom:8px"><button class="btn" id="mSenetYazdir">🖨️ Senet Çıktısı</button><button class="btn" id="mSenetPaylas">📤 Paylaş</button></div>` : ''}
       <div class="modal-actions"><button class="btn btn-danger" id="mSil">Sil</button><button class="btn btn-primary" id="mSave">Güncelle</button></div>
     `);
+    if (c.tur === 'senet') {
+      document.getElementById('mSenetYazdir').onclick = () => printSenet(id);
+      document.getElementById('mSenetPaylas').onclick = () => shareSenet(id);
+    }
     document.getElementById('mSil').onclick = () => {
       if (!yoneticiKontrolSil()) return;
       if (!confirm('Bu çek/senet kaydını silmek istiyor musun?')) return;
       state.cekSenet = state.cekSenet.filter((x) => x.id !== id);
-      saveState(); closeModal(); renderCekList();
+      // Bu kayıt oluşturulurken bir cariye bakiye etkisi işlenmişse (bkz. cekAddBtn), o hareketi de
+      // geri al — yoksa cari bakiyesinde artık var olmayan bir çek/senedin izi kalır.
+      if (c.cariId) {
+        const cari = state.cariler.find((x) => x.id === c.cariId);
+        if (cari) cari.hareketler = (cari.hareketler || []).filter((h) => h.cekSenetId !== id);
+      }
+      saveState(); closeModal(); renderCekList(); renderOzet();
     };
     document.getElementById('mSave').onclick = () => {
       const newDurum = document.getElementById('mDurum').value;
@@ -6886,6 +6923,15 @@
     }
     return sonuc.replace(/\s+/g, ' ').trim();
   }
+  const TURKCE_AYLAR = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+  // "2026-08-27" -> "YİRMİ YEDİ AĞUSTOS İKİ BİN YİRMİ ALTI" — senet metninde tarihin yazıyla
+  // geçtiği yer için (sayiYaziyla ile aynı BÜYÜK HARF kuralını, tutarYaziyla ile tutarlı olsun diye, korur).
+  function tarihYaziyla(dateStr) {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-').map(Number);
+    if (!y || !m || !d) return '';
+    return sayiYaziyla(d) + ' ' + TURKCE_AYLAR[m - 1].toLocaleUpperCase('tr-TR') + ' ' + sayiYaziyla(y);
+  }
   function tutarYaziyla(n) {
     const lira = Math.floor(Math.abs(n));
     const kurus = Math.round((Math.abs(n) - lira) * 100);
@@ -7078,6 +7124,136 @@
     closeModal();
     await pdfDosyasiniPaylas(file, makbuzNo(odemeId), text);
   }
+  // ================= SENET ÇIKTISI =================
+  // Çek/Senet ekranından eklenen bir SENET kaydını, geleneksel bono/senet formu düzeninde (vade/tediye/
+  // tutar/no üst tablosu, standart hukuki metin, Ödeyecek bloğu) yazdırılabilir/PDF olarak paylaşılabilir
+  // hâle getirir. Sadece tur==='senet' için anlamlıdır (Çek, banka tarafından basılı geldiği için burada
+  // ele alınmaz).
+  function senetNo(id) {
+    const liste = state.cekSenet.filter((x) => x.tur === 'senet').slice().sort((a, b) => (a.duzenlemeTarihi || a.vade).localeCompare(b.duzenlemeTarihi || b.vade) || a.id.localeCompare(b.id));
+    const idx = liste.findIndex((x) => x.id === id);
+    return String(idx >= 0 ? idx + 1 : liste.length + 1).padStart(2, '0');
+  }
+  function buildSenetHtml(id) {
+    const c = state.cekSenet.find((x) => x.id === id);
+    if (!c || c.tur !== 'senet') return null;
+    const alinan = c.yon === 'alinan';
+    const cari = c.cariId ? state.cariler.find((x) => x.id === c.cariId) : null;
+    const sirket = state.sirketBilgileri || {};
+    // Senedin alacaklısı ("Sayın ... veya emrine") ve borçlusu ("Ödeyecek"), bu senedin bize mi geldiğini
+    // (alınan) yoksa bizim mi kestiğimizi (verilen) belirler — biri her zaman kendi firmamız, diğeri cari.
+    const alacakli = alinan ? (sirket.name || '') : (c.cariAdi || (cari && cari.name) || '');
+    const odeyecekAdi = alinan ? (c.cariAdi || (cari && cari.name) || '') : (sirket.name || '');
+    const odeyecekAdres = alinan ? ((cari && cari.address) || '') : (sirket.address || '');
+    const odeyecekVD = alinan ? ((cari && cari.taxOffice) || '') : (sirket.taxOffice || '');
+    const odeyecekVDNo = alinan ? ((cari && cari.taxNo) || '') : (sirket.taxNo || '');
+    const tutar = c.tutar;
+    const lira = Math.floor(tutar);
+    const kurus = Math.round((tutar - lira) * 100);
+    const sebep = c.aciklama ? escapeHtml(c.aciklama) : 'Malen';
+    const altCizgi = (icerik, genislikCh) => `<u style="display:inline-block;min-width:${genislikCh}ch">&nbsp;${icerik}&nbsp;</u>`;
+    return `
+      <div style="font-family: sans-serif; padding: 8px; color:#000">
+        <div style="border:2px solid #000;padding:12px;max-width:720px;margin:0 auto">
+          <table style="width:100%;border-collapse:collapse;margin-bottom:10px;font-size:11px;border:1px solid #000">
+            <tr style="border-bottom:1px solid #000">
+              <td style="padding:3px 5px;border-right:1px solid #000;font-weight:700">VADE TARİHİ</td>
+              <td style="padding:3px 5px;border-right:1px solid #000;font-weight:700">TEDİYE TARİHİ</td>
+              <td style="padding:3px 5px;border-right:1px solid #000;font-weight:700">TÜRK LİRASI</td>
+              <td style="padding:3px 5px;border-right:1px solid #000;font-weight:700">KURUŞ</td>
+              <td style="padding:3px 5px;font-weight:700">NO.</td>
+            </tr>
+            <tr>
+              <td style="padding:4px 5px;border-right:1px solid #000">${formatDate(c.vade)}</td>
+              <td style="padding:4px 5px;border-right:1px solid #000">${formatDate(c.vade)}</td>
+              <td style="padding:4px 5px;border-right:1px solid #000;font-weight:700">#${lira.toLocaleString('tr-TR')}#</td>
+              <td style="padding:4px 5px;border-right:1px solid #000">${kurus > 0 ? kurus : '—'}</td>
+              <td style="padding:4px 5px">${senetNo(id)}</td>
+            </tr>
+          </table>
+          <p style="font-size:12px;line-height:1.75;margin:0 0 10px">
+            İşbu emre yazılı senedim ${altCizgi(sebep, 10)} mukabilinde ${altCizgi(tarihYaziyla(c.vade), 22)} tarihinde,<br>
+            Sayın ${altCizgi(escapeHtml(alacakli), 36)} veya emrine<br>
+            yukarıda yazılı yalnız- ${altCizgi(sayiYaziyla(lira), 24)} Türk Lirası ${altCizgi(kurus > 0 ? sayiYaziyla(kurus) : '', 10)} Kuruş Ödeyeceği<br>
+            Bedeli ${altCizgi(sebep, 10)} ahzolunmuştur. İşbu bono vadesinde ödenmediği takdirde, müteakip bonoların da muacceliyet kesbedeceğini, ihtilaf vukuunda ${altCizgi('', 18)} Mahkemeleri'nin selahiyetini şimdiden kabul eylerim.
+          </p>
+          <table style="width:100%;margin-bottom:10px;font-size:11.5px">
+            <tr>
+              <td>Düzenleme Yeri: ${altCizgi('', 16)}</td>
+              <td style="text-align:right">Düzenleme Tarihi: ${altCizgi(c.duzenlemeTarihi ? formatDate(c.duzenlemeTarihi).replace(/\./g, '/') : '', 12)}</td>
+            </tr>
+          </table>
+          <table style="width:100%;border-top:1px solid #000;padding-top:6px;font-size:11.5px">
+            <tr>
+              <td style="width:20px;vertical-align:middle;font-weight:700;letter-spacing:1.5px;writing-mode:vertical-rl;transform:rotate(180deg);text-align:center">ÖDEYECEK</td>
+              <td>
+                <table style="width:100%;font-size:11.5px;line-height:1.6">
+                  <tr><td style="width:58px">İsim :</td><td style="border-bottom:1px dotted #999">${escapeHtml(odeyecekAdi)}</td><td style="width:48px;text-align:right">İmza:</td><td style="width:150px;border-bottom:1px dotted #999"></td></tr>
+                  <tr><td>Adres :</td><td colspan="3" style="border-bottom:1px dotted #999">${escapeHtml(odeyecekAdres)}</td></tr>
+                  <tr><td>V.D.:</td><td style="border-bottom:1px dotted #999">${escapeHtml(odeyecekVD)}</td><td colspan="2" style="text-align:right">V.D./T.C. K.No.: <span style="border-bottom:1px dotted #999">${escapeHtml(odeyecekVDNo)}</span></td></tr>
+                  <tr><td colspan="4" style="padding-top:5px"></td></tr>
+                  <tr><td style="width:58px">İsim :</td><td style="border-bottom:1px dotted #999"></td><td style="width:48px;text-align:right">İmza:</td><td style="width:150px;border-bottom:1px dotted #999"></td></tr>
+                  <tr><td>Adres :</td><td colspan="3" style="border-bottom:1px dotted #999"></td></tr>
+                  <tr><td>V.D.:</td><td style="border-bottom:1px dotted #999"></td><td colspan="2" style="text-align:right">V.D./T.C. K.No.: <span style="border-bottom:1px dotted #999"></span></td></tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+  function printSenet(id) {
+    const html = buildSenetHtml(id);
+    if (!html) { alert('Senet kaydı bulunamadı.'); return; }
+    document.getElementById('printArea').innerHTML = html;
+    yazdirGorselHazir();
+  }
+  async function senetPdfBlob(id) {
+    const html = buildSenetHtml(id);
+    if (!html) throw new Error('Senet kaydı bulunamadı');
+    if (typeof html2canvas === 'undefined' || !(window.jspdf && window.jspdf.jsPDF)) throw new Error('PDF kütüphanesi yüklenemedi');
+    const host = document.createElement('div');
+    host.id = 'pdfRenderHost';
+    host.style.cssText = 'position:absolute;left:-10000px;top:0;width:794px;background:#fff;color:#000;';
+    host.innerHTML = html;
+    document.body.appendChild(host);
+    try {
+      await resimlerYuklensin(host, 3000);
+      const canvas = await html2canvas(host, {
+        scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false, windowWidth: 794,
+        onclone: (doc) => { const h = doc.getElementById('pdfRenderHost'); if (h) { h.style.left = '0'; h.style.top = '0'; } }
+      });
+      return canvasToPdfBlob(canvas, []);
+    } finally {
+      host.remove();
+    }
+  }
+  async function shareSenet(id) {
+    const c = state.cekSenet.find((x) => x.id === id);
+    if (!c) { alert('Senet kaydı bulunamadı.'); return; }
+    const text = `Senet No ${senetNo(id)}\n${c.cariAdi || ''}\nTutar: ${formatTL(c.tutar)}\nVade: ${formatDate(c.vade)}`;
+    const fileName = dosyaAdiTemizle(`Senet_${senetNo(id)}`) + '.pdf';
+    openModal('<h3>Senet hazırlanıyor…</h3><p class="sub" style="margin:0">PDF oluşturuluyor, birkaç saniye sürebilir.</p>');
+    let file;
+    try {
+      const blob = await senetPdfBlob(id);
+      file = new File([blob], fileName, { type: 'application/pdf' });
+    } catch (err) {
+      closeModal();
+      console.error('Senet PDF oluşturulamadı', err);
+      const neden = err && err.message ? err.message : 'bilinmeyen hata';
+      if (navigator.share) {
+        alert('PDF oluşturulamadı (' + neden + '). Senet bilgisi metin olarak paylaşılacak.');
+        try { await navigator.share({ title: 'Senet ' + senetNo(id), text }); } catch (e) { /* kullanıcı vazgeçti */ }
+      } else {
+        alert('PDF oluşturulamadı (' + neden + '). Senet bilgisi:\n\n' + text);
+      }
+      return;
+    }
+    closeModal();
+    await pdfDosyasiniPaylas(file, 'Senet ' + senetNo(id), text);
+  }
   function reverseFaturaOdemeleri(f) {
     const odemeIds = (f.odemeler || []).map((o) => o.id);
     if (!odemeIds.length) return;
@@ -7197,7 +7373,7 @@
           // geçen bir kıymet olduğu için) — çekin/senedin kendisi ayrıca Çek/Senet ekranında "bekliyor"
           // durumunda takip edilmeye devam eder, vadesinde tahsil edilip edilmediği orada işaretlenir.
           state.cekSenet = state.cekSenet || [];
-          state.cekSenet.push({ id: genId(), tur: p.odemeAraci, yon: isTahsilat ? 'alinan' : 'verilen', tutar: parcaTl, vade: p.vade || date, cariId: f.cariId || null, cariAdi: f.cariAdi || null, aciklama: desc || f.no, durum: 'bekliyor', odemeId: odeme.id });
+          state.cekSenet.push({ id: genId(), tur: p.odemeAraci, yon: isTahsilat ? 'alinan' : 'verilen', tutar: parcaTl, duzenlemeTarihi: date, vade: p.vade || date, cariId: f.cariId || null, cariAdi: f.cariAdi || null, aciklama: desc || f.no, durum: 'bekliyor', odemeId: odeme.id });
         } else if (p.hesapId) {
           const h = state.hesaplar.find((x) => x.id === p.hesapId);
           if (h) {
