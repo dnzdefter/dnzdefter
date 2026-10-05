@@ -3083,6 +3083,9 @@
       </div>
       <p id="mFxHint" style="font-size:11.5px;color:var(--ink-soft);margin:-8px 0 14px;display:none"></p>
       ${opts.isMasraf ? `<div class="field"><label>Ödeme yöntemi</label><select id="mPayment">${state.tanimlar.odemeYontemleri.map((p) => `<option ${existing && existing.paymentMethod === p ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}</select></div>
+      ${existing ? '' : `<button type="button" class="btn btn-block" id="mScanBtn" style="margin-bottom:12px">📷 Fiş/Fatura Tara</button>
+      <input type="file" accept="image/*" capture="environment" id="mScanInput" style="display:none">
+      <p id="mScanDurum" style="font-size:12px;color:var(--ink-soft);margin:-8px 0 12px;display:none"></p>`}
       <div class="field"><label>Fiş/Fatura No (opsiyonel)</label><input type="text" id="mReceipt" value="${existing ? escapeHtml(existing.receiptNo || '') : ''}"></div>
       <div class="field"><label>Fiş Fotoğrafı (opsiyonel)</label>
         <div style="display:flex;align-items:center;gap:10px">
@@ -3115,6 +3118,47 @@
         }); };
         reader.readAsDataURL(file);
       });
+      // Fiş/Fatura Tara: OCR ile tarih/toplam tutar/firma adını otomatik doldurur, taranan fotoğrafı
+      // da (fiş fotoğrafı olarak) kaydeder — "lazım olduğunda buradan tekrar indirebileyim" isteği
+      // için, elle fotoğraf eklemekle AYNI kalıcı depolamayı (fotografiStorageyeYukle) kullanır.
+      if (!existing) {
+        document.getElementById('mScanBtn').addEventListener('click', () => {
+          if (typeof Tesseract === 'undefined') { alert('Tarama aracı yüklenemedi — internet bağlantını kontrol edip tekrar dene.'); return; }
+          document.getElementById('mScanInput').click();
+        });
+        document.getElementById('mScanInput').addEventListener('change', async (e) => {
+          const file = e.target.files[0];
+          e.target.value = '';
+          if (!file) return;
+          const durum = document.getElementById('mScanDurum');
+          durum.style.display = 'block'; durum.textContent = 'Taranıyor…';
+          try {
+            const worker = await Tesseract.createWorker('tur', 1, {
+              logger: (m) => { if (m.status) durum.textContent = m.status + (m.progress ? ' — %' + Math.round(m.progress * 100) : ''); }
+            });
+            const { data } = await worker.recognize(file, {}, { blocks: true });
+            await worker.terminate();
+            const text = data.text || '';
+            const tarih = extractDateFromReceiptText(text);
+            const tutar = extractTotalAmountFromText(text);
+            const vendorName = extractVendorNameFromText(text);
+            if (tarih) document.getElementById('mDate').value = tarih;
+            if (tutar) { document.getElementById('mAmount').value = tutar; updateFxHint(); }
+            if (vendorName && !document.getElementById('mDesc').value.trim()) document.getElementById('mDesc').value = vendorName;
+            const reader = new FileReader();
+            reader.onload = (ev) => { resizeImageDataUrl(ev.target.result, 1000, 0.85, async (resized) => {
+              const img = document.getElementById('mReceiptPreview'); img.src = resized; img.style.display = 'block';
+              try { masrafPhoto = await fotografiStorageyeYukle(resized); }
+              catch (err) { /* fotoğraf kaydı başarısız olsa da OCR'dan dolan bilgiler kalsın */ }
+            }); };
+            reader.readAsDataURL(file);
+            const bulunanlar = [tarih && 'tarih', tutar && 'tutar', vendorName && 'firma adı'].filter(Boolean);
+            durum.textContent = bulunanlar.length ? ('Bulundu: ' + bulunanlar.join(', ') + ' — kontrol edip gerekirse düzelt.') : 'Taramadan bir şey çıkarılamadı, bilgileri elle gir.';
+          } catch (err) {
+            durum.textContent = 'Taranamadı — daha net bir fotoğrafla tekrar dene ya da bilgileri elle gir.';
+          }
+        });
+      }
     }
     function updateFxHint() {
       const cur = document.getElementById('mCurrency').value;
@@ -6216,12 +6260,28 @@
   // Önce "<sayı> <birim kelimesi>" kalıbını arar (örn. "696,0 M2") — bu, ürün adının BİTTİĞİ yeri
   // sayının kendisinden değil BİRİMDEN anladığı için, adının içinde geçen sayılarla (ör. "1200X2500") karışmaz.
   function parseFaturaOcrText(text) {
-    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+    const allLines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+    // Bu yedek ayrıştırıcı, sütun başlıkları OCR'da hiç okunamadığında (extractInvoiceRowsFromLines
+    // başlık bulamadığında) devreye girer — bu durumda elimizde sütun sınırı yok, sadece düz metin var.
+    // Düz metni BAŞTAN SONA taramak tehlikelidir: firma antetindeki telefon/vergi no/mersis no/ticaret
+    // sicil no gibi "sayı+birim'e benzer" alanlar da yanlışlıkla ürün satırı sanılabilir (ör. "Tel:
+    // 312 354 01 06" → "312 Adet 354 TL" gibi anlamsız bir satıra dönüşür). Bunu önlemek için taramayı
+    // SADECE gerçek tablo bölgesiyle sınırlıyoruz: "ETTN" satırından SONRA başlar (o satır her zaman
+    // tablodan hemen önce, antetin bittiği yerde bulunur), "Toplam/Vergi/Ödenecek/..." gibi bir özet
+    // satırına rastlayınca TAMAMEN durur (sadece o satırı atlamak yetmez — devamında IBAN/banka bilgisi
+    // gibi başka sayısal satırlar da gelebilir).
+    const ettnIdx = allLines.findIndex((l) => /^ettn\b/i.test(l));
+    let bitisIdx = allLines.length;
+    const startIdx = ettnIdx > -1 ? ettnIdx + 1 : 0;
+    for (let i = startIdx; i < allLines.length; i++) {
+      if (/toplam|ödenecek|yalnız|kdv matrahı|iban|hesap no/i.test(allLines[i])) { bitisIdx = i; break; }
+    }
+    const lines = allLines.slice(startIdx, bitisIdx);
     const miktarRe = new RegExp('([\\d.,]+)\\s*(' + OCR_UNIT_WORDS + ')(?![a-zçğıöşüA-ZÇĞİÖŞÜ])', 'i');
     const numRe = /\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,4})?/g;
     const rows = [];
     lines.forEach((line) => {
-      if (/toplam|vergi|ödenecek|yalnız|kdv matrahı|iban|hesap no|vergi dairesi|vkn|ettn/i.test(line)) return;
+      if (/vergi\s*dairesi|^vkn|ettn/i.test(line)) return;
       let name, qty, restAfter, unit = 'Adet';
       const um = line.match(miktarRe);
       if (um) {
@@ -6516,23 +6576,49 @@
   // önce yer alır — bu yüzden o satırdan önceki metni satıcı bloğu kabul ediyoruz.
   function extractSellerInfoFromText(text) {
     const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-    const sayinIdx = lines.findIndex((l) => /^sayın\b/i.test(l));
+    // "SAYIN" HER e-faturada büyük harfle yazılır — büyük Türkçe I (noktasız), standart /i bayrağıyla
+    // küçük "ı"ya eşleşmediği için ([ıI]) bunu açıkça belirtiyoruz, yoksa bu satır (ve dolayısıyla
+    // müşteri bloğunun nerede başladığı) HİÇ bulunamaz.
+    const sayinIdx = lines.findIndex((l) => /^say[ıI]n\b/i.test(l));
     const headerLines = (sayinIdx > -1 ? lines.slice(0, sayinIdx) : lines.slice(0, 12)).slice(0, 15);
     const info = { name: '', address: '', phone: '', email: '', taxOffice: '', taxNo: '' };
+    // İKİ GEÇİŞLİ: önce tanınan alanları (tel/e-posta/vergi dairesi/VKN/web/mersis/ticaret sicil)
+    // SIRALARI NE OLURSA OLSUN ayıkla — bazı fatura düzenlerinde bu bilgiler sayfanın SAĞ ÜST
+    // köşesinde, firma ADININ bile ÜSTÜNDE/önünde yer alır (ör. GÖKRAY). Eskiden "önce isim sonra
+    // iletişim bilgileri gelir" varsayımıyla SIRALI okunuyordu — bu düzende Tel satırı ilk geldiği
+    // için isim hiç yakalanmadan akış "bitti" sayılıyordu. Şimdi isim/adres, tanınan alanlar
+    // çıkarıldıktan sonra KALAN satırlardan, sıraları bozulmadan ayrıca belirleniyor.
+    const kalanlar = [];
+    headerLines.forEach((rawLine) => {
+      // "e-FATURA" etiketi bazı düzenlerde satırın SONUNA, o satırın asıl (ör. adres) içeriğiyle
+      // birleşik gelir (örn. "...YENİMAHALLE / ANKARA e-FATURA") — satırı tamamen atmak yerine,
+      // sadece bu etiketi sondan temizleyip geri kalan gerçek içeriği (varsa) koruyoruz.
+      const line = rawLine.replace(/\s*(e-fatura|e-arşiv)\s*$/i, '').trim();
+      if (!line) return;
+      let m;
+      if ((m = line.match(/^tel\s*:?\s*(.+)/i))) { info.phone = m[1].trim(); return; }
+      if ((m = line.match(/^e-?posta\s*:?\s*(.+)/i))) { info.email = m[1].trim(); return; }
+      if ((m = line.match(/^vergi\s*dairesi\s*:?\s*(.+)/i))) { info.taxOffice = m[1].trim(); return; }
+      if ((m = line.match(/^vkn\s*:?\s*(.+)/i) || line.match(/^vergi\s*no\s*:?\s*(.+)/i))) { info.taxNo = m[1].trim(); return; }
+      if (/^ettn\b/i.test(line)) return;
+      // Tanınan ama SAKLAMADIĞIMIZ (isim/adres sanılmaması gereken) alanlar. "sicil" ve "fatura" gibi
+      // kelimelerdeki büyük Türkçe İ harfi standart /i bayrağıyla küçük i'ye eşleşmediği için ([iİ])
+      // bu harfleri açıkça belirtiyoruz — aksi halde ör. "Ticaret Sicil No" (OCR'da boşluksuz
+      // "TICARETSİCILNO" gelebiliyor) tanınmayıp yanlışlıkla adres sanılabilir.
+      if (/^(web\s*s[iİ]tes[iİ]|mers[iİ]s\s*no|t[iİ]caret\s*s[iİ]c[iİ]l\s*no|fax|faks)\s*:?/i.test(line)) return;
+      // Bazı düzenlerde (ör. GÖKRAY) "İrsaliye yerine geçer." gibi tek başına bir not da üst bilgi
+      // bloğunda geçebilir — ne isim ne adres parçasıdır, ayrı bir alan olarak da tutulmuyor.
+      if (/^[iİ]rsaliye\s*yerine\s*ge[cç]er\.?$/i.test(line)) return;
+      kalanlar.push(line);
+    });
     const nameLines = [];
     const addressLines = [];
     let phase = 'name';
-    headerLines.forEach((line) => {
-      let m;
-      if ((m = line.match(/^tel\s*:?\s*(.+)/i))) { info.phone = m[1].trim().replace(/\s*(e-fatura|e-arşiv)\s*$/i, '').trim(); phase = 'done'; return; }
-      if ((m = line.match(/^e-?posta\s*:?\s*(.+)/i))) { info.email = m[1].trim().replace(/\s*(e-fatura|e-arşiv)\s*$/i, '').trim(); return; }
-      if ((m = line.match(/^vergi\s*dairesi\s*:?\s*(.+)/i))) { info.taxOffice = m[1].trim().replace(/\s*(e-fatura|e-arşiv)\s*$/i, '').trim(); return; }
-      if ((m = line.match(/^vkn\s*:?\s*(.+)/i) || line.match(/^vergi\s*no\s*:?\s*(.+)/i))) { info.taxNo = m[1].trim().replace(/\s*(e-fatura|e-arşiv)\s*$/i, '').trim(); return; }
-      if (/^ettn\b/i.test(line) || /^e-fatura$/i.test(line)) return;
+    kalanlar.forEach((line) => {
       if (phase === 'name') {
         if (nameLines.length && /mah\.|cad\.|sok\.|no:|apt\.|\/\s*\p{L}+$/iu.test(line)) { phase = 'address'; addressLines.push(line); return; }
         nameLines.push(line);
-      } else if (phase === 'address') {
+      } else {
         addressLines.push(line);
       }
     });
@@ -6547,7 +6633,7 @@
     // Ayraçların (./-) etrafında boşluk OLABİLİR — bazı e-fatura PDF'leri "26- 09- 2026" gibi, tire
     // işaretinden sonra boşluk bırakarak yazdırıyor; \s* bu boşluğu da (varsa) tolere eder.
     let m = text.match(/\bfatura\s*tarihi?\b\s*:?\s*(\d{1,2})\s*[.\-\/]\s*(\d{1,2})\s*[.\-\/]\s*(\d{4})/i);
-    if (!m) m = text.match(/\btarih\b\s*:?\s*(\d{1,2})\s*[.\-\/]\s*(\d{1,2})\s*[.\-\/]\s*(\d{4})/i);
+    if (!m) m = text.match(/\btarihi?\b\s*:?\s*(\d{1,2})\s*[.\-\/]\s*(\d{1,2})\s*[.\-\/]\s*(\d{4})/i);
     if (!m) return '';
     const [, d, mo, y] = m;
     const dd = d.padStart(2, '0'), mm = mo.padStart(2, '0');
@@ -6558,6 +6644,65 @@
   function extractInvoiceNoFromText(text) {
     const m = text.match(/\bfatura\s*no\b\s*:?\s*([A-Za-z0-9\-\/]{3,})/i);
     return m ? m[1].trim() : '';
+  }
+  // Masraf ekranındaki "Fiş/Fatura Tara" için — extractSellerInfoFromText tam e-faturalar (SAYIN
+  // bloğuyla biten yapılandırılmış üst bilgi) için tasarlanmıştı; basit bir kasa fişinde "SAYIN"
+  // bloğu hiç yoktur, bu yüzden o fonksiyon dur-durağı bulamayıp fişin TÜMÜNÜ "isim" sanabilir. Bunun
+  // yerine burada SADECE ilk, rakam ağırlıklı OLMAYAN (ör. tarih/telefon/fiyat içermeyen) ve tanınan
+  // bir alan etiketiyle (Tel/Adres/Vergi vb.) başlamayan satırı mağaza/firma adı olarak alıyoruz —
+  // fişlerde bu neredeyse her zaman en üstteki satırdır.
+  function extractVendorNameFromText(text) {
+    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+    for (const line of lines) {
+      if (line.length < 2) continue;
+      const rakamOrani = (line.match(/\d/g) || []).length / line.length;
+      if (rakamOrani > 0.2) continue;
+      if (/^(tel|e-?posta|vergi|vkn|adres|web|fax|faks|say[ıI]n|ettn)\b/i.test(line)) break;
+      return line;
+    }
+    return '';
+  }
+  // Önce etiketli ("Fatura Tarihi:"/"Tarih:") aramayı dener; kasa fişlerinde çoğu zaman HİÇ etiket
+  // olmadan, doğrudan "01-10-2026" ya da "01-10-2026 14:32" gibi yalın bir tarih basılır — etiketli
+  // arama sonuç vermezse ilk birkaç satırda böyle yalın bir tarih deseni arar.
+  function extractDateFromReceiptText(text) {
+    const etiketli = extractInvoiceDateFromText(text);
+    if (etiketli) return etiketli;
+    const ilkSatirlar = text.split('\n').slice(0, 10).join('\n');
+    const m = ilkSatirlar.match(/\b(\d{1,2})\s*[.\-\/]\s*(\d{1,2})\s*[.\-\/]\s*(\d{4})\b/);
+    if (!m) return '';
+    const [, d, mo, y] = m;
+    const dd = d.padStart(2, '0'), mm = mo.padStart(2, '0');
+    if (+mm < 1 || +mm > 12 || +dd < 1 || +dd > 31) return '';
+    return `${y}-${mm}-${dd}`;
+  }
+  // Fiş/fatura metninden TOPLAM TUTARI bulur — Masraf ekranındaki "Fiş/Fatura Tara" özelliği için.
+  // En KESİN etiketten (Ödenecek Tutar, e-faturalarda her zaman nihai tutardır) başlar, bulunamazsa
+  // kasa fişlerinde sık geçen sade "TOPLAM" etiketine kadar sırayla geriler.
+  function extractTotalAmountFromText(text) {
+    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+    const numRe = /\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?/;
+    const etiketler = [
+      /ödenecek\s*tutar/i,
+      /genel\s*toplam/i,
+      /vergiler\s*dah[iİ]l\s*toplam\s*tutar/i,
+      /toplam\s*tutar/i,
+      /\btoplam\b/i,
+      /\btutar\b/i
+    ];
+    for (const re of etiketler) {
+      for (const line of lines) {
+        const m = line.match(re);
+        if (!m) continue;
+        const sonrasi = line.slice(m.index + m[0].length);
+        const numMatch = sonrasi.match(numRe);
+        if (numMatch) {
+          const val = parseTrNumber(numMatch[0]);
+          if (isFinite(val) && val > 0) return Math.round(val * 100) / 100;
+        }
+      }
+    }
+    return null;
   }
   function openOcrDraftModal(rows, rawText) {
     const seller = extractSellerInfoFromText(rawText || '');
