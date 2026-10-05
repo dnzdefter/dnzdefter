@@ -996,17 +996,18 @@
           </select>
         </div>
         <div class="field">
-          <label>Yön</label>
-          <select id="fYon"><option value="satis">Satış</option><option value="alis">Alış</option></select>
+          <label>Fatura Tipi</label>
+          <select id="fFaturaTipi">
+            <option value="normal">Normal</option>
+            <option value="tevkifat">Tevkifatlı</option>
+          </select>
         </div>
       </div>
-      <div class="field">
-        <label>Fatura Tipi</label>
-        <select id="fFaturaTipi">
-          <option value="normal">Normal</option>
-          <option value="tevkifat">Tevkifatlı</option>
-        </select>
-      </div>
+      <!-- Yön artık ayrı bir düğme olarak gösterilmiyor — hangi menüden (Satışlar/Alışlar ekranındaki
+           "+ Ekle") girildiyse yön zaten ORADA belirleniyor (ör. "Tedarikçiden Alış Faturası" -> alış),
+           tekrar sormak gereksizdi. Eleman DOM'da (gizli) kalmaya devam ediyor çünkü uygulamanın geri
+           kalanı (fiyat/stok/cari yönü, tarama yerleşimi vb.) hâlâ bu değeri okuyor. -->
+      <select id="fYon" style="display:none"><option value="satis">Satış</option><option value="alis">Alış</option></select>
 
       <div class="segmented" id="fCariModeSeg" style="margin-bottom:14px">
         <button type="button" class="active" data-m="kayitli">Kayıtlı Cari</button>
@@ -1043,16 +1044,11 @@
       <div id="fItemsSummary"></div>
       <div class="fab-row">
         <button class="btn btn-primary" id="fAddFromSearch">+ Ürün/Hizmet Ekle</button>
-        <button class="btn" id="fAddManual">+ Manuel Kalem</button>
+        <button class="btn" id="fAddManual" style="display:none">+ Manuel Kalem</button>
       </div>
-      <div class="fab-row">
-        <button class="btn btn-block" id="fScanFaturaBtn">📷 Faturadan Tara (taslak)</button>
-        <input type="file" accept="image/*" capture="environment" id="fScanFaturaInput" style="display:none">
-      </div>
-      <div class="fab-row">
-        <button class="btn btn-block" id="fScanPdfBtn">📄 PDF'ten Tara (taslak)</button>
-        <input type="file" accept="application/pdf" id="fScanPdfInput" style="display:none">
-      </div>
+      <!-- Faturadan Tara / PDF'ten Tara, Alış'ta (eski hâliyle) buraya; Satış'ta Ürün Arama ekranının
+           içine (bkz. #uaTaramaSecenekleri) TAŞINIR — bkz. taramaYerlesimiGuncelle(). -->
+      <div id="fTaramaSlotAna"></div>
 
       <div class="field">
         <label>Açıklama (opsiyonel)</label>
@@ -1072,7 +1068,21 @@
     <!-- ÜRÜN ARAMA -->
     <section class="view" id="view-urun-arama">
       <div class="field"><input type="text" id="uaSearch" placeholder="ürün/hizmet arama" autocomplete="off"></div>
-      <button class="btn btn-block" id="uaBarkodBtn" style="margin-bottom:14px">📷 Barkod ile Ekle</button>
+      <!-- Barkod ile Ekle hem Satış'ta hem Alış'ta burada (Ürün Arama ekranının içinde) gösterilir.
+           Faturadan Tara / PDF'ten Tara ise Satış'ta buraya (fTaramaSlotArama), Alış'ta eski hâliyle
+           ana ekrandaki #fTaramaSlotAna içine TAŞINIR — bkz. taramaYerlesimiGuncelle(). -->
+      <button class="btn btn-block" id="uaBarkodBtn" style="display:none;margin-bottom:10px">📷 Barkod ile Ekle</button>
+      <div id="fTaramaSlotArama"></div>
+      <div id="fTaramaBlok" style="display:none">
+        <div class="fab-row">
+          <button class="btn btn-block" id="fScanFaturaBtn">📷 Faturadan Tara (taslak)</button>
+          <input type="file" accept="image/*" capture="environment" id="fScanFaturaInput" style="display:none">
+        </div>
+        <div class="fab-row" style="margin-bottom:14px">
+          <button class="btn btn-block" id="fScanPdfBtn">📄 PDF'ten Tara (taslak)</button>
+          <input type="file" accept="application/pdf" id="fScanPdfInput" style="display:none">
+        </div>
+      </div>
       <div class="card" id="uaYeniUrunUyari" style="display:none;margin-bottom:14px;border:1.5px solid var(--flame-deep)">
         <div class="list-row" style="cursor:default">
           <div class="main">
@@ -2638,6 +2648,7 @@
     renderAllProjeSelects();
     document.getElementById('fBelgeTuru').value = src ? src.docType : preset.docType;
     document.getElementById('fYon').value = src ? src.yon : preset.yon;
+    taramaYerlesimiGuncelle();
     document.getElementById('fFaturaTipi').value = src && src.tevkifatli ? 'tevkifat' : 'normal';
     document.getElementById('fCari').value = src && src.cariId ? src.cariId : (preset.presetCariId || '');
     document.getElementById('fCariAdi').value = src && !src.cariId ? (src.cariAdi || '') : '';
@@ -2670,10 +2681,25 @@
     renderFaturaDetail();
     setDrawerActive(cameFromTeklifler ? 'teklifler' : (faturaYonFilter === 'alis' ? 'alislar' : 'satislar'));
   }
+  // Alış, bu özelliklerin eklenmesinden ÖNCEKİ hâliyle (Manuel Kalem + ana ekranda Faturadan/PDF'ten
+  // Tara) kalmaya devam eder — Barkod ile Ekle ve bunların Ürün Arama içine taşınması SADECE Satış
+  // içindir. "fTaramaBlok" (Faturadan/PDF'ten Tara) tek bir eleman olarak iki olası yuvadan birine
+  // (ana ekran ya da Ürün Arama) taşınır; Satış'a özel olan Barkod ile Ekle hiçbir zaman Alış'a taşınmaz.
+  function taramaYerlesimiGuncelle() {
+    const alis = document.getElementById('fYon').value === 'alis';
+    document.getElementById('fAddManual').style.display = alis ? 'flex' : 'none';
+    document.getElementById('uaBarkodBtn').style.display = 'block'; // artık hem Satış hem Alış'ta gösterilir
+    const blok = document.getElementById('fTaramaBlok');
+    const hedefSlot = document.getElementById(alis ? 'fTaramaSlotAna' : 'fTaramaSlotArama');
+    if (blok.parentElement !== hedefSlot) hedefSlot.appendChild(blok);
+    blok.style.display = 'block';
+  }
+  document.getElementById('fYon').addEventListener('change', taramaYerlesimiGuncelle);
   function enterUrunArama() {
     showView('view-urun-arama', { showBack: true, onBack: returnToFaturaForm });
     document.getElementById('uaSearch').value = '';
     document.getElementById('uaYeniUrunUyari').style.display = 'none';
+    taramaYerlesimiGuncelle();
     renderUrunArama('');
   }
   function returnToFaturaForm() {
@@ -6061,11 +6087,11 @@
       closeModal(); renderItemsSummary();
     };
   }
+  document.getElementById('fAddFromSearch').addEventListener('click', enterUrunArama);
   document.getElementById('fAddManual').addEventListener('click', () => {
     draftItems.push(emptyItem());
     openItemEditModal(draftItems.length - 1);
   });
-  document.getElementById('fAddFromSearch').addEventListener('click', enterUrunArama);
 
   // ---- Faturadan Tara (OCR ile taslak kalem çıkarma) ----
   // Tesseract.js ile fotoğraftaki yazıyı okur, satırlardan ürün adı/miktar/fiyat tahmin eder.
@@ -6593,7 +6619,19 @@
     const q = (query || '').toLocaleLowerCase('tr-TR');
     const items = state.stok.filter((s) => !q || s.name.toLocaleLowerCase('tr-TR').includes(q) || (s.category || '').toLocaleLowerCase('tr-TR').includes(q) || (s.barcode || '').toLocaleLowerCase('tr-TR').includes(q) || (s.productCode || '').toLocaleLowerCase('tr-TR').includes(q) || (s.etiketler || []).some((t) => t.toLocaleLowerCase('tr-TR').includes(q)));
     const list = document.getElementById('uaList');
-    if (!items.length) { list.innerHTML = '<div class="empty-state">Ürün/hizmet bulunamadı.</div>'; return; }
+    // Aranan bir şey var ama hiç eşleşme yoksa, barkod taramasındakiyle AYNI "Yeni Ürün Ekle" uyarısı
+    // çıkar — yazılan metin, yeni ürünün ADI olarak öneri şeklinde doldurulur (barkod boş kalır, çünkü
+    // burada elimizde bir barkod yok, sadece yazılan isim var).
+    const uyari = document.getElementById('uaYeniUrunUyari');
+    if (query && !items.length) {
+      uyari.style.display = 'block';
+      document.getElementById('uaYeniUrunBarkodText').textContent = '"' + query + '" ile eşleşen ürün yok';
+      document.getElementById('uaYeniUrunEkleBtn').dataset.barkod = '';
+      document.getElementById('uaYeniUrunEkleBtn').dataset.isim = query;
+    } else {
+      uyari.style.display = 'none';
+    }
+    if (!items.length) { list.innerHTML = query ? '' : '<div class="empty-state">Ürün/hizmet bulunamadı.</div>'; return; }
     list.innerHTML = items.map((s) => {
       const isHizmet = (s.kind || 'urun') === 'hizmet';
       return `
@@ -6623,18 +6661,20 @@
       if (match) { urunAramadanSec(match); return; }
       document.getElementById('uaYeniUrunBarkodText').textContent = 'Barkod: ' + code;
       document.getElementById('uaYeniUrunEkleBtn').dataset.barkod = code;
+      document.getElementById('uaYeniUrunEkleBtn').dataset.isim = ''; // barkodla tetiklendi — isim önerisi yok
     });
   });
   document.getElementById('uaYeniUrunEkleBtn').addEventListener('click', () => {
     const taranankod = document.getElementById('uaYeniUrunEkleBtn').dataset.barkod || '';
+    const onerilenIsim = document.getElementById('uaYeniUrunEkleBtn').dataset.isim || '';
     openModal(`
       <h3>Yeni Ürün</h3>
-      <div class="field"><label>Ürün/Hizmet Adı</label><input type="text" id="qpName" autofocus></div>
+      <div class="field"><label>Ürün/Hizmet Adı</label><input type="text" id="qpName" value="${escapeHtml(onerilenIsim)}" autofocus></div>
       <div class="field-row">
         <div class="field"><label>Satış Fiyatı</label><input type="number" id="qpFiyat" min="0" step="0.01" value="0"></div>
         <div class="field"><label>KDV %</label><select id="qpVat"><option value="0">0</option><option value="1">1</option><option value="10">10</option><option value="20" selected>20</option></select></div>
       </div>
-      <p class="sub" style="margin:-6px 0 12px">Barkod: ${escapeHtml(taranankod)} — diğer bilgileri (alış fiyatı, stok miktarı vb.) daha sonra Ürünler ekranından tamamlayabilirsin.</p>
+      <p class="sub" style="margin:-6px 0 12px">${taranankod ? 'Barkod: ' + escapeHtml(taranankod) + ' — ' : ''}diğer bilgileri (alış fiyatı, stok miktarı vb.) daha sonra Ürünler ekranından tamamlayabilirsin.</p>
       <div class="modal-actions"><button class="btn" id="mCancel">Vazgeç</button><button class="btn btn-primary" id="mSave">Ekle ve Faturaya İşle</button></div>
     `);
     document.getElementById('mCancel').onclick = closeModal;
