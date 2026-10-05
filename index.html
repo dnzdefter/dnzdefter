@@ -6297,68 +6297,79 @@
       { key: 'name', re: /mal\s*(ve\s*)?hizmet|ürün|urun|a[cç]ıklama|cinsi/i },
       { key: 'qty', re: /miktar/i },
       { key: 'unit', re: /^birim$|birim[iı]?\)?$/i },
-      { key: 'price', re: /birim\s*fiyat|fiyat[iı]/i }
+      { key: 'price', re: /birim\s*fiyat|fiyat[iı]?/i },
+      // Bu ikisi (İskonto, KDV) kendi başlarına ÇIKARILMIYOR — sadece Fiyat sütununun SAĞ sınırını
+      // belirlemek için var. Yoksa Fiyat, kendinden sonraki İskonto/KDV/Diğer Vergiler/Tutar gibi
+      // sütunları da (bir sınır olmadığı için) yutar, bu da fiyatın yanlış okunmasına yol açardı.
+      // "İskonto" içindeki büyük Türkçe İ harfi standart /i bayrağıyla küçük i'ye eşleşmediği için
+      // ([iİ]) iki harfi de açıkça belirtiyoruz.
+      { key: 'iskonto', re: /[iİ]skonto|indirim/i },
+      { key: 'kdv', re: /kdv/i }
     ];
-    let headerIdx = -1, cols = null;
+    // Başlık kelimeleri (ör. "Miktar" ve "Malzeme/Hizmet Açıklaması") AYNI fiziksel satırda
+    // olabileceği gibi, birbirine yakın 2-5 ayrı alt satıra da dağılmış olabilir (ör. "Birim" bir
+    // satırda, "Fiyat" bir altındaki satırda — "Malzeme/Hizmet Açıklaması" ile "Miktar" ise BAŞKA,
+    // üçüncü bir alt satırda). Her başlangıç satırı için 1'den 4'e kadar ardışık satırı birleştirip
+    // dener ve TÜM satırlar içinde EN FAZLA sütunu bulan pencereyi seçer — sadece "yeterli" (name+qty)
+    // olan İLK pencerede durmaz. Bu kritik: aksi halde, isim+miktar'ın bulunduğu alt satırda arama
+    // erken durup aynı başlık bloğundaki "Birim Fiyat" gibi BAŞKA bir alt satırdaki sütunu hiç
+    // bulamaz — bu da fiyat sütununun kayıp sayılıp miktar sütununa karışmasına yol açar (fiyatlar
+    // hep 0 çıkar, miktarlar yanlış değerler alır).
+    let headerIdx = -1, cols = null, enIyiSayac = 0;
     for (let i = 0; i < lines.length; i++) {
-      const cells = lines[i].cells;
       const found = {};
       let count = 0;
-      // Fotoğraf OCR'ında (Tesseract) her kelime ayrı bir hücre olarak gelir — PDF'te "Mal Hizmet"
-      // gibi çok kelimeli bir başlık tek hücrede bütün gelebilirken, fotoğrafta "Mal" ve "Hizmet"
-      // ayrı hücreler olur. Bu yüzden her hücreyi TEK BAŞINA değil, kendisiyle başlayan 1-3 kelimelik
-      // pencereleri de (ardışık hücreleri birleştirerek) deniyoruz — PDF'in tek-hücreli durumunu
-      // (1 kelimelik pencere zaten onu kapsıyor) bozmadan, kelime kelime gelen OCR metnini de kapsar.
-      const candidates = [];
-      for (let j = 0; j < cells.length; j++) {
-        let phrase = '';
-        for (let k = j; k < Math.min(j + 3, cells.length); k++) {
-          phrase = phrase ? phrase + ' ' + cells[k].str.trim() : cells[k].str.trim();
-          candidates.push({ x: cells[j].x, str: phrase });
+      let sonSatir = i;
+      for (let li = i; li < Math.min(i + 4, lines.length); li++) {
+        const cells = lines[li].cells;
+        // Fotoğraf OCR'ında (Tesseract) her kelime ayrı bir hücre olarak gelir — PDF'te "Mal Hizmet"
+        // gibi çok kelimeli bir başlık tek hücrede bütün gelebilirken, fotoğrafta "Mal" ve "Hizmet"
+        // ayrı hücreler olur. Bu yüzden her hücreyi TEK BAŞINA değil, kendisiyle başlayan 1-3 kelimelik
+        // pencereleri de (ardışık hücreleri birleştirerek) deniyoruz — PDF'in tek-hücreli durumunu
+        // (1 kelimelik pencere zaten onu kapsıyor) bozmadan, kelime kelime gelen OCR metnini de kapsar.
+        // Her aday, içindeki HER bir alt-hücrenin birleşik metin içindeki başlangıç ofsetini VE
+        // kendi X konumunu da taşır — PDF.js bazen "Malzeme / Hizmet Açıklaması" gibi çok kelimeli bir
+        // başlığı TEK hücrede, aranan anahtar kelime (ör. "Açıklama") metnin ORTASINDA/SONUNDA olacak
+        // şekilde verir; bu durumda eşleşme yine de doğru kabul edilmeli (hücre tek olduğu için zaten
+        // tek doğru X vardır). Ama "Sıra Mal Hizmet" gibi ÇOK hücreli bir pencerede eşleşme "Mal
+        // Hizmet" kısmında bulunduysa, kullanılacak X "Sıra"nın değil "Mal"ın X'i olmalı — bunu da
+        // eşleşmenin ofsetini (m.index) hangi alt-hücreye denk geldiğini geriye doğru arayarak buluyoruz.
+        const candidates = [];
+        for (let j = 0; j < cells.length; j++) {
+          let phrase = '';
+          const offsets = [];
+          for (let k = j; k < Math.min(j + 3, cells.length); k++) {
+            const startOffset = phrase.length ? phrase.length + 1 : 0;
+            offsets.push({ x: cells[k].x, startOffset });
+            phrase = phrase ? phrase + ' ' + cells[k].str.trim() : cells[k].str.trim();
+            candidates.push({ str: phrase, offsets: offsets.slice() });
+          }
         }
+        headerDefs.forEach(({ key, re }) => {
+          if (found[key] !== undefined) return;
+          for (let ci = 0; ci < candidates.length; ci++) {
+            const m = candidates[ci].str.match(re);
+            if (!m) continue;
+            const offs = candidates[ci].offsets;
+            let matchX = offs[0].x;
+            for (let oi = offs.length - 1; oi >= 0; oi--) {
+              if (offs[oi].startOffset <= m.index) { matchX = offs[oi].x; break; }
+            }
+            found[key] = matchX; count++; sonSatir = li;
+            break;
+          }
+        });
       }
-      headerDefs.forEach(({ key, re }) => {
-        if (found[key] !== undefined) return;
-        // match.index === 0 şartı önemli: aksi halde "Sıra Mal Hizmet" gibi, aranan ifadeyi İÇEREN
-        // ama ondan ÖNCE alakasız bir kelime (ör. "Sıra") ile başlayan bir pencere de eşleşip yanlış
-        // (o alakasız kelimenin) X konumunu verebilir.
-        const cand = candidates.find((c) => { const m = c.str.match(re); return m && m.index === 0; });
-        if (cand) { found[key] = cand.x; count++; }
-      });
       // 'Birim Fiyat' başlığı "Birim" düzenli ifadesini de karşılayabilir — bu durumda gerçek bir
       // ayrı Birim sütunu yoktur, o yüzden fiyat sütunuyla aynı x'e denk gelen 'unit' eşleşmesini at.
       if (found.unit !== undefined && found.price !== undefined && Math.abs(found.unit - found.price) < 5) delete found.unit;
-      if (count >= 2 && found.name !== undefined && found.qty !== undefined) { headerIdx = i; cols = found; break; }
-    }
-    // Bazı fatura düzenlerinde başlık kelimeleri (ör. "Miktar" ve "Malzeme/Hizmet Açıklaması")
-    // AYNI fiziksel satırda değil, birbirine yakın 2-4 ayrı satıra dağılmış olabilir — bu durumda
-    // yukarıdaki tek-satır taraması hiçbir satırda "hem isim hem miktar" bulamaz. Yedek olarak,
-    // art arda gelen satırları (en fazla 4) BİRLEŞTİRİP aynı taramayı tekrar deniyoruz; başlığın
-    // GERÇEKTE NEREDE bittiğini bilmek için, bulunan her anahtar kelimenin hangi satırda
-    // olduğunu da not edip headerIdx'i bunların EN SONUNCUSUNA ayarlıyoruz.
-    if (headerIdx === -1) {
-      for (let i = 0; i < lines.length && headerIdx === -1; i++) {
-        const found = {};
-        let count = 0;
-        let sonSatir = i;
-        for (let li = i; li < Math.min(i + 4, lines.length); li++) {
-          const cells = lines[li].cells;
-          const candidates = [];
-          for (let j = 0; j < cells.length; j++) {
-            let phrase = '';
-            for (let k = j; k < Math.min(j + 3, cells.length); k++) {
-              phrase = phrase ? phrase + ' ' + cells[k].str.trim() : cells[k].str.trim();
-              candidates.push({ x: cells[j].x, str: phrase });
-            }
-          }
-          headerDefs.forEach(({ key, re }) => {
-            if (found[key] !== undefined) return;
-            const cand = candidates.find((c) => { const m = c.str.match(re); return m && m.index === 0; });
-            if (cand) { found[key] = cand.x; count++; sonSatir = li; }
-          });
-        }
-        if (found.unit !== undefined && found.price !== undefined && Math.abs(found.unit - found.price) < 5) delete found.unit;
-        if (count >= 2 && found.name !== undefined && found.qty !== undefined) { headerIdx = sonSatir; cols = found; }
+      // found.name < found.qty şartı önemli: bazı fatura düzenlerinde "Mal Hizmet" ifadesi İKİ kez
+      // geçer — biri gerçek ürün adı sütununun başlığında (solda), diğeri en sağdaki "Mal/Hizmet
+      // Tutarı" (satır toplamı) sütununda. Bu şart olmadan, en fazla sütunu bulan pencere yanlışlıkla
+      // SAĞDAKİ (toplam sütunundaki) "Mal Hizmet" eşleşmesini seçebilir — ürün adı sütunu her zaman
+      // miktardan ÖNCE (solda) gelir, bu yüzden tersi bir eşleşme geçersiz sayılır.
+      if (count >= 2 && found.name !== undefined && found.qty !== undefined && found.name < found.qty && count > enIyiSayac) {
+        headerIdx = sonSatir; cols = found; enIyiSayac = count;
       }
     }
     if (headerIdx === -1) return null;
@@ -6406,7 +6417,18 @@
       const colTexts = {};
       boundEntries.forEach(([key]) => { colTexts[key] = []; });
       cells.forEach((c) => { colTexts[classifyColumn(c.x)].push(c.str); });
-      const name = (colTexts.name || []).join(' ').trim();
+      // "Sıra No" sütununun sağ sınırı bazı fatura düzenlerinde (ör. "No" hemen yanında bir ürün kodu,
+      // "26/18" gibi, boşluk bırakmadan geliyorsa) gereğinden geniş kalıp o kodu da yutabiliyor — sınırı
+      // santim santim ayarlamak yerine, DAHA SAĞLAM bir çözüm: "no" sütununa düşen metni kontrol et;
+      // en baştaki SAF (1-4 haneli) sıra numarasını at, ardından kalan metin varsa (asıl sıra
+      // numarasından FAZLASI, yani gerçekte isme ait bir kod/kelime) bunu ismin BAŞINA geri ekle.
+      let noFazlasi = '';
+      if (colTexts.no && colTexts.no.length) {
+        const noMetni = colTexts.no.join(' ').trim();
+        const kalan = noMetni.replace(/^\d{1,4}\s*/, '').trim();
+        if (kalan) noFazlasi = kalan;
+      }
+      const name = [noFazlasi, (colTexts.name || []).join(' ').trim()].filter(Boolean).join(' ');
       const qtyText = (colTexts.qty || []).join(' ');
       const unitColText = (colTexts.unit || []).join(' ').trim();
       const priceRaw = (colTexts.price || []).join(' ').match(/[\d.,]+/);
@@ -6423,8 +6445,12 @@
         // yani hâlâ başta olduğu bu noktada temizle.
         const cleanName = name.replace(/^\d{1,3}(\s+|$)/, '');
         anchors.push({ y: lines[i].y, name: cleanName, qty, unit, price: isFinite(price) && price >= 0 ? Math.round(price * 10000) / 10000 : 0 });
-      } else if (name && name.length >= 2) {
-        orphans.push({ y: lines[i].y, name, price: isFinite(price) && price >= 0 ? Math.round(price * 10000) / 10000 : null });
+      } else {
+        // İsim boş olsa bile (ör. Birim Fiyat sarmalanıp kendi başına bir satıra düştüğünde, o satırda
+        // isim sütununa hiç metin düşmez) fiyat okuması varsa yine de kaydet — yoksa bu değerli fiyat
+        // bilgisi sessizce kaybolur ve ilgili ürün kalemi hep "0 TL" olarak taslağa girer.
+        const orphanPrice = isFinite(price) && price >= 0 ? Math.round(price * 10000) / 10000 : null;
+        if ((name && name.length >= 2) || orphanPrice != null) orphans.push({ y: lines[i].y, name, price: orphanPrice });
       }
     }
     // İkinci geçiş: her "yetim" satırı, Y konumu en yakın olan çapaya ekle — ama makul bir mesafe
@@ -6471,6 +6497,11 @@
       // yakınsa, gerçek birim fiyat çapanınki değil o yetiminkidir — yer değiştir.
       oList.forEach((o) => {
         if (o.price == null || !anchor.qty) return;
+        // Çapanın KENDİ satırında (Birim Fiyat sarmalanıp alt satıra düştüğü için) hiç fiyat
+        // bulunamadıysa (0/boş) karşılaştıracak bir şey yok — yetimin okuduğu fiyatı doğrulamadan
+        // doğrudan kullan. Doğrulama sadece çapanın ZATEN (muhtemelen yanlış, ör. Tutar) bir sayı
+        // okuduğu durumda anlamlı.
+        if (!anchor.price) { anchor.price = o.price; return; }
         const hesaplanan = Math.round(anchor.qty * o.price * 10000) / 10000;
         if (Math.abs(hesaplanan - anchor.price) < Math.max(0.02, anchor.price * 0.005)) {
           anchor.price = o.price;
@@ -6513,8 +6544,10 @@
   // Önce "Fatura Tarihi:" gibi daha kesin bir etiket aranır; bulunamazsa sade "Tarih:" etiketine
   // düşülür — ama "Vade Tarihi:", "Sevk Tarihi:" gibi başka alanlarla ASLA karışmaz.
   function extractInvoiceDateFromText(text) {
-    let m = text.match(/\bfatura\s*tarihi?\b\s*:?\s*(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})/i);
-    if (!m) m = text.match(/\btarih\b\s*:?\s*(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})/i);
+    // Ayraçların (./-) etrafında boşluk OLABİLİR — bazı e-fatura PDF'leri "26- 09- 2026" gibi, tire
+    // işaretinden sonra boşluk bırakarak yazdırıyor; \s* bu boşluğu da (varsa) tolere eder.
+    let m = text.match(/\bfatura\s*tarihi?\b\s*:?\s*(\d{1,2})\s*[.\-\/]\s*(\d{1,2})\s*[.\-\/]\s*(\d{4})/i);
+    if (!m) m = text.match(/\btarih\b\s*:?\s*(\d{1,2})\s*[.\-\/]\s*(\d{1,2})\s*[.\-\/]\s*(\d{4})/i);
     if (!m) return '';
     const [, d, mo, y] = m;
     const dd = d.padStart(2, '0'), mm = mo.padStart(2, '0');
