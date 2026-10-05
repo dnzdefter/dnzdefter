@@ -1072,6 +1072,16 @@
     <!-- ÜRÜN ARAMA -->
     <section class="view" id="view-urun-arama">
       <div class="field"><input type="text" id="uaSearch" placeholder="ürün/hizmet arama" autocomplete="off"></div>
+      <button class="btn btn-block" id="uaBarkodBtn" style="margin-bottom:14px">📷 Barkod ile Ekle</button>
+      <div class="card" id="uaYeniUrunUyari" style="display:none;margin-bottom:14px;border:1.5px solid var(--flame-deep)">
+        <div class="list-row" style="cursor:default">
+          <div class="main">
+            <div class="title">Bu barkodla eşleşen ürün yok</div>
+            <div class="sub" id="uaYeniUrunBarkodText"></div>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-block" id="uaYeniUrunEkleBtn" style="margin:0 12px 12px;width:calc(100% - 24px)">+ Yeni Ürün Ekle</button>
+      </div>
       <div class="card" id="uaList"></div>
     </section>
 
@@ -2663,6 +2673,7 @@
   function enterUrunArama() {
     showView('view-urun-arama', { showBack: true, onBack: returnToFaturaForm });
     document.getElementById('uaSearch').value = '';
+    document.getElementById('uaYeniUrunUyari').style.display = 'none';
     renderUrunArama('');
   }
   function returnToFaturaForm() {
@@ -6600,10 +6611,59 @@
     }).join('');
   }
   document.getElementById('uaSearch').addEventListener('input', (e) => renderUrunArama(e.target.value));
+  // Barkod ile Ekle: taranan barkod mevcut bir ürüne denk geliyorsa doğrudan o ürünü seçer (arama
+  // sonucuna tıklamakla aynı); denk gelmiyorsa altta "Yeni Ürün Ekle" uyarısı belirir — tıklanınca hızlı
+  // bir ürün oluşturma penceresi açılır ve ürün kaydedilince HEM stoğa eklenir HEM DE o anda
+  // düzenlenen faturaya kalem olarak işlenir.
+  document.getElementById('uaBarkodBtn').addEventListener('click', () => {
+    openBarcodeScanner((code) => {
+      if (!code) return;
+      const match = state.stok.find((s) => s.barcode === code);
+      document.getElementById('uaYeniUrunUyari').style.display = match ? 'none' : 'block';
+      if (match) { urunAramadanSec(match); return; }
+      document.getElementById('uaYeniUrunBarkodText').textContent = 'Barkod: ' + code;
+      document.getElementById('uaYeniUrunEkleBtn').dataset.barkod = code;
+    });
+  });
+  document.getElementById('uaYeniUrunEkleBtn').addEventListener('click', () => {
+    const taranankod = document.getElementById('uaYeniUrunEkleBtn').dataset.barkod || '';
+    openModal(`
+      <h3>Yeni Ürün</h3>
+      <div class="field"><label>Ürün/Hizmet Adı</label><input type="text" id="qpName" autofocus></div>
+      <div class="field-row">
+        <div class="field"><label>Satış Fiyatı</label><input type="number" id="qpFiyat" min="0" step="0.01" value="0"></div>
+        <div class="field"><label>KDV %</label><select id="qpVat"><option value="0">0</option><option value="1">1</option><option value="10">10</option><option value="20" selected>20</option></select></div>
+      </div>
+      <p class="sub" style="margin:-6px 0 12px">Barkod: ${escapeHtml(taranankod)} — diğer bilgileri (alış fiyatı, stok miktarı vb.) daha sonra Ürünler ekranından tamamlayabilirsin.</p>
+      <div class="modal-actions"><button class="btn" id="mCancel">Vazgeç</button><button class="btn btn-primary" id="mSave">Ekle ve Faturaya İşle</button></div>
+    `);
+    document.getElementById('mCancel').onclick = closeModal;
+    document.getElementById('mSave').onclick = () => {
+      const name = document.getElementById('qpName').value.trim();
+      if (!name) { alert('Ürün adı gerekli.'); return; }
+      const s = {
+        id: genId(), name, kind: 'urun', categoryId: null, subCategoryId: null, category: '', brand: null,
+        satisBirimi: 'Adet', alisBirimi: 'Adet', donusumOrani: 1, quantity: 0, minStock: 0,
+        sellPrice: parseFloat(document.getElementById('qpFiyat').value) || 0, sellVat: parseFloat(document.getElementById('qpVat').value),
+        buyPrice: 0, buyVat: 20, depoId: (state.depolar[0] && state.depolar[0].id) || null,
+        variants: [], etiketler: [], photo: null, photos: [], barcode: taranankod || '', productCode: '', rafYeri: '', agirlikKg: 0
+      };
+      state.stok.push(s);
+      saveState();
+      closeModal();
+      document.getElementById('uaYeniUrunUyari').style.display = 'none';
+      urunAramadanSec(s);
+    };
+  });
   document.getElementById('uaList').addEventListener('click', (e) => {
     const row = e.target.closest('.list-row'); if (!row) return;
     const s = state.stok.find((x) => x.id === row.dataset.id);
     if (!s) return;
+    urunAramadanSec(s);
+  });
+  // Ürün Arama listesinden (elle tıklayarak) ya da barkod taramasıyla bulunan bir ürünü faturaya
+  // eklemeye başlar — ikisi de AYNI mantığı (fiyat listesi, varyant seçimi, miktar penceresi) izler.
+  function urunAramadanSec(s) {
     const yon = document.getElementById('fYon').value;
     let basePrice, vat;
     if (yon === 'alis') {
@@ -6634,7 +6694,7 @@
       return;
     }
     openMiktarModal(s, null, itemAd, itemAciklama, basePrice, vat);
-  });
+  }
   function openMiktarModal(s, v, itemAd, itemAciklama, price, vat) {
     const displayName = v ? itemAd + ' — ' + v.name : itemAd;
     const stokMiktari = v ? v.qty : s.quantity;
