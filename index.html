@@ -1606,6 +1606,24 @@
 </div>
 
 <div id="printArea" class="print-only"></div>
+
+<!-- Fiş/Fatura Tara: fotoğrafı OCR'a vermeden önce kullanıcının köşelerden sürükleyerek SADECE
+     belgeyi çerçevelemesini sağlayan tam ekran kırpma arayüzü. Basit parlaklık/doygunluk tabanlı
+     otomatik algılama, dokulu/karmaşık arka planlarda (ör. halı/kumaş üzerine konmuş bir fiş)
+     güvenilir çalışmadığı için, kullanıcının kendisinin belirlediği bu yöntem çok daha sağlamdır. -->
+<div id="kirpmaOverlay" style="display:none;position:fixed;inset:0;background:#000;z-index:10000;flex-direction:column">
+  <div style="padding:14px 16px;color:#fff;font-size:14px;text-align:center;background:#111">Fişi/faturayı köşelerden sürükleyerek çerçevele</div>
+  <div style="flex:1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:0">
+    <div id="kirpmaWrap" style="position:relative;line-height:0">
+      <img id="kirpmaImg" style="display:block;max-width:88vw;max-height:70vh;user-select:none;-webkit-user-select:none">
+      <svg id="kirpmaSvg" style="position:absolute;top:0;left:0;width:100%;height:100%;touch-action:none"></svg>
+    </div>
+  </div>
+  <div style="padding:14px 16px;display:flex;gap:10px;background:#111">
+    <button type="button" id="kirpmaVazgec" class="btn" style="flex:1">Vazgeç</button>
+    <button type="button" id="kirpmaOnayla" class="btn btn-primary" style="flex:2">✂️ Kırp ve Tara</button>
+  </div>
+</div>
 <div id="backToast" class="back-toast"></div>
 <div id="scannerOverlay" class="scanner-overlay hidden">
   <div class="scanner-bar">
@@ -3075,7 +3093,15 @@
     const cats = opts.isMasraf ? masrafCats : (type === 'gelir' ? gelirCats : giderCats);
     openModal(`
       <h3>${existing ? (opts.isMasraf ? 'Masrafı Düzenle' : 'Kaydı Düzenle') : (opts.isMasraf ? 'Yeni Masraf' : (type === 'gelir' ? 'Yeni Gelir' : 'Yeni Gider'))}</h3>
+      ${opts.isMasraf ? `
+      <div class="field"><label>Masraf Başlığı</label><input type="text" id="mBaslik" placeholder="örn. Akaryakıt, Ofis Kırtasiyesi" value="${existing ? escapeHtml(existing.title || '') : ''}"></div>
+      <div class="field-row">
+        <div class="field"><label>Masraf Tarihi</label><input type="date" id="mDate" value="${existing ? existing.date : todayISO()}"></div>
+        <div class="field"><label>Ödeme Tarihi</label><input type="date" id="mOdemeTarihi" value="${existing ? (existing.odemeTarihi || existing.date) : todayISO()}"></div>
+      </div>
+      ` : `
       <div class="field"><label>Tarih</label><input type="date" id="mDate" value="${existing ? existing.date : todayISO()}"></div>
+      `}
       <div class="field"><label>Kategori</label><select id="mCat">${cats.map((c) => `<option ${existing && existing.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
       <div class="field-row">
         <div class="field"><label>Tutar</label><input type="number" id="mAmount" min="0" step="0.01" placeholder="0,00" value="${existing ? (existing.foreignAmount || existing.amount) : ''}"></div>
@@ -3131,32 +3157,48 @@
           e.target.value = '';
           if (!file) return;
           const durum = document.getElementById('mScanDurum');
-          durum.style.display = 'block'; durum.textContent = 'Taranıyor…';
-          try {
-            const worker = await Tesseract.createWorker('tur', 1, {
-              logger: (m) => { if (m.status) durum.textContent = m.status + (m.progress ? ' — %' + Math.round(m.progress * 100) : ''); }
-            });
-            const { data } = await worker.recognize(file, {}, { blocks: true });
-            await worker.terminate();
-            const text = data.text || '';
-            const tarih = extractDateFromReceiptText(text);
-            const tutar = extractTotalAmountFromText(text);
-            const vendorName = extractVendorNameFromText(text);
-            if (tarih) document.getElementById('mDate').value = tarih;
-            if (tutar) { document.getElementById('mAmount').value = tutar; updateFxHint(); }
-            if (vendorName && !document.getElementById('mDesc').value.trim()) document.getElementById('mDesc').value = vendorName;
+          const rawDataUrl = await new Promise((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = (ev) => { resizeImageDataUrl(ev.target.result, 1000, 0.85, async (resized) => {
-              const img = document.getElementById('mReceiptPreview'); img.src = resized; img.style.display = 'block';
-              try { masrafPhoto = await fotografiStorageyeYukle(resized); }
-              catch (err) { /* fotoğraf kaydı başarısız olsa da OCR'dan dolan bilgiler kalsın */ }
-            }); };
+            reader.onload = (ev) => resolve(ev.target.result);
+            reader.onerror = reject;
             reader.readAsDataURL(file);
-            const bulunanlar = [tarih && 'tarih', tutar && 'tutar', vendorName && 'firma adı'].filter(Boolean);
-            durum.textContent = bulunanlar.length ? ('Bulundu: ' + bulunanlar.join(', ') + ' — kontrol edip gerekirse düzelt.') : 'Taramadan bir şey çıkarılamadı, bilgileri elle gir.';
-          } catch (err) {
-            durum.textContent = 'Taranamadı — daha net bir fotoğrafla tekrar dene ya da bilgileri elle gir.';
-          }
+          });
+          // Önce kullanıcı fişi/faturayı köşelerden sürükleyerek çerçeveler — dokulu arka planlarda
+          // (halı, kumaş, masa vb.) otomatik algılama güvenilir çalışmadığı için OCR'a verilecek
+          // görüntüde sadece belgenin kalması kullanıcı onayına bırakılıyor.
+          openKirpmaEkrani(rawDataUrl, async (kirpilmisDataUrl) => {
+            durum.style.display = 'block'; durum.textContent = 'Görüntü iyileştiriliyor…';
+            try {
+              // Kırpılmış görüntüyü gerçek bir tarayıcı gibi işle (gri tonlama + Otsu eşikleme ile
+              // siyah/beyaz hale getir) — OCR'a ham fotoğraf yerine bu İŞLENMİŞ hali verilir, bu da
+              // düzensiz ışık/gölge koşullarında doğruluğu belirgin şekilde artırır.
+              const islenmisDataUrl = await new Promise((resolve) => taramaIcinGoruntuIyilestir(kirpilmisDataUrl, resolve));
+              durum.textContent = 'Taranıyor…';
+              const worker = await Tesseract.createWorker('tur', 1, {
+                logger: (m) => { if (m.status) durum.textContent = m.status + (m.progress ? ' — %' + Math.round(m.progress * 100) : ''); }
+              });
+              const { data } = await worker.recognize(islenmisDataUrl, {}, { blocks: true });
+              await worker.terminate();
+              const text = data.text || '';
+              const tarih = extractDateFromReceiptText(text);
+              const tutar = extractTotalAmountFromText(text);
+              const vendorName = extractVendorNameFromText(text);
+              if (tarih) document.getElementById('mDate').value = tarih;
+              if (tutar) { document.getElementById('mAmount').value = tutar; updateFxHint(); }
+              if (vendorName && !document.getElementById('mBaslik').value.trim()) document.getElementById('mBaslik').value = vendorName;
+              // Fiş fotoğrafı olarak kullanıcının ÇERÇEVELEDİĞİ (kırpılmış, renkli) hali saklanır —
+              // OCR için işlenen siyah/beyaz hal sadece okuma doğruluğu içindir.
+              resizeImageDataUrl(kirpilmisDataUrl, 1000, 0.85, async (resized) => {
+                const img = document.getElementById('mReceiptPreview'); img.src = resized; img.style.display = 'block';
+                try { masrafPhoto = await fotografiStorageyeYukle(resized); }
+                catch (err) { /* fotoğraf kaydı başarısız olsa da OCR'dan dolan bilgiler kalsın */ }
+              });
+              const bulunanlar = [tarih && 'tarih', tutar && 'tutar', vendorName && 'başlık'].filter(Boolean);
+              durum.textContent = bulunanlar.length ? ('Bulundu: ' + bulunanlar.join(', ') + ' — kontrol edip gerekirse düzelt.') : 'Taramadan bir şey çıkarılamadı, bilgileri elle gir.';
+            } catch (err) {
+              durum.textContent = 'Taranamadı — daha net bir fotoğrafla tekrar dene ya da bilgileri elle gir.';
+            }
+          });
         });
       }
     }
@@ -3190,6 +3232,10 @@
       const hesapId = document.getElementById('mHesap').value || null;
       const projeId = document.getElementById('mProje').value || null;
       const date = document.getElementById('mDate').value || todayISO();
+      // Ödeme Tarihi sadece Masraf formunda var — para HESAPTAN gerçekten o tarihte çıkar (masraf
+      // tarihinden farklı olabilir, ör. kredi kartıyla yapılıp daha sonra ödenen bir masraf); hesap
+      // hareketi bu yüzden masraf tarihi değil ödeme tarihi ile işlenir.
+      const odemeTarihi = opts.isMasraf ? (document.getElementById('mOdemeTarihi').value || date) : date;
       const category = document.getElementById('mCat').value;
       const txId = existing ? existing.id : genId();
       // Var olan hesap hareketini (varsa) temizle; aşağıda güncel değerlerle yeniden oluşturulacak.
@@ -3204,6 +3250,8 @@
         description: document.getElementById('mDesc').value.trim()
       });
       if (opts.isMasraf) {
+        tx.title = document.getElementById('mBaslik').value.trim();
+        tx.odemeTarihi = odemeTarihi;
         tx.paymentMethod = document.getElementById('mPayment').value;
         tx.receiptNo = document.getElementById('mReceipt').value.trim();
         tx.receiptPhoto = masrafPhoto;
@@ -3214,7 +3262,7 @@
         if (h) {
           const hesapTutar = (h.currency === currency) ? amount : tlAmount;
           h.hareketler = h.hareketler || [];
-          h.hareketler.push({ id: genId(), date, aciklama: (type === 'gelir' ? 'Gelir: ' : 'Gider: ') + category, tutar: type === 'gelir' ? hesapTutar : -hesapTutar, txId });
+          h.hareketler.push({ id: genId(), date: odemeTarihi, aciklama: (type === 'gelir' ? 'Gelir: ' : 'Gider: ') + category, tutar: type === 'gelir' ? hesapTutar : -hesapTutar, txId });
         }
       }
       saveState(); closeModal(); renderGG(); renderOzet(); renderMasrafList();
@@ -3258,8 +3306,8 @@
       <div class="list-row" data-id="${t.id}">
         ${t.receiptPhoto ? `<img src="${gorselUrl(t.receiptPhoto)}" class="masraf-photo" data-id="${t.id}" style="width:38px;height:38px;border-radius:8px;object-fit:cover;flex-shrink:0">` : ''}
         <div class="main">
-          <div class="title">${escapeHtml(t.category)}</div>
-          <div class="sub">${formatDate(t.date)}${t.paymentMethod ? ' · ' + escapeHtml(t.paymentMethod) : ''}${t.receiptNo ? ' · Fiş: ' + escapeHtml(t.receiptNo) : ''}${t.currency && t.currency !== 'TL' ? ' · ' + t.foreignAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) + ' ' + t.currency : ''}${t.description ? ' · ' + escapeHtml(t.description) : ''}</div>
+          <div class="title">${t.title ? escapeHtml(t.title) : escapeHtml(t.category)}</div>
+          <div class="sub">${t.title ? escapeHtml(t.category) + ' · ' : ''}${formatDate(t.date)}${t.paymentMethod ? ' · ' + escapeHtml(t.paymentMethod) : ''}${t.receiptNo ? ' · Fiş: ' + escapeHtml(t.receiptNo) : ''}${t.currency && t.currency !== 'TL' ? ' · ' + t.foreignAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) + ' ' + t.currency : ''}${t.description ? ' · ' + escapeHtml(t.description) : ''}</div>
         </div>
         <div class="amt expense mono">−${formatTL(t.amount)}</div>
       </div>
@@ -4704,6 +4752,122 @@
       c.width = w; c.height = h;
       c.getContext('2d').drawImage(img, 0, 0, w, h);
       cb(c.toDataURL('image/jpeg', quality));
+    };
+    img.src = dataUrl;
+  }
+  // Taranan bir fiş/fatura fotoğrafını OCR'a vermeden ÖNCE gerçek bir tarayıcı uygulamasının yaptığı
+  // gibi işler: gri tonlamaya çevirir, ardından Otsu eşikleme yöntemiyle (görüntünün kendi parlaklık
+  // dağılımından en iyi eşik değerini hesaplayarak) SİYAH/BEYAZ hale getirir. Bu, düzensiz ışık/gölge/
+  // kontrast sorunlarını büyük ölçüde tolere eder ve metin/arka plan ayrımını keskinleştirerek OCR
+  // doğruluğunu belirgin şekilde artırır — ham, işlenmemiş bir fotoğrafa göre çok daha güvenilirdir.
+  // Fiş/fatura fotoğrafını OCR'a vermeden önce kullanıcıya köşelerden sürükleterek SADECE belgeyi
+  // çerçevelettirir (bkz. #kirpmaOverlay). onConfirm(kirpilmisDataUrl) ile çağrılır; kullanıcı vazgeçerse
+  // hiçbir şey çağrılmaz. Basit parlaklık/doygunluk tabanlı otomatik tespit, dokulu arka planlarda
+  // (halı, kumaş, ahşap masa vb.) güvenilir çalışmadığı için bilerek OTOMATİK değil, kullanıcı kontrollü.
+  function openKirpmaEkrani(dataUrl, onConfirm) {
+    const overlay = document.getElementById('kirpmaOverlay');
+    const img = document.getElementById('kirpmaImg');
+    const svg = document.getElementById('kirpmaSvg');
+    const wrap = document.getElementById('kirpmaWrap');
+    overlay.style.display = 'flex';
+    img.src = dataUrl;
+    img.onload = () => {
+      // Köşe noktaları EKRANDA GÖSTERİLEN (CSS) piksel cinsinden tutulur; kırpma anında gerçek görüntü
+      // boyutuna oranlanır — böylece ekran boyutundan bağımsız doğru çalışır.
+      const dgen = img.clientWidth, dyuk = img.clientHeight;
+      svg.setAttribute('viewBox', `0 0 ${dgen} ${dyuk}`);
+      wrap.style.width = dgen + 'px'; wrap.style.height = dyuk + 'px';
+      // Başlangıç çerçevesi: kenarlardan %8 içeride — kullanıcı buradan ayarlar.
+      let kose = [
+        { x: dgen * 0.08, y: dyuk * 0.08 },
+        { x: dgen * 0.92, y: dyuk * 0.08 },
+        { x: dgen * 0.92, y: dyuk * 0.92 },
+        { x: dgen * 0.08, y: dyuk * 0.92 }
+      ];
+      function ciz() {
+        const dis = `M0,0 H${dgen} V${dyuk} H0 Z`;
+        const ic = `M${kose[0].x},${kose[0].y} L${kose[1].x},${kose[1].y} L${kose[2].x},${kose[2].y} L${kose[3].x},${kose[3].y} Z`;
+        const tutamacSvg = kose.map((k, i) => `<circle class="kirpma-tutamac" data-i="${i}" cx="${k.x}" cy="${k.y}" r="16" fill="#fff" stroke="#3aa1ff" stroke-width="3" style="cursor:grab"></circle>`).join('');
+        svg.innerHTML = `
+          <path d="${dis} ${ic}" fill="rgba(0,0,0,0.6)" fill-rule="evenodd"></path>
+          <polygon points="${kose.map((k) => k.x + ',' + k.y).join(' ')}" fill="none" stroke="#3aa1ff" stroke-width="2.5"></polygon>
+          ${tutamacSvg}
+        `;
+      }
+      ciz();
+      let suruklenen = null;
+      svg.addEventListener('pointerdown', (e) => {
+        const t = e.target.closest('.kirpma-tutamac');
+        if (!t) return;
+        suruklenen = parseInt(t.dataset.i, 10);
+        svg.setPointerCapture(e.pointerId);
+      });
+      svg.addEventListener('pointermove', (e) => {
+        if (suruklenen === null) return;
+        const rect = svg.getBoundingClientRect();
+        const x = Math.max(0, Math.min(dgen, (e.clientX - rect.left) * (dgen / rect.width)));
+        const y = Math.max(0, Math.min(dyuk, (e.clientY - rect.top) * (dyuk / rect.height)));
+        kose[suruklenen] = { x, y };
+        ciz();
+      });
+      const birak = (e) => { suruklenen = null; };
+      svg.addEventListener('pointerup', birak);
+      svg.addEventListener('pointercancel', birak);
+
+      document.getElementById('kirpmaOnayla').onclick = () => {
+        // Ekranda gösterilen (CSS) koordinatlardan gerçek görüntü piksel koordinatlarına oranla.
+        const olcekX = img.naturalWidth / dgen, olcekY = img.naturalHeight / dyuk;
+        const xs = kose.map((k) => k.x * olcekX), ys = kose.map((k) => k.y * olcekY);
+        const minX = Math.max(0, Math.min(...xs)), maxX = Math.min(img.naturalWidth, Math.max(...xs));
+        const minY = Math.max(0, Math.min(...ys)), maxY = Math.min(img.naturalHeight, Math.max(...ys));
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(maxX - minX));
+        c.height = Math.max(1, Math.round(maxY - minY));
+        c.getContext('2d').drawImage(img, minX, minY, c.width, c.height, 0, 0, c.width, c.height);
+        overlay.style.display = 'none';
+        onConfirm(c.toDataURL('image/jpeg', 0.95));
+      };
+      document.getElementById('kirpmaVazgec').onclick = () => { overlay.style.display = 'none'; };
+    };
+  }
+  function taramaIcinGoruntuIyilestir(dataUrl, cb) {
+    const img = new Image();
+    img.onload = () => {
+      // OCR için çok küçük görüntüler zayıf sonuç verir — en az ~1800px genişliğe büyüt (gerekiyorsa);
+      // çok büyükse de işlem süresi için makul bir üst sınırda tut.
+      let w = img.naturalWidth, h = img.naturalHeight;
+      const hedefGenislik = Math.min(2400, Math.max(1800, w));
+      if (w !== hedefGenislik) { h = Math.round(h * hedefGenislik / w); w = hedefGenislik; }
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const d = imgData.data;
+      const piksel = w * h;
+      const gri = new Uint8ClampedArray(piksel);
+      const histogram = new Array(256).fill(0);
+      for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+        const v = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+        gri[j] = v; histogram[v]++;
+      }
+      // Otsu eşikleme: sınıflar-arası varyansı maksimize eden eşiği histogramdan hesaplar.
+      let toplam = 0; for (let t = 0; t < 256; t++) toplam += t * histogram[t];
+      let sumB = 0, wB = 0, maxVar = 0, esik = 127;
+      for (let t = 0; t < 256; t++) {
+        wB += histogram[t]; if (!wB) continue;
+        const wF = piksel - wB; if (!wF) break;
+        sumB += t * histogram[t];
+        const mB = sumB / wB, mF = (toplam - sumB) / wF;
+        const varBetween = wB * wF * (mB - mF) * (mB - mF);
+        if (varBetween > maxVar) { maxVar = varBetween; esik = t; }
+      }
+      for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+        const v = gri[j] > esik ? 255 : 0;
+        d[i] = d[i + 1] = d[i + 2] = v;
+      }
+      ctx.putImageData(imgData, 0, 0);
+      cb(c.toDataURL('image/jpeg', 0.95));
     };
     img.src = dataUrl;
   }
@@ -6653,11 +6817,21 @@
   // fişlerde bu neredeyse her zaman en üstteki satırdır.
   function extractVendorNameFromText(text) {
     const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+    // Bazı fatura düzenlerinde iletişim bilgileri (Tel/Vergi Dairesi/VKN vb.) firma ADINDAN ÖNCE
+    // gelir (ör. GÖKRAY örneğinde olduğu gibi, sağ üst köşede firma adının bile üstünde durabilir).
+    // Böyle bir satırla karşılaşınca aramayı TAMAMEN durdurmak yerine (eskiden "break" yapıyordu, bu
+    // da ismi hiç bulamadan boş dönmesine yol açıyordu), sadece o satırı ATLAYIP sonraki satırlara
+    // bakmaya devam ediyoruz — gerçek isim genelde birkaç satır sonra, bu bilgilerin ya öncesinde ya
+    // sonrasında, tek başına bir satır olarak bulunur.
     for (const line of lines) {
       if (line.length < 2) continue;
       const rakamOrani = (line.match(/\d/g) || []).length / line.length;
       if (rakamOrani > 0.2) continue;
-      if (/^(tel|e-?posta|vergi|vkn|adres|web|fax|faks|say[ıI]n|ettn)\b/i.test(line)) break;
+      if (/^(tel|e-?posta|vergi|vkn|adres|web|fax|faks|say[ıI]n|ettn|web\s*sitesi|mersis|ticaret\s*sicil)\b/i.test(line)) continue;
+      // "E-Arşiv Fatura" / "E-Fatura" / "Fiş" gibi belgenin TÜRÜNÜ belirten, firma adı OLMAYAN genel
+      // başlık etiketlerini de atla — bunlar genelde fişin/faturanın en üstünde, firma adından önce
+      // basılır.
+      if (/^e[-\s]?(ar[sş][iİ]v\s*)?fatura\b|^fatura\b|^fi[sş]\b|^perakende\s*sat[iı][sş]\s*fi[sş]i?\b|^yazar\s*kasa\b/i.test(line)) continue;
       return line;
     }
     return '';
@@ -6683,11 +6857,16 @@
     const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
     const numRe = /\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?/;
     const etiketler = [
-      /ödenecek\s*tutar/i,
+      // "Ödenecek Tutar" ile "Tutar" arasına başka kelimeler girebilir (ör. kasa fişlerinde çok
+      // yaygın olan "Odenecek KDV Dahil Tutar") — aradaki en fazla ~20 karakteri (harf/rakam/boşluk)
+      // tolere ediyoruz, böylece bu varyasyon da yakalanır.
+      /ödenecek[\sa-zçğıöşü0-9]{0,20}tutar/i,
       /genel\s*toplam/i,
       /vergiler\s*dah[iİ]l\s*toplam\s*tutar/i,
+      /kdv\s*dah[iİ]l\s*tutar/i,
       /toplam\s*tutar/i,
-      /\btoplam\b/i,
+      // Düz "TOPLAM" ile "TOPLAM KDV" (KDV TUTARI, farklı bir alan) KARIŞMASIN diye negatif bakış.
+      /\btoplam\b(?!\s*kdv)/i,
       /\btutar\b/i
     ];
     for (const re of etiketler) {
