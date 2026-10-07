@@ -716,6 +716,7 @@
         </button>
         <input type="file" accept=".xlsx,.xls" id="stokImportInput" style="display:none">
       </div>
+      <button type="button" class="btn btn-primary btn-block" id="stokAddBtn" style="margin-bottom:12px">+ Yeni Ürün / Hizmet</button>
       <div class="chip-row" id="stokFilterChips">
         <button class="chip active" data-f="tum">Tümü</button>
         <button class="chip" data-f="urun">Ürünler</button>
@@ -3059,7 +3060,7 @@
     const list = document.getElementById('ggList');
     let items = state.transactions.slice().sort((a, b) => b.date.localeCompare(a.date));
     if (ggFilter !== 'tum') items = items.filter((t) => t.type === ggFilter);
-    if (!items.length) { list.innerHTML = '<div class="empty-state">Henüz kayıt yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
+    if (!items.length) { list.innerHTML = '<div class="empty-state">Henüz kayıt yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
     list.innerHTML = items.map((t) => `
       <div class="list-row" data-id="${t.id}">
         <div class="main">
@@ -3301,7 +3302,7 @@
     const list = document.getElementById('masrafList');
     if (!list) return;
     const items = state.transactions.filter((t) => t.type === 'gider' && t.source === 'masraf').slice().sort((a, b) => b.date.localeCompare(a.date));
-    if (!items.length) { list.innerHTML = '<div class="empty-state">Henüz masraf yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
+    if (!items.length) { list.innerHTML = '<div class="empty-state">Henüz masraf yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
     list.innerHTML = items.map((t) => `
       <div class="list-row" data-id="${t.id}">
         ${t.receiptPhoto ? `<img src="${gorselUrl(t.receiptPhoto)}" class="masraf-photo" data-id="${t.id}" style="width:38px;height:38px;border-radius:8px;object-fit:cover;flex-shrink:0">` : ''}
@@ -3340,7 +3341,7 @@
       chipsWrap.style.display = 'none';
     }
     const items = cariEtiketFilter ? allOfType.filter((c) => (c.etiketler || []).includes(cariEtiketFilter)) : allOfType;
-    if (!items.length) { list.innerHTML = `<div class="empty-state">Henüz ${cariFilter === 'musteri' ? 'müşteri' : 'tedarikçi'} yok. Yukarıdaki + ile ekleyebilirsin.</div>`; setExcelExport(null, null, 'view-cari'); return; }
+    if (!items.length) { list.innerHTML = `<div class="empty-state">Henüz ${cariFilter === 'musteri' ? 'müşteri' : 'tedarikçi'} yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>`; setExcelExport(null, null, 'view-cari'); return; }
     list.innerHTML = items.map((c) => {
       const b = cariBalance(c);
       const tagClass = b > 0 ? 'pos' : (b < 0 ? 'neg' : 'zero');
@@ -4504,7 +4505,7 @@
     document.getElementById('stokFiltreDot').style.display = (marka || kategori || altKategori) ? 'block' : 'none';
     if (stokEtiketFilter) activeParts.push('Etiket: #' + stokEtiketFilter);
     document.getElementById('stokFiltreStatus').textContent = activeParts.length ? activeParts.join(' · ') : '';
-    if (!items.length) { list.innerHTML = `<div class="card"><div class="empty-state">${q || marka || kategori || altKategori ? 'Eşleşen ürün/hizmet bulunamadı.' : (stokFilter === 'kritik' ? 'Kritik seviyede ürün yok.' : 'Henüz ürün/hizmet yok. Yukarıdaki + ile ekleyebilirsin.')}</div></div>`; setExcelExport(null, null, 'view-stok'); return; }
+    if (!items.length) { list.innerHTML = `<div class="card"><div class="empty-state">${q || marka || kategori || altKategori ? 'Eşleşen ürün/hizmet bulunamadı.' : (stokFilter === 'kritik' ? 'Kritik seviyede ürün yok.' : 'Henüz ürün/hizmet yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.')}</div></div>`; setExcelExport(null, null, 'view-stok'); return; }
     list.innerHTML = items.map((s) => {
       const isHizmet = (s.kind || 'urun') === 'hizmet';
       const isKritik = !isHizmet && s.minStock > 0 && s.quantity > 0 && s.quantity <= s.minStock;
@@ -4622,6 +4623,12 @@
   // Kategoriler, Markalar, Depolar, Özel Fiyat Listeleri) tek bir "İşlemler" menüsünde toplanır —
   // ekranın üstü art arda butonlarla kalabalıklaşmasın diye. Etiketle arama zaten arama kutusundan
   // da çalıştığı için, etiket listesi burada sadece hızlı bir kısayol olarak duruyor.
+  // Yeni ürün formunu açar; olası bir hata sessizce yutulmasın, kullanıcıya görünsün.
+  function stokYeniUrunAc() {
+    try { enterStokForm(null); }
+    catch (err) { console.error('Yeni ürün formu açılamadı', err); alert('Yeni ürün formu açılamadı: ' + (err && err.message ? err.message : err)); }
+  }
+  document.getElementById('stokAddBtn').addEventListener('click', stokYeniUrunAc);
   document.getElementById('stokMenuBtn').addEventListener('click', () => {
     const actions = [
       { a: 'yeni', label: '+ Yeni Ürün / Hizmet' },
@@ -4644,7 +4651,7 @@
       const row = e.target.closest('.list-row'); if (!row) return;
       const action = row.dataset.a;
       closeModal();
-      if (action === 'yeni') enterStokForm(null);
+      if (action === 'yeni') stokYeniUrunAc();
       else if (action === 'iceaktar') document.getElementById('stokImportInput').click();
       else if (action === 'etiketler') openStokEtiketModal();
       else if (action === 'kategoriler') enterKategori();
@@ -5566,7 +5573,7 @@
   function renderKategoriList() {
     const list = document.getElementById('kategoriList');
     const tops = state.kategoriler.filter((k) => !k.parentId);
-    if (!tops.length) { list.innerHTML = '<div class="empty-state">Henüz kategori yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
+    if (!tops.length) { list.innerHTML = '<div class="empty-state">Henüz kategori yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
     list.innerHTML = tops.map((top) => {
       const children = state.kategoriler.filter((k) => k.parentId === top.id);
       return `
@@ -5606,7 +5613,7 @@
   });
   function renderMarkaList() {
     const list = document.getElementById('markaList');
-    if (!state.markalar.length) { list.innerHTML = '<div class="empty-state">Henüz marka yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
+    if (!state.markalar.length) { list.innerHTML = '<div class="empty-state">Henüz marka yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
     list.innerHTML = state.markalar.map((m) => `<div class="list-row" data-id="${m.id}"><div class="main"><div class="title">${escapeHtml(m.name)}</div></div></div>`).join('');
   }
   document.getElementById('markaAddBtn').addEventListener('click', () => openMarkaQuickAdd(() => renderMarkaList()));
@@ -5762,7 +5769,7 @@
     const list = document.getElementById('kasaList');
     const gosterPasif = document.getElementById('kasaPasifGosterChk').checked;
     const visibleHesaplar = state.hesaplar.filter((h) => gosterPasif || h.aktif !== false);
-    if (!visibleHesaplar.length) { list.innerHTML = '<div class="empty-state">Henüz hesap yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
+    if (!visibleHesaplar.length) { list.innerHTML = '<div class="empty-state">Henüz hesap yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
     let html = '';
     HESAP_GROUP_ORDER.forEach(([type, header]) => {
       const items = visibleHesaplar.filter((h) => h.type === type);
@@ -5918,7 +5925,7 @@
     let items = state.cekSenet.slice().sort((a, b) => a.vade.localeCompare(b.vade));
     if (cekFilter === 'bekliyor') items = items.filter((c) => c.durum === 'bekliyor');
     if (cekFilter === 'tamamlanan') items = items.filter((c) => c.durum !== 'bekliyor');
-    if (!items.length) { list.innerHTML = '<div class="empty-state">Henüz çek/senet yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
+    if (!items.length) { list.innerHTML = '<div class="empty-state">Henüz çek/senet yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
     const durumLabel = { bekliyor: 'Bekliyor', tahsil_edildi: 'Tahsil Edildi', odendi: 'Ödendi', karsiliksiz: 'Karşılıksız' };
     const durumClass = { bekliyor: 'wait', tahsil_edildi: 'pos', odendi: 'pos', karsiliksiz: 'neg' };
     list.innerHTML = items.map((c) => `
@@ -8574,7 +8581,7 @@
   function krediToplamOdenen(k) { return (k.odemeler || []).reduce((s, o) => s + o.tutar, 0); }
   function renderKrediList() {
     const list = document.getElementById('krediList');
-    if (!state.krediler.length) { list.innerHTML = '<div class="empty-state">Henüz kredi yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
+    if (!state.krediler.length) { list.innerHTML = '<div class="empty-state">Henüz kredi yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
     list.innerHTML = state.krediler.map((k) => {
       const kalan = k.tutar - krediToplamOdenen(k);
       return `
@@ -8715,7 +8722,7 @@
     const list = document.getElementById('demirbasList');
     const toplam = state.demirbaslar.reduce((s, d) => s + (d.purchasePrice || 0), 0);
     document.getElementById('demirbasToplam').textContent = formatTL(toplam);
-    if (!state.demirbaslar.length) { list.innerHTML = '<div class="empty-state">Henüz demirbaş yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
+    if (!state.demirbaslar.length) { list.innerHTML = '<div class="empty-state">Henüz demirbaş yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
     const items = state.demirbaslar.slice().sort((a, b) => (b.purchaseDate || '').localeCompare(a.purchaseDate || ''));
     list.innerHTML = items.map((d) => `
       <div class="list-row" data-id="${d.id}">
@@ -8760,7 +8767,7 @@
   }
   function renderProjeList() {
     const list = document.getElementById('projeList');
-    if (!state.projeler.length) { list.innerHTML = '<div class="empty-state">Henüz proje yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
+    if (!state.projeler.length) { list.innerHTML = '<div class="empty-state">Henüz proje yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
     list.innerHTML = state.projeler.map((p) => {
       const { net } = projeStats(p.id);
       return `
@@ -8841,7 +8848,7 @@
   // ================= ÖZEL FİYAT LİSTELERİ =================
   function renderFiyatListesiList() {
     const list = document.getElementById('fiyatListesiList');
-    if (!state.fiyatListeleri.length) { list.innerHTML = '<div class="empty-state">Henüz fiyat listesi yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
+    if (!state.fiyatListeleri.length) { list.innerHTML = '<div class="empty-state">Henüz fiyat listesi yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
     list.innerHTML = state.fiyatListeleri.map((fl) => `
       <div class="list-row" data-id="${fl.id}"><div class="main"><div class="title">${escapeHtml(fl.name)}</div><div class="sub">${Object.keys(fl.fiyatlar || {}).length} üründe özel fiyat</div></div><span class="chev">›</span></div>
     `).join('');
@@ -9705,7 +9712,7 @@
   function calisanTotalPaid(c) { return (c.hareketler || []).reduce((s, h) => s + h.tutar, 0); }
   function renderCalisanList() {
     const list = document.getElementById('calisanList');
-    if (!state.calisanlar.length) { list.innerHTML = '<div class="empty-state">Henüz çalışan yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
+    if (!state.calisanlar.length) { list.innerHTML = '<div class="empty-state">Henüz çalışan yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
     list.innerHTML = state.calisanlar.map((c) => `
       <div class="list-row" data-id="${c.id}">
         <div class="main"><div class="title">${escapeHtml(c.name)}</div><div class="sub">${escapeHtml(c.position || 'Pozisyon belirtilmemiş')}${c.phone ? ' · ' + escapeHtml(c.phone) : ''}</div></div>
@@ -9917,7 +9924,7 @@
   function renderNotlarList() {
     const list = document.getElementById('notlarList');
     const items = state.notlar.slice().sort((a, b) => b.date.localeCompare(a.date));
-    if (!items.length) { list.innerHTML = '<div class="empty-state">Henüz not yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
+    if (!items.length) { list.innerHTML = '<div class="empty-state">Henüz not yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
     list.innerHTML = items.map((n) => `
       <div class="list-row" data-id="${n.id}">
         <div class="main"><div class="title">${escapeHtml(n.title || 'Başlıksız not')}</div><div class="sub">${formatDate(n.date)}${n.content ? ' · ' + escapeHtml(n.content.slice(0, 60)) : ''}</div></div>
