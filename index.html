@@ -3875,6 +3875,10 @@
     if (/^https?:$/.test(location.protocol) && !/^(localhost|127\.)/.test(location.hostname)) return location.origin + location.pathname;
     return '';
   }
+  function takipMesaji(link) {
+    const ad = ((state.sirketBilgileri || {}).name || '').trim();
+    return 'Merhaba, hesap ekstrenize buradan erişebilirsiniz.\nSaygılarımla,' + (ad ? '\n' + ad : '') + '\n' + link;
+  }
   function takipLinki(token) { const t = takipTabanAdresi(); return t ? t + '?takip=' + token : ''; }
   function cariTakipLinkiModal(c) {
     window.__tkAdresDegistir = false;
@@ -3923,10 +3927,10 @@
         catch (e) { g('tkLink').select(); document.execCommand('copy'); g('tkKopyala').textContent = 'Kopyalandı ✓'; }
       };
       if (g('tkPaylas')) g('tkPaylas').onclick = () => {
-        if (navigator.share) navigator.share({ title: 'Hesap Ekstresi', text: 'Cari hesap ekstreniz:', url: link }).catch(() => {});
+        if (navigator.share) navigator.share({ title: 'Hesap Ekstresi', text: takipMesaji(link) }).catch(() => {});
         else g('tkKopyala').click();
       };
-      if (g('tkWhatsapp')) g('tkWhatsapp').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent('Cari hesap ekstreniz: ' + link), '_blank');
+      if (g('tkWhatsapp')) g('tkWhatsapp').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent(takipMesaji(link)), '_blank');
     }
     ciz();
   }
@@ -3946,9 +3950,8 @@
     </tr></table>`;
   }
 
-  // Ekstre içeriğini üretir. ctx = { faturalar, hesaplar, sirket, logo } — uygulamanın kendi verisiyle de,
-  // müşteri takip sayfasında sunucudan gelen veriyle de aynı kodu kullanmak için dışarıdan verilir.
-  function ekstreHtmlOlustur(c, ctx, detayli) {
+  // Ekstre satırları ve toplamları (hem yazdırılan ekstre hem müşteri takip sayfası kullanır).
+  function ekstreSatirlari(c, ctx) {
     const faturalar = ctx.faturalar || [];
     const hesaplar = ctx.hesaplar || [];
     function findFaturaOdeme(odemeId) {
@@ -3994,6 +3997,13 @@
     const toplamAlacak = rows.filter((r) => r.tutar < 0).reduce((s, r) => s + Math.abs(r.tutar), 0);
     const sonBakiye = rows.length ? rows[rows.length - 1].running : 0;
     const tarihAraligi = rows.length ? (formatDate(rows[0].date) + ' - ' + formatDate(rows[rows.length - 1].date)) : '';
+    return { rows, toplamBorc, toplamAlacak, sonBakiye, tarihAraligi };
+  }
+  // Ekstre içeriğini üretir. ctx = { faturalar, hesaplar, sirket, logo } — uygulamanın kendi verisiyle de,
+  // müşteri takip sayfasında sunucudan gelen veriyle de aynı kodu kullanmak için dışarıdan verilir.
+  function ekstreHtmlOlustur(c, ctx, detayli) {
+    const plainNum = (n) => (Number(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const { rows, toplamBorc, toplamAlacak, sonBakiye, tarihAraligi } = ekstreSatirlari(c, ctx);
     const kalemSatirlari = (f) => {
       const pb = f.paraBirimi && f.paraBirimi !== 'TL' ? ' ' + f.paraBirimi : '';
       const th = 'padding:2px 4px;border-bottom:1px solid #999;';
@@ -4055,36 +4065,154 @@
   }
 
   // ---- Müşteri takip sayfası (giriş gerektirmez; ?takip=<anahtar> ile açılır) ----
+  // Telefona "uygulama" olarak eklenebilsin diye: o firmaya özel manifest + ikon üretir.
+  function takipUygulamaHazirla(firmaAdi, ekstreAdi) {
+    try {
+      const ad = (firmaAdi || 'Hesap Ekstresi');
+      document.title = ad + ' · Hesap Ekstresi';
+      const bas = ad.split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x.charAt(0).toLocaleUpperCase('tr-TR')).join('') || 'E';
+      const cv = document.createElement('canvas'); cv.width = cv.height = 512;
+      const g = cv.getContext('2d');
+      const gr = g.createLinearGradient(0, 0, 512, 512); gr.addColorStop(0, '#0f3d8a'); gr.addColorStop(1, '#3AA1FF');
+      g.fillStyle = gr; g.fillRect(0, 0, 512, 512);
+      g.fillStyle = '#fff'; g.font = 'bold 230px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(bas, 256, 275);
+      const ikon = cv.toDataURL('image/png');
+      document.querySelectorAll('link[rel="manifest"],link[rel="icon"],link[rel="apple-touch-icon"]').forEach((e) => e.remove());
+      const ekle = (rel, href, extra) => { const l = document.createElement('link'); l.rel = rel; l.href = href; if (extra) Object.keys(extra).forEach((k) => l.setAttribute(k, extra[k])); document.head.appendChild(l); };
+      ekle('icon', ikon, { type: 'image/png' });
+      ekle('apple-touch-icon', ikon);
+      const t = document.querySelector('meta[name="apple-mobile-web-app-title"]'); if (t) t.content = ad.slice(0, 24);
+      const man = {
+        name: ad + ' – Hesap Ekstresi', short_name: ad.slice(0, 14), description: ekstreAdi + ' cari hesap ekstresi',
+        start_url: location.href, scope: location.origin + location.pathname.replace(/[^\/]*$/, ''),
+        display: 'standalone', background_color: '#f3f6fb', theme_color: '#0f3d8a',
+        icons: [{ src: ikon, sizes: '512x512', type: 'image/png', purpose: 'any' }, { src: ikon, sizes: '512x512', type: 'image/png', purpose: 'maskable' }]
+      };
+      ekle('manifest', URL.createObjectURL(new Blob([JSON.stringify(man)], { type: 'application/manifest+json' })));
+      const tc = document.querySelector('meta[name="theme-color"]'); if (tc) tc.content = '#0f3d8a';
+    } catch (e) { console.warn('Uygulama bilgisi hazırlanamadı', e); }
+  }
+  let takipKurulumOlayi = null;
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); takipKurulumOlayi = e; const b = document.getElementById('tkKur'); if (b) b.style.display = 'inline-flex'; });
+
   async function takipSayfasiGoster(token) {
     ['authScreen', 'pendingScreen', 'sirketSecScreen', 'appRoot'].forEach((id) => { const e = document.getElementById(id); if (e) e.style.display = 'none'; });
     const ekran = document.getElementById('takipScreen');
     ekran.style.display = 'block';
-    ekran.innerHTML = '<p style="text-align:center;color:#666;padding:40px">Yükleniyor…</p>';
+    if (!document.getElementById('tkStyle')) {
+      const st = document.createElement('style'); st.id = 'tkStyle';
+      st.textContent = `
+        #takipScreen{font-family:'Inter',system-ui,sans-serif;color:#14213d;background:#f3f6fb}
+        #takipScreen .tk-hero{background:linear-gradient(135deg,#0f3d8a,#3AA1FF);color:#fff;padding:22px 18px 70px}
+        #takipScreen .tk-in{max-width:560px;margin:0 auto}
+        #takipScreen .tk-firma{font-size:13px;letter-spacing:.4px;opacity:.9;font-weight:600}
+        #takipScreen .tk-baslik{font-size:22px;font-weight:700;margin:6px 0 2px}
+        #takipScreen .tk-alt{font-size:12.5px;opacity:.85}
+        #takipScreen .tk-kart{background:#fff;border-radius:18px;box-shadow:0 6px 22px rgba(15,61,138,.16);padding:18px;margin:-52px 0 14px}
+        #takipScreen .tk-bak-et{font-size:12.5px;color:#5b6b86;font-weight:600}
+        #takipScreen .tk-bak{font-size:32px;font-weight:800;margin:4px 0 10px;letter-spacing:-.5px}
+        #takipScreen .tk-borc{color:#c2410c}#takipScreen .tk-alacak{color:#15803d}#takipScreen .tk-sifir{color:#14213d}
+        #takipScreen .tk-ozet{display:flex;gap:10px}
+        #takipScreen .tk-ozet>div{flex:1;background:#f3f6fb;border-radius:12px;padding:10px 12px}
+        #takipScreen .tk-ozet small{display:block;font-size:11px;color:#5b6b86}
+        #takipScreen .tk-ozet b{font-size:14px}
+        #takipScreen .tk-seg{display:flex;background:#e2e8f3;border-radius:12px;padding:3px;margin:0 0 12px}
+        #takipScreen .tk-seg button{flex:1;border:0;background:transparent;padding:9px 6px;border-radius:10px;font-weight:600;font-size:13px;color:#445;cursor:pointer;font-family:inherit}
+        #takipScreen .tk-seg button.on{background:#fff;color:#0f3d8a;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+        #takipScreen .tk-h{background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:9px;box-shadow:0 1px 5px rgba(15,61,138,.08)}
+        #takipScreen .tk-h-ust{display:flex;gap:12px;align-items:center}
+        #takipScreen .tk-ic{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+        #takipScreen .tk-ic.b{background:#fff1e6}#takipScreen .tk-ic.a{background:#e6f6ec}
+        #takipScreen .tk-h-orta{flex:1;min-width:0}
+        #takipScreen .tk-h-bas{font-weight:600;font-size:14px;overflow-wrap:anywhere}
+        #takipScreen .tk-h-alt{font-size:12px;color:#5b6b86;margin-top:2px}
+        #takipScreen .tk-h-sag{text-align:right;white-space:nowrap}
+        #takipScreen .tk-h-tut{font-weight:700;font-size:14.5px}
+        #takipScreen .tk-h-bak{font-size:11px;color:#5b6b86;margin-top:2px}
+        #takipScreen .tk-kalem{margin-top:10px;border-top:1px dashed #cfd8e8;padding-top:8px;font-size:12.5px}
+        #takipScreen .tk-kalem div.k{display:flex;justify-content:space-between;gap:10px;padding:3px 0}
+        #takipScreen .tk-kalem span.s{color:#5b6b86;font-size:11.5px}
+        #takipScreen .tk-btn{border:0;border-radius:12px;padding:11px 16px;font-weight:600;font-size:13.5px;cursor:pointer;font-family:inherit;background:#e2e8f3;color:#0f3d8a;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+        #takipScreen .tk-btn.p{background:#0f3d8a;color:#fff}
+        #takipScreen .tk-tablo{background:#fff;border-radius:14px;overflow-x:auto;box-shadow:0 1px 5px rgba(15,61,138,.08)}
+        #takipScreen .tk-alt-bar{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 28px}
+        #takipScreen .tk-bos{text-align:center;color:#5b6b86;padding:30px 10px;background:#fff;border-radius:14px}
+      `;
+      document.head.appendChild(st);
+    }
+    ekran.innerHTML = '<p style="text-align:center;color:#666;padding:60px 20px">Yükleniyor…</p>';
     let veri = null;
     try { const { data, error } = await sb.rpc('get_cari_takip', { p_token: token }); if (error) throw error; veri = data; }
     catch (e) { console.error('Takip verisi alınamadı', e); }
     if (!veri || !veri.cari) {
-      ekran.innerHTML = '<div style="max-width:520px;margin:60px auto;padding:24px;text-align:center;font-family:sans-serif"><h2>Bağlantı geçersiz</h2><p style="color:#666">Bu takip bağlantısı geçersiz ya da kapatılmış. Lütfen firmayla iletişime geçin.</p></div>';
+      ekran.innerHTML = '<div style="max-width:520px;margin:60px auto;padding:24px;text-align:center"><h2>Bağlantı geçersiz</h2><p style="color:#5b6b86">Bu takip bağlantısı geçersiz ya da kapatılmış. Lütfen firmayla iletişime geçin.</p></div>';
       return;
     }
     const c = veri.cari;
     const ctx = { faturalar: veri.faturalar || [], hesaplar: veri.hesaplar || [], sirket: veri.sirket || {}, logo: false };
-    let detayli = false;
+    const firma = (ctx.sirket && ctx.sirket.name) || '';
+    takipUygulamaHazirla(firma, c.name);
+    const { rows, toplamBorc, toplamAlacak, sonBakiye } = ekstreSatirlari(c, ctx);
+    const para = (n) => (Number(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    let gorunum = 'liste'; // liste | tablo | detay
+    const bakSinif = sonBakiye > 0.004 ? 'tk-borc' : (sonBakiye < -0.004 ? 'tk-alacak' : 'tk-sifir');
+    const bakEtiket = sonBakiye > 0.004 ? 'Firmaya güncel borcunuz' : (sonBakiye < -0.004 ? 'Firmadan güncel alacağınız' : 'Güncel bakiyeniz');
+    const guncel = veri.guncelleme ? new Date(veri.guncelleme).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+    function kalemHtml(f) {
+      const pb = f.paraBirimi && f.paraBirimi !== 'TL' ? ' ' + f.paraBirimi : '';
+      return `<div class="tk-kalem">${(f.items || []).map((it) => `<div class="k"><div>${escapeHtml(it.name)}<br><span class="s">${escapeHtml(String(it.qty))} ${escapeHtml(it.unit || '')} × ${para(it.unitPrice)}${pb} · KDV %${it.vat != null ? it.vat : 0}</span></div><div style="white-space:nowrap">${para((Number(it.qty) || 0) * (Number(it.unitPrice) || 0))}${pb}</div></div>`).join('')}</div>`;
+    }
+    function listeHtml() {
+      if (!rows.length) return '<div class="tk-bos">Henüz hareket yok.</div>';
+      return rows.slice().reverse().map((h) => {
+        const borc = h.tutar > 0;
+        const detay = gorunum === 'detay' && h.fat && (h.fat.items || []).length ? kalemHtml(h.fat) : '';
+        return `<div class="tk-h"><div class="tk-h-ust">
+          <div class="tk-ic ${borc ? 'b' : 'a'}">${h.fat ? '🧾' : '💵'}</div>
+          <div class="tk-h-orta"><div class="tk-h-bas">${escapeHtml(h.aciklama || h.hareketTipi)}</div>
+            <div class="tk-h-alt">${formatDate(h.date)}${h.vade ? ' · Vade ' + h.vade : ''}${h.odemeSekli ? ' · ' + escapeHtml(h.odemeSekli) : ''}</div></div>
+          <div class="tk-h-sag"><div class="tk-h-tut ${borc ? 'tk-borc' : 'tk-alacak'}">${borc ? '+' : '−'}${para(Math.abs(h.tutar))}</div><div class="tk-h-bak">Bakiye ${para(h.running)}</div></div>
+        </div>${detay}</div>`;
+      }).join('');
+    }
     function ciz() {
       ekran.innerHTML = `
-        <div style="max-width:960px;margin:0 auto;padding:12px;font-family:sans-serif">
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-            <button class="btn ${detayli ? '' : 'btn-primary'}" id="tkNormal">Normal</button>
-            <button class="btn ${detayli ? 'btn-primary' : ''}" id="tkDetayli">Detaylı</button>
-            <button class="btn" id="tkYazdir" style="margin-left:auto">Yazdır / PDF</button>
+        <div class="tk-hero"><div class="tk-in">
+          <div class="tk-firma">${escapeHtml(firma)}</div>
+          <div class="tk-baslik">Hesap Ekstresi</div>
+          <div class="tk-alt">${escapeHtml(c.name)}${guncel ? ' · Güncelleme ' + guncel : ''}</div>
+        </div></div>
+        <div class="tk-in" style="padding:0 14px">
+          <div class="tk-kart">
+            <div class="tk-bak-et">${bakEtiket}</div>
+            <div class="tk-bak ${bakSinif}">${para(Math.abs(sonBakiye))} TL</div>
+            <div class="tk-ozet"><div><small>Toplam borçlandırma</small><b>${para(toplamBorc)} TL</b></div><div><small>Toplam ödeme</small><b>${para(toplamAlacak)} TL</b></div></div>
           </div>
-          <div style="background:#fff;border-radius:10px;overflow-x:auto;box-shadow:0 1px 6px rgba(0,0,0,.12)">${ekstreHtmlOlustur(c, ctx, detayli)}</div>
+          <div class="tk-seg">
+            <button data-g="liste" class="${gorunum === 'liste' ? 'on' : ''}">Hareketler</button>
+            <button data-g="detay" class="${gorunum === 'detay' ? 'on' : ''}">Ürün Detaylı</button>
+            <button data-g="tablo" class="${gorunum === 'tablo' ? 'on' : ''}">Ekstre</button>
+          </div>
+          ${gorunum === 'tablo' ? `<div class="tk-tablo">${ekstreHtmlOlustur(c, ctx, false)}</div>` : listeHtml()}
+          <div class="tk-alt-bar">
+            <button class="tk-btn p" id="tkYazdir">🖨️ Yazdır / PDF</button>
+            <button class="tk-btn" id="tkKur" style="display:${takipKurulumOlayi ? 'inline-flex' : 'none'}">📲 Uygulama olarak ekle</button>
+            <button class="tk-btn" id="tkNasil">Telefona ekle</button>
+          </div>
         </div>`;
-      document.getElementById('tkNormal').onclick = () => { detayli = false; ciz(); };
-      document.getElementById('tkDetayli').onclick = () => { detayli = true; ciz(); };
+      ekran.querySelectorAll('.tk-seg button').forEach((b) => { b.onclick = () => { gorunum = b.dataset.g; ciz(); window.scrollTo(0, 0); }; });
       document.getElementById('tkYazdir').onclick = () => {
-        document.getElementById('printArea').innerHTML = ekstreHtmlOlustur(c, ctx, detayli);
+        document.getElementById('printArea').innerHTML = ekstreHtmlOlustur(c, ctx, gorunum === 'detay');
         yazdirGorselHazir();
+      };
+      document.getElementById('tkKur').onclick = async () => {
+        if (!takipKurulumOlayi) return;
+        takipKurulumOlayi.prompt(); try { await takipKurulumOlayi.userChoice; } catch (e) {}
+        takipKurulumOlayi = null; const b = document.getElementById('tkKur'); if (b) b.style.display = 'none';
+      };
+      document.getElementById('tkNasil').onclick = () => {
+        alert('Telefona uygulama gibi eklemek için:\n\n• iPhone (Safari): alttaki Paylaş simgesi → "Ana Ekrana Ekle"\n• Android (Chrome): sağ üstteki ⋮ menüsü → "Uygulamayı yükle" ya da "Ana ekrana ekle"\n\nBir sonraki sefer ana ekrandaki simgeden açabilirsiniz; ekstre her zaman güncel görünür.');
       };
     }
     ciz();
