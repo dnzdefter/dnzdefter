@@ -1606,6 +1606,7 @@
   <div class="modal-sheet" id="modalSheet"></div>
 </div>
 
+<div id="takipScreen" style="display:none;min-height:100vh;background:#eef1f4"></div>
 <div id="printArea" class="print-only"></div>
 
 <!-- Fiş/Fatura Tara: fotoğrafı OCR'a vermeden önce kullanıcının köşelerden sürükleyerek SADECE
@@ -3825,7 +3826,7 @@
       else if (action === 'irsaliye-kaydet') enterFaturaForm({ docType: 'irsaliye', yon: 'satis', cariMode: 'kayitli', presetCariId: c.id });
       else if (action === 'alis-yap') enterFaturaForm({ docType: 'fatura', yon: 'alis', cariMode: 'kayitli', presetCariId: c.id });
       else if (action === 'para') openHareketForm('odeme');
-      else if (action === 'ekstre') printCariEkstre(c);
+      else if (action === 'ekstre') ekstreSecimModal(c);
       else if (action === 'duzenle') enterCariForm(c.id);
       else if (action === 'sil') {
         if (!yoneticiKontrolSil()) return;
@@ -3837,9 +3838,121 @@
     });
   });
 
-  function printCariEkstre(c) {
+  // ---- Hesap Ekstresi: normal / detaylı / müşteri takip linki ----
+  function ekstreSecimModal(c) {
+    openModal(`
+      <h3>Hesap Ekstresi</h3>
+      <div id="ekstreSecimList">
+        <div class="list-row" data-a="normal" style="cursor:pointer"><div class="main"><div class="title">Normal Ekstre</div><div class="sub">Hareket hareket borç, alacak ve bakiye</div></div></div>
+        <div class="list-row" data-a="detayli" style="cursor:pointer"><div class="main"><div class="title">Detaylı Ekstre</div><div class="sub">Faturaların altında ürün kalemleriyle birlikte</div></div></div>
+        <div class="list-row" data-a="link" style="cursor:pointer"><div class="main"><div class="title">Müşteri Takip Linki</div><div class="sub">Sabit bir linkle cari hesabını canlı takip etsin</div></div></div>
+      </div>
+    `);
+    document.getElementById('ekstreSecimList').addEventListener('click', (e) => {
+      const row = e.target.closest('.list-row'); if (!row) return;
+      closeModal();
+      if (row.dataset.a === 'normal') printCariEkstre(c, false);
+      else if (row.dataset.a === 'detayli') printCariEkstre(c, true);
+      else cariTakipLinkiModal(c);
+    });
+  }
+  function takipTokenUret() {
+    const b = new Uint8Array(20);
+    (window.crypto || window.msCrypto).getRandomValues(b);
+    return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  }
+  // Link, uygulamanın İNTERNETTEKİ adresiyle kurulmalı. Uygulama telefonda dosya olarak (content://, file://)
+  // açılmışsa o adres müşteride çalışmaz; bu yüzden kullanıcının bir kez girdiği yayın adresi kullanılır.
+  function uygulamaAdresiTemizle(v) {
+    v = String(v || '').trim().split('#')[0].split('?')[0];
+    if (!v) return '';
+    if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
+    return v;
+  }
+  function takipTabanAdresi() {
+    const kayitli = uygulamaAdresiTemizle((state.sirketBilgileri || {}).uygulamaAdresi);
+    if (kayitli) return kayitli;
+    if (/^https?:$/.test(location.protocol) && !/^(localhost|127\.)/.test(location.hostname)) return location.origin + location.pathname;
+    return '';
+  }
+  function takipLinki(token) { const t = takipTabanAdresi(); return t ? t + '?takip=' + token : ''; }
+  function cariTakipLinkiModal(c) {
+    window.__tkAdresDegistir = false;
+    function ciz() {
+      const taban = takipTabanAdresi();
+      const link = c.takipToken ? takipLinki(c.takipToken) : '';
+      openModal(`
+        <h3>Müşteri Takip Linki</h3>
+        <p style="font-size:12.5px;color:var(--ink-soft);margin-top:0">Bu link ile ${escapeHtml(c.name)} giriş yapmadan kendi hesap ekstresini görür. Link sabittir; hareketler eklendikçe ekstre kendiliğinden güncellenir. Müşteri sadece kendi carisini görebilir, düzenleme yapamaz.</p>
+        ${(!taban || window.__tkAdresDegistir) ? `
+          <div style="margin-bottom:12px">
+            <label style="font-size:12.5px;font-weight:600">Uygulamanın internet adresi</label>
+            <input type="text" id="tkAdres" placeholder="https://kullanici.github.io/depo/index.html" value="${escapeHtml((state.sirketBilgileri || {}).uygulamaAdresi || '')}" style="width:100%;font-size:13px;padding:10px;border:1px solid var(--line);border-radius:10px;margin-top:4px">
+            <p style="font-size:11.5px;color:var(--ink-soft);margin:6px 0 8px">Müşteri linki bu adresle kurulur. Uygulamayı telefonda dosya olarak açtığın için, yayınladığın (GitHub Pages) adresi bir kez yazman gerekiyor.</p>
+            <button class="btn btn-primary" id="tkAdresKaydet">Adresi Kaydet</button>
+          </div>` : ''}
+        ${(link && taban && !window.__tkAdresDegistir) ? `
+          <input type="text" id="tkLink" readonly value="${escapeHtml(link)}" style="width:100%;font-size:12px;padding:10px;border:1px solid var(--line);border-radius:10px;margin-bottom:10px">
+          <div class="modal-actions" style="flex-wrap:wrap;gap:8px">
+            <button class="btn btn-primary" id="tkKopyala">Kopyala</button>
+            <button class="btn" id="tkPaylas">Paylaş</button>
+            <button class="btn" id="tkWhatsapp">WhatsApp</button>
+          </div>
+          <p style="font-size:11.5px;color:var(--ink-soft)">Linki bilen herkes bu ekstreyi görebilir. Güvenlik için istediğin zaman yenileyebilir ya da kapatabilirsin.</p>
+          <div class="modal-actions"><button class="btn btn-danger" id="tkKapat">Linki Kapat</button><button class="btn" id="tkYenile">Yeni Link Oluştur</button></div>
+          <p style="margin:8px 0 0"><a href="#" id="tkAdresDegistir" style="font-size:12px">Uygulama adresini değiştir</a></p>
+        ` : ((taban && !window.__tkAdresDegistir) ? `
+          <div class="modal-actions"><button class="btn" id="mCancel">Vazgeç</button><button class="btn btn-primary" id="tkOlustur">Link Oluştur</button></div>
+        ` : '')}
+      `);
+      const g = (id) => document.getElementById(id);
+      if (g('mCancel')) g('mCancel').onclick = closeModal;
+      if (g('tkAdresKaydet')) g('tkAdresKaydet').onclick = () => {
+        const v = uygulamaAdresiTemizle(g('tkAdres').value);
+        if (!v || !/^https?:\/\/[^\/]+\.[^\/]+/.test(v)) { alert('Geçerli bir internet adresi yaz (ör. https://kullanici.github.io/depo/index.html).'); return; }
+        if (/^https?:\/\/(localhost|127\.)/.test(v)) { alert('Bu adres sadece senin cihazında çalışır; internetteki yayın adresini yaz.'); return; }
+        state.sirketBilgileri = state.sirketBilgileri || {};
+        state.sirketBilgileri.uygulamaAdresi = v; saveState(); window.__tkAdresDegistir = false; ciz();
+      };
+      if (g('tkAdresDegistir')) g('tkAdresDegistir').onclick = (e) => { e.preventDefault(); window.__tkAdresDegistir = true; ciz(); };
+      if (g('tkOlustur')) g('tkOlustur').onclick = () => { c.takipToken = takipTokenUret(); saveState(); ciz(); };
+      if (g('tkYenile')) g('tkYenile').onclick = () => { if (!confirm('Eski link çalışmaz hale gelecek. Yeni link oluşturulsun mu?')) return; c.takipToken = takipTokenUret(); saveState(); ciz(); };
+      if (g('tkKapat')) g('tkKapat').onclick = () => { if (!confirm('Link kapatılsın mı? Müşteri artık ekstreyi göremeyecek.')) return; delete c.takipToken; saveState(); ciz(); };
+      if (g('tkKopyala')) g('tkKopyala').onclick = async () => {
+        try { await navigator.clipboard.writeText(link); g('tkKopyala').textContent = 'Kopyalandı ✓'; }
+        catch (e) { g('tkLink').select(); document.execCommand('copy'); g('tkKopyala').textContent = 'Kopyalandı ✓'; }
+      };
+      if (g('tkPaylas')) g('tkPaylas').onclick = () => {
+        if (navigator.share) navigator.share({ title: 'Hesap Ekstresi', text: 'Cari hesap ekstreniz:', url: link }).catch(() => {});
+        else g('tkKopyala').click();
+      };
+      if (g('tkWhatsapp')) g('tkWhatsapp').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent('Cari hesap ekstreniz: ' + link), '_blank');
+    }
+    ciz();
+  }
+
+  function ekstreUstHtml(sirket, tarihStr, logoGoster) {
+    const s = sirket || {};
+    const logo = (logoGoster && s.logo) ? `<img src="${gorselUrl(s.logo)}" style="width:56px;height:56px;object-fit:contain;margin-right:10px;flex-shrink:0">` : '';
+    const bilgi = s.name ? `<div>
+        <div style="font-size:15px;font-weight:bold">${escapeHtml(keepUnvanTogether(s.name))}</div>
+        ${s.address ? `<div style="color:#444;font-size:11.5px">${escapeHtml(s.address)}</div>` : ''}
+        ${(s.taxOffice || s.taxNo) ? `<div style="color:#444;font-size:11.5px">${[s.taxOffice, s.taxNo].filter(Boolean).map(escapeHtml).join(' · ')}</div>` : ''}
+        ${(s.phone || s.email) ? `<div style="color:#444;font-size:11.5px">${[s.phone, s.email].filter(Boolean).map(escapeHtml).join(' · ')}</div>` : ''}
+      </div>` : '';
+    return `<table style="width:100%;border-collapse:collapse;margin-bottom:16px;border-bottom:1px solid #ccc"><tr>
+      <td style="vertical-align:top;text-align:left;padding:0 0 10px"><div style="display:flex;align-items:flex-start">${logo}${bilgi}</div></td>
+      <td style="vertical-align:top;text-align:right;white-space:nowrap;padding:0 0 10px;font-size:12.5px">Tarih: <strong>${tarihStr}</strong></td>
+    </tr></table>`;
+  }
+
+  // Ekstre içeriğini üretir. ctx = { faturalar, hesaplar, sirket, logo } — uygulamanın kendi verisiyle de,
+  // müşteri takip sayfasında sunucudan gelen veriyle de aynı kodu kullanmak için dışarıdan verilir.
+  function ekstreHtmlOlustur(c, ctx, detayli) {
+    const faturalar = ctx.faturalar || [];
+    const hesaplar = ctx.hesaplar || [];
     function findFaturaOdeme(odemeId) {
-      for (const f of state.faturalar) {
+      for (const f of faturalar) {
         const o = (f.odemeler || []).find((x) => x.id === odemeId);
         if (o) return { f, o };
       }
@@ -3847,7 +3960,7 @@
     }
     function odemeSekliFromHesapId(hesapId) {
       if (!hesapId) return '';
-      const h = state.hesaplar.find((x) => x.id === hesapId);
+      const h = hesaplar.find((x) => x.id === hesapId);
       if (!h) return '';
       return h.type === 'kasa' ? 'Nakit' : h.name;
     }
@@ -3856,10 +3969,11 @@
     let running = 0;
     const rows = hareketler.map((h) => {
       running += h.tutar;
-      let hareketTipi = '', vade = '', odemeSekli = '', aciklama = h.aciklama || '';
+      let hareketTipi = '', vade = '', odemeSekli = '', aciklama = h.aciklama || '', fat = null;
       if (h.faturaId) {
-        const f = state.faturalar.find((x) => x.id === h.faturaId);
+        const f = faturalar.find((x) => x.id === h.faturaId);
         if (f) {
+          fat = f;
           vade = f.vade ? formatDate(f.vade) : '';
           hareketTipi = f.docType === 'iade' ? 'İade' : (f.yon === 'satis' ? 'Satış' : 'Alış');
           aciklama = hareketTipi + ' No:' + f.no;
@@ -3874,17 +3988,30 @@
       } else {
         hareketTipi = h.tutar < 0 ? 'Tahsilat' : 'Borç';
       }
-      return { ...h, running, vade, hareketTipi, odemeSekli, aciklama };
+      return { ...h, running, vade, hareketTipi, odemeSekli, aciklama, fat };
     });
     const toplamBorc = rows.filter((r) => r.tutar > 0).reduce((s, r) => s + r.tutar, 0);
     const toplamAlacak = rows.filter((r) => r.tutar < 0).reduce((s, r) => s + Math.abs(r.tutar), 0);
     const sonBakiye = rows.length ? rows[rows.length - 1].running : 0;
     const tarihAraligi = rows.length ? (formatDate(rows[0].date) + ' - ' + formatDate(rows[rows.length - 1].date)) : '';
-    document.getElementById('printArea').innerHTML = `
+    const kalemSatirlari = (f) => {
+      const pb = f.paraBirimi && f.paraBirimi !== 'TL' ? ' ' + f.paraBirimi : '';
+      const th = 'padding:2px 4px;border-bottom:1px solid #999;';
+      return `<tr><td></td><td colspan="7" style="padding:0 3px 8px"><table style="width:100%;border-collapse:collapse;font-size:10.5px">
+        <thead><tr><th style="${th}text-align:left">Ürün/Hizmet</th><th style="${th}text-align:right;white-space:nowrap">Miktar</th><th style="${th}text-align:right;white-space:nowrap">Birim Fiyat</th><th style="${th}text-align:right">KDV</th><th style="${th}text-align:right;white-space:nowrap">Tutar (KDV hariç)</th></tr></thead>
+        <tbody>${(f.items || []).map((it) => `<tr style="page-break-inside:avoid">
+          <td style="padding:2px 4px">${escapeHtml(it.name)}</td>
+          <td style="padding:2px 4px;text-align:right;white-space:nowrap">${escapeHtml(String(it.qty))} ${escapeHtml(it.unit || '')}</td>
+          <td style="padding:2px 4px;text-align:right;white-space:nowrap">${plainNum(it.unitPrice)}${pb}</td>
+          <td style="padding:2px 4px;text-align:right">%${it.vat != null ? it.vat : 0}</td>
+          <td style="padding:2px 4px;text-align:right;white-space:nowrap">${plainNum((Number(it.qty) || 0) * (Number(it.unitPrice) || 0))}${pb}</td>
+        </tr>`).join('')}</tbody></table></td></tr>`;
+    };
+    return `
       <div style="font-family: sans-serif; padding: 14px; color:#000">
-        ${sirketHeaderHtml()}
-        <h1 style="font-size:20px;margin-bottom:2px;text-align:center">HESAP EKSTRESİ</h1>
-        <p style="text-align:center;color:#444;margin:0 0 4px">${tarihAraligi ? '(' + tarihAraligi + ')' : 'Tarih: ' + formatDate(todayISO())}</p>
+        ${ekstreUstHtml(ctx.sirket, formatDate(todayISO()), ctx.logo)}
+        <h1 style="font-size:20px;margin-bottom:2px;text-align:center">${detayli ? 'DETAYLI ' : ''}HESAP EKSTRESİ</h1>
+        ${tarihAraligi ? `<p style="text-align:center;color:#444;margin:0 0 4px">(${tarihAraligi})</p>` : ''}
         <p style="color:#444;margin:0 0 18px;text-align:center">${escapeHtml(c.name)} · ${c.type === 'musteri' ? 'Müşteri' : 'Tedarikçi'}${c.address ? '<br>' + escapeHtml(c.address) : ''}</p>
         <table style="width:100%;border-collapse:collapse;font-size:11.5px">
           <thead><tr style="border-bottom:2px solid #000">
@@ -3897,7 +4024,9 @@
             <th style="text-align:right;padding:5px 3px;white-space:nowrap">Alacak</th>
             <th style="text-align:right;padding:5px 3px;white-space:nowrap">Bakiye</th>
           </tr></thead>
-          <tbody>${rows.map((h) => `<tr style="border-bottom:1px solid #ccc;page-break-inside:avoid">
+          <tbody>${rows.map((h) => {
+            const detaySatiri = detayli && h.fat && (h.fat.items || []).length;
+            return `<tr style="${detaySatiri ? '' : 'border-bottom:1px solid #ccc;'}page-break-inside:avoid">
             <td style="padding:5px 3px;white-space:nowrap">${formatDate(h.date)}</td>
             <td style="padding:5px 3px;white-space:nowrap">${h.vade || ''}</td>
             <td style="padding:5px 3px;white-space:nowrap">${escapeHtml(h.hareketTipi)}</td>
@@ -3906,7 +4035,8 @@
             <td style="text-align:right;padding:5px 3px;white-space:nowrap">${h.tutar > 0 ? plainNum(h.tutar) : ''}</td>
             <td style="text-align:right;padding:5px 3px;white-space:nowrap">${h.tutar < 0 ? plainNum(Math.abs(h.tutar)) : ''}</td>
             <td style="text-align:right;padding:5px 3px;white-space:nowrap">${formatTL(h.running)}</td>
-          </tr>`).join('')}
+          </tr>${detaySatiri ? kalemSatirlari(h.fat).replace('<tr>', '<tr style="border-bottom:1px solid #ccc">') : ''}`;
+          }).join('')}
           <tr style="border-top:2px solid #000;font-weight:bold">
             <td colspan="5"></td>
             <td style="text-align:right;padding:6px 3px;white-space:nowrap">${plainNum(toplamBorc)}</td>
@@ -3918,7 +4048,46 @@
         <p style="margin-top:36px;color:#888;font-size:11px">Bu ekstre DNZ Defter uygulamasında oluşturulmuştur.</p>
       </div>
     `;
+  }
+  function printCariEkstre(c, detayli) {
+    document.getElementById('printArea').innerHTML = ekstreHtmlOlustur(c, { faturalar: state.faturalar, hesaplar: state.hesaplar, sirket: state.sirketBilgileri, logo: true }, !!detayli);
     yazdirGorselHazir();
+  }
+
+  // ---- Müşteri takip sayfası (giriş gerektirmez; ?takip=<anahtar> ile açılır) ----
+  async function takipSayfasiGoster(token) {
+    ['authScreen', 'pendingScreen', 'sirketSecScreen', 'appRoot'].forEach((id) => { const e = document.getElementById(id); if (e) e.style.display = 'none'; });
+    const ekran = document.getElementById('takipScreen');
+    ekran.style.display = 'block';
+    ekran.innerHTML = '<p style="text-align:center;color:#666;padding:40px">Yükleniyor…</p>';
+    let veri = null;
+    try { const { data, error } = await sb.rpc('get_cari_takip', { p_token: token }); if (error) throw error; veri = data; }
+    catch (e) { console.error('Takip verisi alınamadı', e); }
+    if (!veri || !veri.cari) {
+      ekran.innerHTML = '<div style="max-width:520px;margin:60px auto;padding:24px;text-align:center;font-family:sans-serif"><h2>Bağlantı geçersiz</h2><p style="color:#666">Bu takip bağlantısı geçersiz ya da kapatılmış. Lütfen firmayla iletişime geçin.</p></div>';
+      return;
+    }
+    const c = veri.cari;
+    const ctx = { faturalar: veri.faturalar || [], hesaplar: veri.hesaplar || [], sirket: veri.sirket || {}, logo: false };
+    let detayli = false;
+    function ciz() {
+      ekran.innerHTML = `
+        <div style="max-width:960px;margin:0 auto;padding:12px;font-family:sans-serif">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+            <button class="btn ${detayli ? '' : 'btn-primary'}" id="tkNormal">Normal</button>
+            <button class="btn ${detayli ? 'btn-primary' : ''}" id="tkDetayli">Detaylı</button>
+            <button class="btn" id="tkYazdir" style="margin-left:auto">Yazdır / PDF</button>
+          </div>
+          <div style="background:#fff;border-radius:10px;overflow-x:auto;box-shadow:0 1px 6px rgba(0,0,0,.12)">${ekstreHtmlOlustur(c, ctx, detayli)}</div>
+        </div>`;
+      document.getElementById('tkNormal').onclick = () => { detayli = false; ciz(); };
+      document.getElementById('tkDetayli').onclick = () => { detayli = true; ciz(); };
+      document.getElementById('tkYazdir').onclick = () => {
+        document.getElementById('printArea').innerHTML = ekstreHtmlOlustur(c, ctx, detayli);
+        yazdirGorselHazir();
+      };
+    }
+    ciz();
   }
 
   // ---- Cari sub-lists: Satışlar / Alışlar / Teklifler / Ödemeler / Notlarınız ----
@@ -10477,7 +10646,9 @@
   });
   document.getElementById('pendingSignOutBtn').addEventListener('click', () => sb.auth.signOut());
   let appStarted = false;
+  const TAKIP_TOKEN = new URLSearchParams(location.search).get('takip');
   async function handleSession(session) {
+    if (TAKIP_TOKEN) return; // müşteri takip sayfası: giriş akışı hiç çalışmaz
     if (session && session.user) {
       if (appStarted) return;
       appStarted = true;
@@ -10528,6 +10699,7 @@
   }
   sb.auth.onAuthStateChange((event, session) => { handleSession(session); });
   async function init() {
+    if (TAKIP_TOKEN) { takipSayfasiGoster(TAKIP_TOKEN); return; }
     const { data: { session } } = await sb.auth.getSession();
     await handleSession(session);
   }
