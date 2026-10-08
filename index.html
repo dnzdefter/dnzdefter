@@ -7,11 +7,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/@zxing/library@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.23.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
@@ -771,9 +771,17 @@
 
       <div class="tab-panel hidden" id="cfPanelIletisim">
         <div class="field"><label>Adres (opsiyonel)</label><input type="text" id="cfAddress"></div>
+        <div class="field-row">
+          <div class="field"><label>İl (e-fatura)</label><input type="text" id="cfIl" placeholder="İstanbul"></div>
+          <div class="field"><label>İlçe (e-fatura)</label><input type="text" id="cfIlce" placeholder="Kadıköy"></div>
+        </div>
         <div class="field"><label>Vergi Dairesi (opsiyonel)</label><input type="text" id="cfTaxOffice"></div>
         <div class="field"><label>Vergi / TC Kimlik No (opsiyonel)</label><input type="text" id="cfTaxNo"></div>
         <div class="field"><label>E-Posta (opsiyonel)</label><input type="text" id="cfEmail" placeholder="ornek@eposta.com"></div>
+        <div class="field"><label>e-Fatura durumu</label>
+          <select id="cfEfaturaDurum"><option value="">Bilinmiyor (sorgulanacak)</option><option value="mukellef">e-Fatura mükellefi</option><option value="degil">Mükellef değil (e-Arşiv)</option></select>
+        </div>
+        <div class="field"><label>e-Fatura posta kutusu etiketi (opsiyonel)</label><input type="text" id="cfEfaturaEtiket" placeholder="urn:mail:defaultpk@firma.com.tr"></div>
       </div>
 
       <div class="tab-panel hidden" id="cfPanelDiger">
@@ -1476,12 +1484,18 @@
         <div class="menu-row" data-a="veri"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 18v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg></div><div><div class="title">Veri Yönetimi</div><div class="sub">Yedek al, geri yükle, verileri sil</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-a="kullanicilar" id="ayarlarKullanicilarRow" style="display:none"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="9" cy="8" r="3.2"/><path d="M2 21c0-3.8 3-6 7-6s7 2.2 7 6"/><circle cx="17.5" cy="9" r="2.3"/><path d="M16 15.2c2.8.5 4.5 2.2 5 5.8"/></svg></div><div><div class="title">Kullanıcılar</div><div class="sub">Ekibine erişim ver ya da kaldır</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-a="yetkiler" id="ayarlarYetkiRow" style="display:none"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3Z"/><path d="M9 12l2 2 4-4"/></svg></div><div><div class="title">Çalışan Yetkileri</div><div class="sub">Çalışanın hangi bölümleri göreceğini sen seç</div></div><span class="chev">›</span></div>
+        <div class="menu-row" data-a="islemgecmisi" id="ayarlarLogRow" style="display:none"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div><div class="title">İşlem Geçmişi</div><div class="sub">Kim ne ekledi, değiştirdi, sildi — silinenleri geri yükle</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-a="cikis"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" style="color:var(--expense)"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></div><div><div class="title" style="color:var(--expense)">Çıkış Yap</div></div></div>
       </div>
       <p style="font-size:12px;color:var(--ink-soft);padding:0 4px">E-Fatura, SMS ve Kargo entegrasyonları bu sürümde yok — bunlar gerçek banka/GİB/kurye bağlantısı gerektiriyor.</p>
     </section>
 
     <!-- ÇALIŞAN YETKİLERİ -->
+    <section class="view" id="view-islem-gecmisi">
+      <p style="font-size:12.5px;color:var(--ink-soft);padding:0 4px;margin-bottom:10px">Son 180 günün kayıtları. Yanlışlıkla silinen veya değiştirilen bir kaydı <b>Geri Yükle</b> ile eski haline getirebilirsin.</p>
+      <div class="field" style="margin-bottom:10px"><select id="logFiltre"><option value="">Tüm işlemler</option><option value="SIL">Silinenler</option><option value="DEGISTIR">Değiştirilenler</option><option value="EKLE">Eklenenler</option><option value="YETKI_DEGISTI,FIRMA_BILGISI_DEGISTI,UYE_EKLENDI,UYE_SILINDI">Ayar / yetki / kullanıcı</option></select></div>
+      <div id="logBody"></div>
+    </section>
     <section class="view" id="view-calisan-yetkileri">
       <p style="font-size:12.5px;color:var(--ink-soft);padding:0 4px;margin-bottom:10px">"Çalışan" rolündeki kullanıcılar varsayılan olarak <b>sadece Ana Sayfayı</b> görür. Aşağıdan görmesini istediğin bölümleri aç. Yöneticiler her şeyi görür. Değişiklikler anında kaydedilir.</p>
       <div id="calisanYetkiBody"></div>
@@ -1565,6 +1579,10 @@
       </div>
       <div class="field"><label>Şirket / Firma Adı</label><input type="text" id="sbName"></div>
       <div class="field"><label>Adres (opsiyonel)</label><input type="text" id="sbAddress"></div>
+      <div class="field-row">
+        <div class="field"><label>İl (e-fatura)</label><input type="text" id="sbIl"></div>
+        <div class="field"><label>İlçe (e-fatura)</label><input type="text" id="sbIlce"></div>
+      </div>
       <div class="field-row">
         <div class="field"><label>Vergi Dairesi (opsiyonel)</label><input type="text" id="sbTaxOffice"></div>
         <div class="field"><label>Vergi/TC No (opsiyonel)</label><input type="text" id="sbTaxNo"></div>
@@ -2366,7 +2384,7 @@
     'view-katalog-sec': 'Satış Kataloğu Oluştur',
     'view-etiket-sec': 'Ürün Etiketi Oluştur',
     'view-ayarlar': 'Ayarlar', 'view-sirket-bilgileri': 'Şirket Bilgileri', 'view-sablon-ayarlari': 'Şablon Ayarları', 'view-tanimlar': 'Tanımlar',
-    'view-tanim-liste': 'Tanım Listesi', 'view-veri-yonetimi': 'Veri Yönetimi', 'view-kullanicilar': 'Kullanıcılar', 'view-calisan-yetkileri': 'Çalışan Yetkileri',
+    'view-tanim-liste': 'Tanım Listesi', 'view-veri-yonetimi': 'Veri Yönetimi', 'view-kullanicilar': 'Kullanıcılar', 'view-calisan-yetkileri': 'Çalışan Yetkileri', 'view-islem-gecmisi': 'İşlem Geçmişi',
     'view-rapor-satis': 'Satışlar', 'view-rapor-alis': 'Alışlar', 'view-rapor-masraf': 'Masraflar Raporu',
     'view-rapor-iade': 'İadeler', 'view-rapor-kasa': 'Kasa-Hesap Hareketleri', 'view-rapor-borc': 'Borç Alacak Listesi',
     'view-rapor-cek': 'Çek Senet Durumu', 'view-rapor-geciken': 'Geciken Alacaklar', 'view-rapor-kdv': 'KDV Dökümü',
@@ -2864,7 +2882,7 @@
     kredi: enterKredi, demirbas: enterDemirbas, proje: enterProje, ayarlar: enterAyarlar
   };
   document.querySelectorAll('.drawer-item, .drawer-subitem').forEach((el) => {
-    el.addEventListener('click', () => { NAV_MAP[el.dataset.nav](); renderAll(); closeDrawer(); });
+    el.addEventListener('click', () => { if (!NAV_MAP[el.dataset.nav]) return; NAV_MAP[el.dataset.nav](); renderAll(); closeDrawer(); });
   });
   document.getElementById('drawerGroupNakit').addEventListener('click', () => {
     document.getElementById('drawerGroupNakit').classList.toggle('open');
@@ -3783,6 +3801,10 @@
     document.getElementById('cfAddress').value = c ? (c.address || '') : '';
     document.getElementById('cfTaxOffice').value = c ? (c.taxOffice || '') : '';
     document.getElementById('cfTaxNo').value = c ? (c.taxNo || '') : '';
+    document.getElementById('cfIl').value = c ? (c.il || '') : '';
+    document.getElementById('cfIlce').value = c ? (c.ilce || '') : '';
+    document.getElementById('cfEfaturaDurum').value = c ? (c.efaturaDurum || '') : '';
+    document.getElementById('cfEfaturaEtiket').value = c ? (c.efaturaEtiket || '') : '';
     document.getElementById('cfEmail').value = c ? (c.email || '') : '';
     document.getElementById('cfCurrency').value = c ? (c.currency || 'TL') : 'TL';
     renderAllFiyatListesiSelects();
@@ -3820,6 +3842,10 @@
       address: document.getElementById('cfAddress').value.trim(),
       taxOffice: document.getElementById('cfTaxOffice').value.trim(),
       taxNo: document.getElementById('cfTaxNo').value.trim(),
+      il: document.getElementById('cfIl').value.trim(),
+      ilce: document.getElementById('cfIlce').value.trim(),
+      efaturaDurum: document.getElementById('cfEfaturaDurum').value,
+      efaturaEtiket: document.getElementById('cfEfaturaEtiket').value.trim(),
       email: document.getElementById('cfEmail').value.trim(),
       currency: document.getElementById('cfCurrency').value,
       varsayilanFiyatListesiId: document.getElementById('cfFiyatListesi').value || null,
@@ -10666,7 +10692,7 @@
   function navIzinli(nav) { if (nav === 'ozet') return true; return menuIzni(nav.indexOf('raporlar') === 0 ? 'raporlar' : nav); }
   function viewIzinli(id) {
     if (yoneticiMi() || id === 'view-ozet') return true;
-    if (id === 'view-kullanicilar' || id === 'view-calisan-yetkileri') return false;
+    if (id === 'view-kullanicilar' || id === 'view-calisan-yetkileri' || id === 'view-islem-gecmisi') return false;
     if (/^view-(raporlar|rapor-|genel-ozet)/.test(id)) return menuIzni('raporlar');
     if (id === 'view-cari' || id === 'view-cari-detail' || id === 'view-cari-form') return menuIzni(cariFilter === 'tedarikci' ? 'tedarikci' : 'musteri');
     if (/^view-(stok|kategori|marka|depo|fiyat-listesi|katalog-sec|etiket-sec)/.test(id)) return menuIzni('stok');
@@ -10690,6 +10716,7 @@
       g.style.display = alt.length && alt.every((x) => x.style.display === 'none') ? 'none' : '';
     });
     const ky = document.getElementById('ayarlarYetkiRow'); if (ky) ky.style.display = yoneticiMi() ? 'flex' : 'none';
+    const kl = document.getElementById('ayarlarLogRow'); if (kl) kl.style.display = yoneticiMi() ? 'flex' : 'none';
     document.querySelectorAll('#view-ozet [data-hm]').forEach((el) => { el.style.display = anaSayfaIzni(el.dataset.hm) ? '' : 'none'; });
     const cur = document.querySelector('.view.active');
     if (cur && !viewIzinli(cur.id)) enterOzet();
@@ -10714,7 +10741,7 @@
     state.calisanYetkileri[cb.dataset.grup][cb.dataset.k] = cb.checked;
     saveState();
   });
-  document.getElementById('drawerCikisBtn').addEventListener('click', () => { if (confirm('Çıkış yapmak istiyor musun?')) sb.auth.signOut(); });
+  document.getElementById('drawerCikisBtn').addEventListener('click', () => { if (confirm('Çıkış yapmak istiyor musun?')) guvenliCikis(); });
 
   // ================= AYARLAR =================
   document.querySelectorAll('#view-ayarlar .menu-row').forEach((row) => {
@@ -10727,8 +10754,9 @@
       else if (a === 'veri') enterVeriYonetimi();
       else if (a === 'kullanicilar') enterKullanicilar();
       else if (a === 'yetkiler') enterCalisanYetkileri();
+      else if (a === 'islemgecmisi') enterIslemGecmisi();
       else if (a === 'cikis') {
-        if (confirm('Çıkış yapmak istiyor musun?')) sb.auth.signOut();
+        if (confirm('Çıkış yapmak istiyor musun?')) guvenliCikis();
       }
     });
   });
@@ -10760,6 +10788,8 @@
     document.getElementById('sbAddress').value = s.address || '';
     document.getElementById('sbTaxOffice').value = s.taxOffice || '';
     document.getElementById('sbTaxNo').value = s.taxNo || '';
+    document.getElementById('sbIl').value = s.il || '';
+    document.getElementById('sbIlce').value = s.ilce || '';
     document.getElementById('sbPhone').value = s.phone || '';
     document.getElementById('sbEmail').value = s.email || '';
     document.getElementById('sbTeklifTamBilgi').checked = !!s.teklifAliciTamBilgi;
@@ -10767,8 +10797,10 @@
     updateSbLogoPreview();
   }
   document.getElementById('sbSaveBtn').addEventListener('click', () => {
-    state.sirketBilgileri = {
+    state.sirketBilgileri = Object.assign({}, state.sirketBilgileri || {}, {
       name: document.getElementById('sbName').value.trim(),
+      il: document.getElementById('sbIl').value.trim(),
+      ilce: document.getElementById('sbIlce').value.trim(),
       address: document.getElementById('sbAddress').value.trim(),
       taxOffice: document.getElementById('sbTaxOffice').value.trim(),
       taxNo: document.getElementById('sbTaxNo').value.trim(),
@@ -10776,7 +10808,7 @@
       email: document.getElementById('sbEmail').value.trim(),
       teklifAliciTamBilgi: document.getElementById('sbTeklifTamBilgi').checked,
       logo: sbLogo
-    };
+    });
     saveState();
     enterAyarlar();
   });
@@ -11117,7 +11149,7 @@
       btn.disabled = false; btn.textContent = '+ Yeni Firma Ekle';
     }
   });
-  document.getElementById('sirketSecCikisBtn').addEventListener('click', () => sb.auth.signOut());
+  document.getElementById('sirketSecCikisBtn').addEventListener('click', () => guvenliCikis());
   // Ayarlar'dan (uygulama İÇİNDEN) firma değiştirme: mevcut oturumu korur, sadece hangi firmanın
   // verisiyle çalışıldığını değiştirir.
   async function enterFirmaDegistir() {
@@ -11182,7 +11214,7 @@
   document.getElementById('authPassword').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') document.getElementById('authLoginBtn').click();
   });
-  document.getElementById('pendingSignOutBtn').addEventListener('click', () => sb.auth.signOut());
+  document.getElementById('pendingSignOutBtn').addEventListener('click', () => guvenliCikis());
   let appStarted = false;
   const TAKIP_TOKEN = new URLSearchParams(location.search).get('takip');
   async function handleSession(session) {
@@ -11236,6 +11268,66 @@
     }
   }
   sb.auth.onAuthStateChange((event, session) => { handleSession(session); });
+
+  // ================= İŞLEM GEÇMİŞİ (yalnızca yönetici) =================
+  const LOG_ISLEM = { EKLE: ['Eklendi', 'pos'], DEGISTIR: ['Değiştirildi', 'zero'], SIL: ['Silindi', 'neg'], YETKI_DEGISTI: ['Çalışan yetkisi değişti', 'neg'], FIRMA_BILGISI_DEGISTI: ['Firma bilgisi değişti', 'neg'], UYE_EKLENDI: ['Kullanıcı eklendi', 'pos'], UYE_SILINDI: ['Kullanıcı silindi', 'neg'] };
+  const LOG_VARLIK = { cariler: 'Cari', faturalar: 'Fatura', stok: 'Ürün', stokHareketleri: 'Stok hareketi', transactions: 'Kasa / masraf hareketi', ayar: 'Ayar', uye: 'Kullanıcı' };
+  function enterIslemGecmisi() { if (!yoneticiMi()) return; showView('view-islem-gecmisi', { showBack: true, onBack: enterAyarlar }); renderIslemGecmisi(); setDrawerActive('ayarlar'); }
+  async function renderIslemGecmisi() {
+    const body = document.getElementById('logBody');
+    body.innerHTML = '<div class="empty-state">Yükleniyor…</div>';
+    try {
+      let q = sb.from('defter_log').select('*').eq('sirket_id', currentSirketId).order('created_at', { ascending: false }).limit(200);
+      const f = document.getElementById('logFiltre').value;
+      if (f) q = q.in('islem', f.split(','));
+      const { data, error } = await q;
+      if (error) throw error;
+      if (!data.length) { body.innerHTML = '<div class="empty-state">Kayıt yok. (İşlem geçmişi, güvenlik güncellemesi veritabanına uygulandıktan sonraki işlemleri gösterir.)</div>'; return; }
+      body.innerHTML = data.map((l) => {
+        const d = l.eski || {};
+        const ad = d.name || d.ad || d.no || d.aciklama || d.description || d.category || d.cariAdi || (l.entity === 'uye' ? (d.rol || '') : l.kayit_id) || '';
+        const [etiket, sinif] = LOG_ISLEM[l.islem] || [l.islem, 'zero'];
+        const geri = (l.islem === 'SIL' || l.islem === 'DEGISTIR') && l.eski;
+        return `<div class="list-row" style="align-items:flex-start"><div class="main"><div class="title">${escapeHtml(LOG_VARLIK[l.entity] || l.entity || '')}${ad ? ' · ' + escapeHtml(String(ad).slice(0, 60)) : ''}</div><div class="sub">${escapeHtml(l.user_email || 'bilinmiyor')} · ${new Date(l.created_at).toLocaleString('tr-TR')}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><span class="badge ${sinif}">${escapeHtml(etiket)}</span>${geri ? `<button class="btn btn-sm" type="button" data-logrestore="${l.id}">Geri Yükle</button>` : ''}</div></div>`;
+      }).join('');
+    } catch (e) {
+      body.innerHTML = '<div class="empty-state">İşlem geçmişi okunamadı. Güvenlik SQL dosyası Supabase\'e henüz uygulanmamış olabilir.</div>';
+    }
+  }
+  document.getElementById('logFiltre').addEventListener('change', renderIslemGecmisi);
+  document.getElementById('logBody').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-logrestore]'); if (!b) return;
+    if (!confirm('Bu kayıt eski haline getirilsin mi? (Şu anki hali varsa üzerine yazılır.)')) return;
+    const { error } = await sb.rpc('defter_geri_yukle', { p_log_id: Number(b.dataset.logrestore) });
+    if (error) { alert('Geri yüklenemedi: ' + error.message); return; }
+    alert('Geri yüklendi. Uygulama yenileniyor.');
+    location.reload();
+  });
+
+  // ================= GÜVENLİ ÇIKIŞ + OTOMATİK OTURUM KAPATMA =================
+  async function yerelVeriyiTemizle() {
+    try { localStorage.removeItem('dnz_son_oturum'); } catch (e) { /* yok say */ }
+    try { const db = await openCacheDb(); await new Promise((r) => { const tx = db.transaction(CACHE_STORE, 'readwrite'); tx.objectStore(CACHE_STORE).clear(); tx.oncomplete = tx.onerror = tx.onabort = () => r(); }); } catch (e) { /* yok say */ }
+    try { if (window.caches) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) { /* yok say */ }
+  }
+  async function guvenliCikis() {
+    try { await sb.auth.signOut(); } catch (e) { /* yok say */ }
+    await yerelVeriyiTemizle();
+    setTimeout(yerelVeriyiTemizle, 1500); // çıkış sırasında geç kalan bir kayıt önbelleğe yazılırsa onu da sil
+  }
+  const BOSTA_CIKIS_DK = 60;
+  let sonEtkilesim = Date.now();
+  ['pointerdown', 'keydown', 'touchstart', 'scroll', 'click'].forEach((ev) => document.addEventListener(ev, () => { sonEtkilesim = Date.now(); }, { passive: true, capture: true }));
+  async function bostaKontrol() {
+    if (!appStarted || TAKIP_TOKEN) return;
+    if (Date.now() - sonEtkilesim < BOSTA_CIKIS_DK * 60000) return;
+    sonEtkilesim = Date.now();
+    await guvenliCikis();
+    setTimeout(() => alert('Güvenliğin için uzun süre işlem yapılmadığından oturum kapatıldı. Tekrar giriş yapabilirsin.'), 200);
+  }
+  setInterval(bostaKontrol, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) bostaKontrol(); });
+
   async function init() {
     if (TAKIP_TOKEN) { takipSayfasiGoster(TAKIP_TOKEN); return; }
     const { data: { session } } = await sb.auth.getSession();
