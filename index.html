@@ -160,6 +160,38 @@
   .hero-mini-grid .label { font-size: 11.5px; white-space: nowrap; }
   .hero-mini-grid .value { font-size: 19px; margin-top: 3px; }
 
+  /* ---------------- Ana sayfa ---------------- */
+  .hm-hizli { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  .hm-btn { border: 0; border-radius: 16px; padding: 16px 10px; font-family: inherit; font-weight: 700; font-size: 15px; color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; box-shadow: 0 4px 14px rgba(15,61,138,.18); }
+  .hm-btn.iade { background: linear-gradient(135deg, #c2410c, #f59e0b); }
+  .hm-btn.teklif { background: linear-gradient(135deg, #0f3d8a, #3AA1FF); }
+  .hm-btn .hm-ik { font-size: 20px; }
+  .hm-uclu { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .hm-uclu .hm-btn { flex-direction: column; gap: 4px; padding: 13px 4px; font-size: 13.5px; }
+  .hm-btn.satis { background: linear-gradient(135deg, #15803d, #34d399); }
+  .hm-btn.alis { background: linear-gradient(135deg, #5b21b6, #8b5cf6); }
+  .hm-btn.masraf { background: linear-gradient(135deg, #b91c1c, #f87171); }
+  .hm-ikili { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  .hm-ikili .card { margin-bottom: 0; }
+  .hm-mini { padding: 14px; cursor: pointer; min-width: 0; }
+  .hm-mini .hm-et { font-size: 11.5px; color: var(--ink-soft); font-weight: 600; }
+  .hm-mini .hm-bu { font-size: 21px; font-weight: 800; margin: 3px 0 2px; }
+  .hm-mini .hm-ks { font-size: 11px; color: var(--ink-soft); line-height: 1.35; }
+  .hm-mini a { font-size: 11px; }
+  .hm-bas { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .hm-bas .section-title { margin-bottom: 6px; }
+  .hm-top { font-size: 19px; font-weight: 800; }
+  .hm-not { font-size: 11.5px; color: var(--ink-soft); font-weight: 400; }
+  .hm-ozet { font-size: 12.5px; color: var(--ink-soft); margin: 0 0 8px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .hm-ozet b { color: var(--ink); }
+  .hm-liste { max-height: 290px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .hm-bos { text-align: center; color: var(--ink-soft); font-size: 13px; padding: 16px 6px; }
+  .hm-etiket { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-right: 6px; }
+  .hm-etiket.odeme { background: #fde8e0; color: #b4380d; }
+  .hm-etiket.tahsilat { background: #dcf5e4; color: #15803d; }
+  .hm-etiket.gecik { background: #fee2e2; color: #b91c1c; }
+  .hm-etiket.yakin { background: #fef3c7; color: #92400e; }
+
   .ozet-panel { display: none; } /* telefonda gizli; tablet/masaüstü düzeninde (≥700px) gösterilir */
   .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
   .stat-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 14px; }
@@ -394,25 +426,31 @@
     h2.section-title { font-size: 16.5px; }
     .view[id$="-form"], .view[id$="-detail"] { max-width: 980px; margin-left: auto; margin-right: auto; }
 
-    /* Özet: hero + 4 kart + grafik + 2 panel */
-    #view-ozet.active { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
-    #view-ozet > .hero-card { grid-column: 1 / -1; margin-bottom: 0; padding: 28px 32px; }
-    #view-ozet .hero-mini-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 26px; }
-    #view-ozet .hero-mini-grid .label { font-size: 13px; }
-    #view-ozet .hero-mini-grid .value { font-size: clamp(16px, 2.3vw, 27px); }
-    #view-ozet .stat-grid { display: contents; }
+    /* Ana sayfa: iki sütunlu kart ızgarası */
+    #view-ozet.active { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+    #view-ozet > .hm-uclu, #view-ozet > .hm-hizli, #view-ozet > .hm-ikili { grid-column: 1 / -1; }
+    #view-ozet > .card { margin-bottom: 0; }
+    #view-ozet .hm-liste { max-height: 340px; }
+
+    /* Genel Özet (Raporlar altında): hero + 4 kart + grafik + 2 panel */
+    #view-genel-ozet.active { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
+    #view-genel-ozet > .hero-card { grid-column: 1 / -1; margin-bottom: 0; padding: 28px 32px; }
+    #view-genel-ozet .hero-mini-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 26px; }
+    #view-genel-ozet .hero-mini-grid .label { font-size: 13px; }
+    #view-genel-ozet .hero-mini-grid .value { font-size: clamp(16px, 2.3vw, 27px); }
+    #view-genel-ozet .stat-grid { display: contents; }
     /* Rakam, kartın kendi genişliğine göre ölçeklenir (container query): dar tablette de tek satırda kalır. */
-    #view-ozet .stat-card { padding: 20px 18px; display: flex; flex-direction: column; container-type: inline-size; }
-    #view-ozet .stat-card .value { margin-top: auto; }
-    #view-ozet .stat-card .label { font-size: 13px; }
-    #view-ozet .stat-card .value { font-size: clamp(14px, 12cqw, 21px); }
-    #view-ozet > .card { grid-column: 1 / -1; margin-bottom: 0; }
-    #view-ozet > .ozet-panel { display: block; grid-column: span 2; }
-    #view-ozet .chart-row { height: 210px; gap: 10px; }
-    #view-ozet .chart-bars { height: 176px; gap: 4px; }
-    #view-ozet .chart-bar { width: clamp(10px, 1.7vw, 22px); border-radius: 5px 5px 0 0; }
-    #view-ozet .chart-label { font-size: 12.5px; }
-    #view-ozet .chart-legend { font-size: 13px; }
+    #view-genel-ozet .stat-card { padding: 20px 18px; display: flex; flex-direction: column; container-type: inline-size; }
+    #view-genel-ozet .stat-card .value { margin-top: auto; }
+    #view-genel-ozet .stat-card .label { font-size: 13px; }
+    #view-genel-ozet .stat-card .value { font-size: clamp(14px, 12cqw, 21px); }
+    #view-genel-ozet > .card { grid-column: 1 / -1; margin-bottom: 0; }
+    #view-genel-ozet > .ozet-panel { display: block; grid-column: span 2; }
+    #view-genel-ozet .chart-row { height: 210px; gap: 10px; }
+    #view-genel-ozet .chart-bars { height: 176px; gap: 4px; }
+    #view-genel-ozet .chart-bar { width: clamp(10px, 1.7vw, 22px); border-radius: 5px 5px 0 0; }
+    #view-genel-ozet .chart-label { font-size: 12.5px; }
+    #view-genel-ozet .chart-legend { font-size: 13px; }
 
     /* Listeler: her kayıt kendi kartında olanlar 2 sütun ızgara; tek kartta satır satır olanlar 2 sütun akış */
     #stokList, #faturaList, #teklifList, #firsatList { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 18px; align-items: start; }
@@ -559,6 +597,55 @@
 
     <!-- ÖZET -->
     <section class="view active" id="view-ozet">
+      <div class="hm-uclu">
+        <button type="button" class="hm-btn satis" id="hmSatisEkle"><span class="hm-ik">🛒</span><span>Satış Ekle</span></button>
+        <button type="button" class="hm-btn alis" id="hmAlisEkle"><span class="hm-ik">📦</span><span>Alış Ekle</span></button>
+        <button type="button" class="hm-btn masraf" id="hmMasrafEkle"><span class="hm-ik">🧾</span><span>Masraf Ekle</span></button>
+      </div>
+      <div class="hm-hizli">
+        <button type="button" class="hm-btn iade" id="hmIadeAl"><span class="hm-ik">↩️</span><span>İade Al</span></button>
+        <button type="button" class="hm-btn teklif" id="hmTeklifVer"><span class="hm-ik">📝</span><span>Teklif Ver</span></button>
+      </div>
+      <div class="hm-ikili">
+        <div class="card hm-mini" id="hmKurKart" role="button" tabindex="0"></div>
+        <div class="card hm-mini" id="hmHavaKart" role="button" tabindex="0"></div>
+      </div>
+      <div class="card">
+        <div class="hm-bas"><h2 class="section-title">Toplam Alacak</h2><div class="hm-top mono income" id="hmAlacakToplam">0,00 TL</div></div>
+        <div class="hm-liste" id="hmAlacakListe"></div>
+      </div>
+      <div class="card">
+        <div class="hm-bas"><h2 class="section-title">Toplam Borç</h2><div class="hm-top mono expense" id="hmBorcToplam">0,00 TL</div></div>
+        <div class="hm-liste" id="hmBorcListe"></div>
+      </div>
+      <div class="card">
+        <h2 class="section-title">Yaklaşan Ödemeler <span class="hm-not">(30 gün)</span></h2>
+        <div class="hm-ozet" id="hmYaklasanOzet"></div>
+        <div class="hm-liste" id="hmYaklasanListe"></div>
+      </div>
+      <div class="card">
+        <h2 class="section-title">Günü Geçmiş Ödemeler</h2>
+        <div class="hm-ozet" id="hmGecikenOzet"></div>
+        <div class="hm-liste" id="hmGecikenListe"></div>
+      </div>
+      <div class="card">
+        <h2 class="section-title">Hareketler</h2>
+        <div class="chip-row" id="hmHareketChips">
+          <button class="chip active" data-g="7">Son 1 Hafta</button>
+          <button class="chip" data-g="30">Son 1 Ay</button>
+          <button class="chip" data-g="90">Son 3 Ay</button>
+        </div>
+        <div class="hm-ozet" id="hmHareketOzet"></div>
+        <div class="hm-liste" id="hmHareketListe"></div>
+      </div>
+      <div class="card">
+        <h2 class="section-title">Haftanın En Kârlı Ürünleri</h2>
+        <p class="hm-not" id="hmKarNot" style="margin:-6px 0 8px"></p>
+        <div class="hm-liste" id="hmKarListe"></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-genel-ozet">
       <div class="hero-card">
         <div class="hero-mini-grid">
           <div>
@@ -1261,6 +1348,7 @@
 
       <h2 class="section-title">Rapor Grupları</h2>
       <div class="menu-row-wrap">
+        <div class="menu-row" data-kategori="genel"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></div><div><div class="title">Genel Özet</div><div class="sub">Stok değeri, net kâr, ciro, gelir-gider, son 6 ay, son belgeler, kritik stok</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-kategori="satisalis"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/><path d="M3 4h2l2.4 11.5a2 2 0 0 0 2 1.6h7.2a2 2 0 0 0 2-1.6L20 7H6"/></svg></div><div><div class="title">Satış &amp; Alış</div><div class="sub">9 rapor</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-kategori="stok"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8l9-5 9 5-9 5-9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg></div><div><div class="title">Stok</div><div class="sub">5 rapor</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-kategori="finans"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="3" width="14" height="18" rx="1"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/></svg></div><div><div class="title">Finans &amp; Muhasebe</div><div class="sub">10 rapor</div></div><span class="chev">›</span></div>
@@ -1571,6 +1659,7 @@
           <span class="chev">⌄</span>
         </button>
         <div class="drawer-submenu" id="drawerSubRaporlar">
+          <button class="drawer-subitem" data-nav="raporlar-genel">Genel Özet</button>
           <button class="drawer-subitem" data-nav="raporlar-tumu">Tüm Raporlar</button>
           <button class="drawer-subitem" data-nav="raporlar-satisalis">Satışlar - Alışlar</button>
           <button class="drawer-subitem" data-nav="raporlar-finans">Finansal Raporlar</button>
@@ -2243,7 +2332,7 @@
   let currentFiyatListesiDetailId = null;
 
   const VIEW_TITLES = {
-    'view-ozet': 'DNZ Defter', 'view-cari': 'Cariler',
+    'view-ozet': 'DNZ Defter', 'view-genel-ozet': 'Genel Özet', 'view-cari': 'Cariler',
     'view-cari-detail': 'Cari Detay', 'view-cari-form': 'Müşteri Bilgileri', 'view-stok': 'Stoklarım', 'view-stok-detail': 'Ürün Bilgileri', 'view-stok-form': 'Ürün Bilgileri', 'view-fatura': 'Satışlar', 'view-teklifler': 'Teklifler', 'view-firsatlar': 'Fırsatlar',
     'view-kategori': 'Kategoriler', 'view-marka': 'Markalar', 'view-depo': 'Depolar',
     'view-fatura-form': 'İşlem Bilgileri', 'view-fatura-detail': 'Belge Detay', 'view-urun-arama': 'Ürün Arama',
@@ -2509,6 +2598,7 @@
     setDrawerActive('stok');
   }
   function enterFiyatListesiDetail(id) { currentFiyatListesiDetailId = id; showView('view-fiyat-listesi-detail', { showBack: true, onBack: enterFiyatListesi }); renderFiyatListesiDetail(); setDrawerActive('stok'); }
+  function enterGenelOzet() { showView('view-genel-ozet', { showBack: true, onBack: enterRaporlar }); renderOzet(); setDrawerActive('raporlar'); }
   function enterRaporlar() { showView('view-raporlar'); renderRaporlar(); setDrawerActive('raporlar'); }
   function enterRaporlarSatisAlis() { showView('view-raporlar-satisalis', { showBack: true, onBack: enterRaporlar }); setDrawerActive('raporlar'); }
   function enterRaporlarFinans() { showView('view-raporlar-finans', { showBack: true, onBack: enterRaporlar }); setDrawerActive('raporlar'); }
@@ -2519,6 +2609,7 @@
       if (k === 'satisalis') enterRaporlarSatisAlis();
       else if (k === 'stok') enterRaporlarStokBolum();
       else if (k === 'finans') enterRaporlarFinans();
+      else if (k === 'genel') enterGenelOzet();
     });
   });
   function enterRaporSatis() { showView('view-rapor-satis', { showBack: true, onBack: enterRaporlarSatisAlis }); renderRaporSatis(); setDrawerActive('raporlar'); }
@@ -2746,7 +2837,7 @@
     ozet: enterOzet, musteri: enterMusteriler, tedarikci: enterTedarikciler, stok: enterStok, satislar: enterSatislar, alislar: enterAlislar,
     teklifler: enterTeklifler, firsatlar: enterFirsatlar,
     kasa: enterKasa, masraf: enterMasraf, cek: enterCek, raporlar: enterRaporlar,
-    'raporlar-tumu': enterRaporlar, 'raporlar-satisalis': enterRaporlarSatisAlis, 'raporlar-finans': enterRaporlarFinans,
+    'raporlar-tumu': enterRaporlar, 'raporlar-genel': enterGenelOzet, 'raporlar-satisalis': enterRaporlarSatisAlis, 'raporlar-finans': enterRaporlarFinans,
     'raporlar-stok': enterRaporlarStokBolum, 'raporlar-musteri': enterRaporMusteriListesi,
     calisan: enterCalisan, takvim: enterTakvim, notlar: enterNotlar, fihrist: enterFihrist,
     kredi: enterKredi, demirbas: enterDemirbas, proje: enterProje, ayarlar: enterAyarlar
@@ -3049,11 +3140,233 @@
     document.getElementById('ozetKritikStok').innerHTML = kritikler.length ? kritikler.map((s) => `
       <div class="list-row" data-id="${s.id}"><div class="main"><div class="title">${escapeHtml(s.name)}</div><div class="sub">Minimum stok: ${s.minStock} ${escapeHtml(s.satisBirimi || 'Adet')}</div></div>
       <div class="amt mono ${s.quantity <= 0 ? 'expense' : ''}" style="${s.quantity > 0 ? 'color:var(--amber)' : ''}">${s.quantity} ${escapeHtml(s.satisBirimi || 'Adet')}</div></div>`).join('') : '<div class="empty-state" style="padding:24px 10px">Kritik seviyede ürün yok.</div>';
+    renderAnaSayfa(); // yeni ana sayfa (hızlı bakış) da güncel veriyle çizilir
   }
+
+  // ================= ANA SAYFA (hızlı bakış) =================
+  // Eski "özet" ekranı Raporlar > Genel Özet altına taşındı (renderOzet hâlâ onu besler).
+  let hmHareketDonem = 7;
+  const hmGunFarki = (tarih) => Math.round((new Date(tarih + 'T00:00:00') - new Date(todayISO() + 'T00:00:00')) / 86400000);
+  function hmSatir(attrs, baslik, alt, tutar, sinif, etiket) {
+    return `<div class="list-row" ${attrs}><div class="main"><div class="title">${etiket || ''}${escapeHtml(baslik)}</div><div class="sub">${alt}</div></div><div class="amt mono ${sinif || ''}">${formatTL(tutar)}</div></div>`;
+  }
+  const hmBos = (m) => `<div class="hm-bos">${m}</div>`;
+
+  // Alıcı/satıcı bakiyeleri: (+) bize borçlu = alacağımız, (−) biz borçluyuz = borcumuz.
+  function hmAlacakBorcCiz() {
+    const a = [], b = [];
+    state.cariler.forEach((c) => { const x = cariBalance(c); if (x > 0.004) a.push({ c, x }); else if (x < -0.004) b.push({ c, x: -x }); });
+    a.sort((p, q) => q.x - p.x); b.sort((p, q) => q.x - p.x);
+    const tur = (c) => (c.type === 'musteri' ? 'Müşteri' : 'Tedarikçi');
+    document.getElementById('hmAlacakToplam').textContent = formatTL(a.reduce((t, r) => t + r.x, 0));
+    document.getElementById('hmBorcToplam').textContent = formatTL(b.reduce((t, r) => t + r.x, 0));
+    document.getElementById('hmAlacakListe').innerHTML = a.length ? a.map((r) => hmSatir(`data-cari="${r.c.id}"`, r.c.name, tur(r.c), r.x, 'income')).join('') : hmBos('Alacağın görünen cari yok.');
+    document.getElementById('hmBorcListe').innerHTML = b.length ? b.map((r) => hmSatir(`data-cari="${r.c.id}"`, r.c.name, tur(r.c), r.x, 'expense')).join('') : hmBos('Borcun görünen cari yok.');
+  }
+
+  // Vadesi olan açık faturalar (satış = tahsilat, alış = ödeme) ve bekleyen çek/senetler.
+  function hmOdemeKalemleri() {
+    const out = [];
+    const acikS = acikFaturaTutarlari('satis'), acikA = acikFaturaTutarlari('alis');
+    state.faturalar.forEach((f) => {
+      if (f.docType !== 'fatura' || !f.vade) return;
+      const tut = f.cariId ? ((f.yon === 'satis' ? acikS : acikA)[f.id] || 0) : Math.max(0, faturaKalanTutar(f));
+      if (tut <= 0.004) return;
+      out.push({ tarih: f.vade, tip: f.yon === 'satis' ? 'tahsilat' : 'odeme', ad: f.cariAdi || 'Cari yok', tutar: yuvarla2(tut), etiket: (f.yon === 'satis' ? 'Satış' : 'Alış') + ' faturası · ' + (f.belgeNo || f.no), attr: `data-fatura="${f.id}"` });
+    });
+    (state.cekSenet || []).forEach((c) => {
+      if (c.durum !== 'bekliyor' || !c.vade) return;
+      out.push({ tarih: c.vade, tip: c.yon === 'alinan' ? 'tahsilat' : 'odeme', ad: c.cariAdi || 'Cari yok', tutar: c.tutar, etiket: c.tur === 'cek' ? 'Çek' : 'Senet', attr: 'data-cek="1"' });
+    });
+    return out;
+  }
+  function hmOdemeCiz() {
+    const kalemler = hmOdemeKalemleri().map((k) => Object.assign(k, { gun: hmGunFarki(k.tarih) }));
+    const topla = (l, tip) => l.filter((k) => k.tip === tip).reduce((t, k) => t + k.tutar, 0);
+    const ozet = (l) => `<span>Ödenecek: <b class="mono">${formatTL(topla(l, 'odeme'))}</b></span><span>Tahsil edilecek: <b class="mono">${formatTL(topla(l, 'tahsilat'))}</b></span>`;
+    const satir = (k, gec) => {
+      const gunMetni = gec ? `${-k.gun} gün gecikti` : (k.gun === 0 ? 'Bugün' : `${k.gun} gün sonra`);
+      const et = `<span class="hm-etiket ${k.tip}">${k.tip === 'odeme' ? 'Ödeme' : 'Tahsilat'}</span>`;
+      return hmSatir(k.attr, k.ad, `${escapeHtml(k.etiket)} · Vade ${formatDate(k.tarih)} · <span class="hm-etiket ${gec ? 'gecik' : (k.gun <= 3 ? 'yakin' : '')}" style="margin:0">${gunMetni}</span>`, k.tutar, k.tip === 'odeme' ? 'expense' : 'income', et);
+    };
+    const yakin = kalemler.filter((k) => k.gun >= 0 && k.gun <= 30).sort((a, b) => a.tarih.localeCompare(b.tarih));
+    const gec = kalemler.filter((k) => k.gun < 0).sort((a, b) => a.tarih.localeCompare(b.tarih));
+    document.getElementById('hmYaklasanOzet').innerHTML = ozet(yakin);
+    document.getElementById('hmGecikenOzet').innerHTML = ozet(gec);
+    document.getElementById('hmYaklasanListe').innerHTML = yakin.length ? yakin.map((k) => satir(k, false)).join('') : hmBos('Önümüzdeki 30 günde vadesi gelen ödeme yok.');
+    document.getElementById('hmGecikenListe').innerHTML = gec.length ? gec.map((k) => satir(k, true)).join('') : hmBos('Günü geçmiş ödeme yok. 👏');
+  }
+
+  // Dönem filtreli hareket akışı: faturalar/iadeler + tahsilat/ödemeler + masraf/gelir-gider kayıtları.
+  function hmHareketCiz() {
+    const bas = new Date(); bas.setDate(bas.getDate() - hmHareketDonem);
+    const basStr = localDateStr(bas);
+    const out = [];
+    state.faturalar.forEach((f) => {
+      if (!isBelgeEffectDoc(f) || f.date < basStr) return;
+      const satis = f.yon === 'satis', iade = f.docType === 'iade';
+      out.push({ tarih: f.date, ad: f.cariAdi || 'Perakende', etiket: (satis ? 'Satış' : 'Alış') + (iade ? ' iadesi' : ' faturası') + ' · ' + (f.belgeNo || f.no), tutar: f.genelToplam, gelir: satis ? !iade : iade, attr: `data-fatura="${f.id}"` });
+    });
+    state.cariler.forEach((c) => (c.hareketler || []).forEach((h) => {
+      if (!h.odemeId || h.date < basStr) return;
+      out.push({ tarih: h.date, ad: c.name, etiket: h.tutar < 0 ? 'Tahsilat' : 'Ödeme', tutar: Math.abs(h.tutar), gelir: h.tutar < 0, attr: `data-cari="${c.id}"` });
+    }));
+    state.transactions.forEach((t) => {
+      if (t.source === 'invoice' || t.date < basStr) return;
+      out.push({ tarih: t.date, ad: t.title || t.category || (t.type === 'gelir' ? 'Gelir' : 'Gider'), etiket: t.type === 'gelir' ? 'Gelir' : 'Gider' + (t.category && t.title ? ' · ' + t.category : ''), tutar: t.amount, gelir: t.type === 'gelir', attr: '' });
+    });
+    out.sort((a, b) => b.tarih.localeCompare(a.tarih));
+    const giris = out.filter((x) => x.gelir).reduce((t, x) => t + x.tutar, 0);
+    const cikis = out.filter((x) => !x.gelir).reduce((t, x) => t + x.tutar, 0);
+    document.getElementById('hmHareketOzet').innerHTML = `<span>${out.length} hareket</span><span>Giriş: <b class="mono">${formatTL(giris)}</b></span><span>Çıkış: <b class="mono">${formatTL(cikis)}</b></span>`;
+    document.getElementById('hmHareketListe').innerHTML = out.length ? out.slice(0, 150).map((x) => hmSatir(x.attr, x.ad, `${formatDate(x.tarih)} · ${escapeHtml(x.etiket)}`, x.tutar, x.gelir ? 'income' : 'expense')).join('') : hmBos('Bu dönemde hareket yok.');
+  }
+
+  // Bir ürünün SATIŞ BİRİMİ başına ortalama maliyeti (alış geçmişinden; yoksa son alış fiyatı).
+  function hmBirimMaliyet(s) {
+    let m = 0, tutar = 0;
+    state.faturalar.forEach((f) => {
+      if (f.yon !== 'alis' || (f.docType !== 'fatura' && f.docType !== 'iade')) return;
+      const sign = f.docType === 'iade' ? -1 : 1;
+      (f.items || []).forEach((it) => { if (it.stokId !== s.id) return; m += sign * it.qty * (s.donusumOrani || 1); tutar += sign * it.qty * it.unitPrice * faturaKuru(f); });
+    });
+    return m > 0 ? tutar / m : ((s.buyPrice || 0) / (s.donusumOrani || 1));
+  }
+  function hmKarCiz() {
+    const bas = new Date(); bas.setDate(bas.getDate() - 6);
+    const basStr = localDateStr(bas);
+    const harita = {};
+    state.faturalar.forEach((f) => {
+      if ((f.docType !== 'fatura' && f.docType !== 'iade') || f.yon !== 'satis' || f.date < basStr) return;
+      const sign = f.docType === 'iade' ? -1 : 1;
+      (f.items || []).forEach((it) => {
+        if (!it.stokId) return;
+        const s = state.stok.find((x) => x.id === it.stokId); if (!s) return;
+        const r = harita[s.id] || (harita[s.id] = { s, ciro: 0, maliyet: 0, adet: 0, birim: hmBirimMaliyet(s) });
+        r.ciro += sign * it.qty * it.unitPrice * faturaKuru(f);
+        r.maliyet += sign * it.qty * r.birim;
+        r.adet += sign * it.qty;
+      });
+    });
+    const satirlar = Object.values(harita).map((r) => Object.assign(r, { kar: r.ciro - r.maliyet })).filter((r) => r.ciro > 0 || r.kar !== 0);
+    const ort = satirlar.length ? satirlar.reduce((t, r) => t + r.kar, 0) / satirlar.length : 0;
+    const iyi = satirlar.filter((r) => r.kar > 0 && r.kar >= ort).sort((a, b) => b.kar - a.kar);
+    document.getElementById('hmKarNot').textContent = satirlar.length
+      ? `Son 7 günde ${satirlar.length} ürün satıldı · ürün başına ortalama kâr ${formatTL(ort)}. Ortalamanın üzerinde kalanlar:`
+      : 'Son 7 günde ürüne bağlı satış yok.';
+    document.getElementById('hmKarListe').innerHTML = iyi.length ? iyi.map((r) => hmSatir(`data-stok="${r.s.id}"`, r.s.name, `${r.adet.toLocaleString('tr-TR', { maximumFractionDigits: 2 })} ${escapeHtml(r.s.satisBirimi || 'Adet')} · Ciro ${formatTL(r.ciro)}${r.ciro > 0 ? ' · Marj %' + (r.kar / r.ciro * 100).toFixed(1) : ''}`, r.kar, 'income')).join('') : hmBos(satirlar.length ? 'Ortalamanın üzerinde kârlı ürün yok.' : 'Gösterilecek ürün yok.');
+  }
+
+  // --- Dolar kuru (canlı, yalnızca gösterim — kayıtlı kurlara DOKUNMAZ) ---
+  let hmKur = null, hmKurYukleniyor = false;
+  try { const o = JSON.parse(localStorage.getItem('dnz_usdtry') || 'null'); if (o && o.v) hmKur = o; } catch (e) {}
+  function hmKurCiz() {
+    const kart = document.getElementById('hmKurKart'); if (!kart) return;
+    const k = kurFor('USD');
+    kart.innerHTML = `<div class="hm-et">💵 Dolar / TL</div>
+      <div class="hm-bu mono">${hmKur ? hmKur.v.toLocaleString('tr-TR', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : (hmKurYukleniyor ? '…' : '—')}</div>
+      <div class="hm-ks">${hmKur ? 'Güncelleme ' + new Date(hmKur.t).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : (hmKurYukleniyor ? 'Alınıyor…' : 'Kur alınamadı, dokun yenile')}${k.satis ? `<br>Kayıtlı: ${k.alis.toLocaleString('tr-TR')} / ${k.satis.toLocaleString('tr-TR')}` : ''}<br><a href="#" id="hmKurAyar">Kuru ayarla</a></div>`;
+  }
+  async function hmKurYukle(zorla) {
+    if (hmKurYukleniyor) return;
+    if (!zorla && hmKur && Date.now() - hmKur.t < 30 * 60000) return;
+    hmKurYukleniyor = true; hmKurCiz();
+    try {
+      const r = await fetch('https://open.er-api.com/v6/latest/USD'); const d = await r.json();
+      if (d.result === 'success' && d.rates && d.rates.TRY) { hmKur = { v: d.rates.TRY, t: Date.now() }; try { localStorage.setItem('dnz_usdtry', JSON.stringify(hmKur)); } catch (e) {} }
+    } catch (e) { /* çevrimdışı: varsa eski değer gösterilir */ }
+    hmKurYukleniyor = false; hmKurCiz();
+  }
+
+  // --- Hava durumu (Open-Meteo; anahtar gerektirmez). Konum: cihaz konumu, yoksa İstanbul; şehir elle de seçilebilir. ---
+  const HAVA_KOD = { 0: ['☀️', 'Açık'], 1: ['🌤️', 'Az bulutlu'], 2: ['⛅', 'Parçalı bulutlu'], 3: ['☁️', 'Kapalı'], 45: ['🌫️', 'Sisli'], 48: ['🌫️', 'Sisli'], 51: ['🌦️', 'Çisenti'], 53: ['🌦️', 'Çisenti'], 55: ['🌦️', 'Çisenti'], 56: ['🌧️', 'Donan çisenti'], 57: ['🌧️', 'Donan çisenti'], 61: ['🌧️', 'Hafif yağmur'], 63: ['🌧️', 'Yağmur'], 65: ['🌧️', 'Şiddetli yağmur'], 66: ['🌧️', 'Donan yağmur'], 67: ['🌧️', 'Donan yağmur'], 71: ['🌨️', 'Hafif kar'], 73: ['🌨️', 'Kar'], 75: ['❄️', 'Yoğun kar'], 77: ['🌨️', 'Kar taneleri'], 80: ['🌦️', 'Sağanak'], 81: ['🌧️', 'Sağanak'], 82: ['⛈️', 'Şiddetli sağanak'], 85: ['🌨️', 'Kar sağanağı'], 86: ['🌨️', 'Kar sağanağı'], 95: ['⛈️', 'Gök gürültülü'], 96: ['⛈️', 'Dolulu fırtına'], 99: ['⛈️', 'Dolulu fırtına'] };
+  let hava = null, havaYukleniyor = false, havaSon = 0;
+  function hmHavaCiz() {
+    const kart = document.getElementById('hmHavaKart'); if (!kart) return;
+    if (!hava) { kart.innerHTML = `<div class="hm-et">🌤️ Hava durumu</div><div class="hm-bu">${havaYukleniyor ? '…' : '—'}</div><div class="hm-ks">${havaYukleniyor ? 'Alınıyor…' : 'Alınamadı (internet gerekli). Dokun, yenile.'}</div>`; return; }
+    const k = HAVA_KOD[hava.kod] || ['🌡️', ''];
+    kart.innerHTML = `<div class="hm-et">${k[0]} ${escapeHtml(hava.ad)}</div>
+      <div class="hm-bu mono">${Math.round(hava.sicak)}°C</div>
+      <div class="hm-ks">${k[1]}${hava.max != null ? `<br>${Math.round(hava.min)}° / ${Math.round(hava.max)}°` : ''} · 💨 ${Math.round(hava.ruzgar)} km/s${hava.yagis != null ? `<br>Yağış ihtimali %${hava.yagis}` : ''}<br><a href="#" id="hmHavaSehir">Şehir değiştir</a></div>`;
+  }
+  function hmKonumBul() {
+    return new Promise((resolve) => {
+      let kayit = null; try { kayit = JSON.parse(localStorage.getItem('dnz_hava_konum') || 'null'); } catch (e) {}
+      if (kayit && kayit.lat != null) return resolve(kayit);
+      const varsayilan = { lat: 41.0082, lon: 28.9784, ad: 'İstanbul' };
+      if (!navigator.geolocation) return resolve(varsayilan);
+      navigator.geolocation.getCurrentPosition(async (p) => {
+        const k = { lat: p.coords.latitude, lon: p.coords.longitude, ad: 'Konumum' };
+        try { const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${k.lat}&longitude=${k.lon}&localityLanguage=tr`); const d = await r.json(); k.ad = d.city || d.locality || d.principalSubdivision || k.ad; } catch (e) {}
+        try { localStorage.setItem('dnz_hava_konum', JSON.stringify(k)); } catch (e) {}
+        resolve(k);
+      }, () => resolve(varsayilan), { timeout: 8000, maximumAge: 600000 });
+    });
+  }
+  async function hmHavaYukle(zorla) {
+    if (havaYukleniyor) return;
+    if (!zorla && hava && Date.now() - havaSon < 20 * 60000) return;
+    havaYukleniyor = true; hmHavaCiz();
+    try {
+      const k = await hmKonumBul();
+      const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${k.lat}&longitude=${k.lon}&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=1`);
+      const d = await r.json();
+      if (!d.current) throw new Error('veri yok');
+      hava = { ad: k.ad, sicak: d.current.temperature_2m, kod: d.current.weather_code, ruzgar: d.current.wind_speed_10m, max: d.daily && d.daily.temperature_2m_max ? d.daily.temperature_2m_max[0] : null, min: d.daily && d.daily.temperature_2m_min ? d.daily.temperature_2m_min[0] : null, yagis: d.daily && d.daily.precipitation_probability_max ? d.daily.precipitation_probability_max[0] : null };
+      havaSon = Date.now();
+    } catch (e) { /* çevrimdışı: eski değer (varsa) kalır */ }
+    havaYukleniyor = false; hmHavaCiz();
+  }
+  async function hmSehirDegistir() {
+    const ad = prompt('Şehir adı yaz (boş bırakırsan cihaz konumu kullanılır):', '');
+    if (ad === null) return;
+    try {
+      if (!ad.trim()) { localStorage.removeItem('dnz_hava_konum'); }
+      else {
+        const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(ad.trim())}&count=1&language=tr`); const d = await r.json();
+        if (!d.results || !d.results.length) { alert('Şehir bulunamadı.'); return; }
+        const g = d.results[0];
+        localStorage.setItem('dnz_hava_konum', JSON.stringify({ lat: g.latitude, lon: g.longitude, ad: g.name }));
+      }
+    } catch (e) { alert('Şehir aranamadı. İnternet bağlantını kontrol et.'); return; }
+    hmHavaYukle(true);
+  }
+
+  function renderAnaSayfa() {
+    if (!document.getElementById('hmAlacakListe')) return;
+    hmAlacakBorcCiz(); hmOdemeCiz(); hmHareketCiz(); hmKarCiz(); hmKurCiz(); hmHavaCiz();
+    hmKurYukle(false); hmHavaYukle(false);
+  }
+  document.getElementById('hmHareketChips').addEventListener('click', (e) => {
+    const chip = e.target.closest('.chip'); if (!chip) return;
+    hmHareketDonem = parseInt(chip.dataset.g, 10);
+    document.querySelectorAll('#hmHareketChips .chip').forEach((c) => c.classList.toggle('active', c === chip));
+    hmHareketCiz();
+  });
+  document.getElementById('hmSatisEkle').addEventListener('click', () => enterFaturaForm({ docType: 'fatura', yon: 'satis', cariMode: 'kayitli' }));
+  document.getElementById('hmAlisEkle').addEventListener('click', () => enterFaturaForm({ docType: 'fatura', yon: 'alis', cariMode: 'kayitli' }));
+  document.getElementById('hmMasrafEkle').addEventListener('click', () => openTxForm('gider', { isMasraf: true }));
+  document.getElementById('hmIadeAl').addEventListener('click', () => enterFaturaForm({ docType: 'iade', yon: 'satis', cariMode: 'kayitli' }));
+  document.getElementById('hmTeklifVer').addEventListener('click', () => enterFaturaForm({ docType: 'teklif', yon: 'satis', cariMode: 'kayitli' }, null, true));
+  document.getElementById('hmKurKart').addEventListener('click', (e) => {
+    if (e.target.closest('#hmKurAyar')) { e.preventDefault(); document.getElementById('kurAyarBtn').click(); return; }
+    hmKurYukle(true);
+  });
+  document.getElementById('hmHavaKart').addEventListener('click', (e) => {
+    if (e.target.closest('#hmHavaSehir')) { e.preventDefault(); hmSehirDegistir(); return; }
+    hmHavaYukle(true);
+  });
+  document.getElementById('view-ozet').addEventListener('click', (e) => {
+    const r = e.target.closest('.list-row'); if (!r) return;
+    if (r.dataset.cari) ozettenAc(() => enterCariDetail(r.dataset.cari));
+    else if (r.dataset.fatura) ozettenAc(() => enterFaturaDetail(r.dataset.fatura));
+    else if (r.dataset.stok) ozettenAc(() => enterStokDetail(r.dataset.stok));
+    else if (r.dataset.cek) ozettenAc(() => enterCek());
+  });
   // Özet panellerinden açılan detaydan geri dönünce, ilgili listeye değil yine Özet'e dönülür.
-  function ozettenAc(fn) { fn(); const cur = viewPath[viewPath.length - 1]; if (cur) cur.onBack = enterOzet; }
-  document.getElementById('ozetSonBelgeler').addEventListener('click', (e) => { const r = e.target.closest('.list-row[data-id]'); if (r) ozettenAc(() => enterFaturaDetail(r.dataset.id)); });
-  document.getElementById('ozetKritikStok').addEventListener('click', (e) => { const r = e.target.closest('.list-row[data-id]'); if (r) ozettenAc(() => enterStokDetail(r.dataset.id)); });
+  function ozettenAc(fn, geri) { fn(); const cur = viewPath[viewPath.length - 1]; if (cur) cur.onBack = geri || enterOzet; }
+  document.getElementById('ozetSonBelgeler').addEventListener('click', (e) => { const r = e.target.closest('.list-row[data-id]'); if (r) ozettenAc(() => enterFaturaDetail(r.dataset.id), enterGenelOzet); });
+  document.getElementById('ozetKritikStok').addEventListener('click', (e) => { const r = e.target.closest('.list-row[data-id]'); if (r) ozettenAc(() => enterStokDetail(r.dataset.id), enterGenelOzet); });
 
   // ================= GELİR-GİDER =================
   let ggFilter = 'tum';
@@ -3061,7 +3374,7 @@
     const list = document.getElementById('ggList');
     let items = state.transactions.slice().sort((a, b) => b.date.localeCompare(a.date));
     if (ggFilter !== 'tum') items = items.filter((t) => t.type === ggFilter);
-    if (!items.length) { list.innerHTML = '<div class="empty-state">Henüz kayıt yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
+    if (!items.length) { list.innerHTML = '<div class="empty-state">Henüz kayıt yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
     list.innerHTML = items.map((t) => `
       <div class="list-row" data-id="${t.id}">
         <div class="main">
@@ -3303,7 +3616,7 @@
     const list = document.getElementById('masrafList');
     if (!list) return;
     const items = state.transactions.filter((t) => t.type === 'gider' && t.source === 'masraf').slice().sort((a, b) => b.date.localeCompare(a.date));
-    if (!items.length) { list.innerHTML = '<div class="empty-state">Henüz masraf yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
+    if (!items.length) { list.innerHTML = '<div class="empty-state">Henüz masraf yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
     list.innerHTML = items.map((t) => `
       <div class="list-row" data-id="${t.id}">
         ${t.receiptPhoto ? `<img src="${gorselUrl(t.receiptPhoto)}" class="masraf-photo" data-id="${t.id}" style="width:38px;height:38px;border-radius:8px;object-fit:cover;flex-shrink:0">` : ''}
@@ -3342,7 +3655,7 @@
       chipsWrap.style.display = 'none';
     }
     const items = cariEtiketFilter ? allOfType.filter((c) => (c.etiketler || []).includes(cariEtiketFilter)) : allOfType;
-    if (!items.length) { list.innerHTML = `<div class="empty-state">Henüz ${cariFilter === 'musteri' ? 'müşteri' : 'tedarikçi'} yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>`; setExcelExport(null, null, 'view-cari'); return; }
+    if (!items.length) { list.innerHTML = `<div class="empty-state">Henüz ${cariFilter === 'musteri' ? 'müşteri' : 'tedarikçi'} yok. Yukarıdaki + ile ekleyebilirsin.</div>`; setExcelExport(null, null, 'view-cari'); return; }
     list.innerHTML = items.map((c) => {
       const b = cariBalance(c);
       const tagClass = b > 0 ? 'pos' : (b < 0 ? 'neg' : 'zero');
@@ -5876,7 +6189,7 @@
   function renderKategoriList() {
     const list = document.getElementById('kategoriList');
     const tops = state.kategoriler.filter((k) => !k.parentId);
-    if (!tops.length) { list.innerHTML = '<div class="empty-state">Henüz kategori yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
+    if (!tops.length) { list.innerHTML = '<div class="empty-state">Henüz kategori yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
     list.innerHTML = tops.map((top) => {
       const children = state.kategoriler.filter((k) => k.parentId === top.id);
       return `
@@ -5916,7 +6229,7 @@
   });
   function renderMarkaList() {
     const list = document.getElementById('markaList');
-    if (!state.markalar.length) { list.innerHTML = '<div class="empty-state">Henüz marka yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
+    if (!state.markalar.length) { list.innerHTML = '<div class="empty-state">Henüz marka yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
     list.innerHTML = state.markalar.map((m) => `<div class="list-row" data-id="${m.id}"><div class="main"><div class="title">${escapeHtml(m.name)}</div></div></div>`).join('');
   }
   document.getElementById('markaAddBtn').addEventListener('click', () => openMarkaQuickAdd(() => renderMarkaList()));
@@ -6072,7 +6385,7 @@
     const list = document.getElementById('kasaList');
     const gosterPasif = document.getElementById('kasaPasifGosterChk').checked;
     const visibleHesaplar = state.hesaplar.filter((h) => gosterPasif || h.aktif !== false);
-    if (!visibleHesaplar.length) { list.innerHTML = '<div class="empty-state">Henüz hesap yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
+    if (!visibleHesaplar.length) { list.innerHTML = '<div class="empty-state">Henüz hesap yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
     let html = '';
     HESAP_GROUP_ORDER.forEach(([type, header]) => {
       const items = visibleHesaplar.filter((h) => h.type === type);
@@ -6228,7 +6541,7 @@
     let items = state.cekSenet.slice().sort((a, b) => a.vade.localeCompare(b.vade));
     if (cekFilter === 'bekliyor') items = items.filter((c) => c.durum === 'bekliyor');
     if (cekFilter === 'tamamlanan') items = items.filter((c) => c.durum !== 'bekliyor');
-    if (!items.length) { list.innerHTML = '<div class="empty-state">Henüz çek/senet yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
+    if (!items.length) { list.innerHTML = '<div class="empty-state">Henüz çek/senet yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
     const durumLabel = { bekliyor: 'Bekliyor', tahsil_edildi: 'Tahsil Edildi', odendi: 'Ödendi', karsiliksiz: 'Karşılıksız' };
     const durumClass = { bekliyor: 'wait', tahsil_edildi: 'pos', odendi: 'pos', karsiliksiz: 'neg' };
     list.innerHTML = items.map((c) => `
@@ -8884,7 +9197,7 @@
   function krediToplamOdenen(k) { return (k.odemeler || []).reduce((s, o) => s + o.tutar, 0); }
   function renderKrediList() {
     const list = document.getElementById('krediList');
-    if (!state.krediler.length) { list.innerHTML = '<div class="empty-state">Henüz kredi yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
+    if (!state.krediler.length) { list.innerHTML = '<div class="empty-state">Henüz kredi yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
     list.innerHTML = state.krediler.map((k) => {
       const kalan = k.tutar - krediToplamOdenen(k);
       return `
@@ -9025,7 +9338,7 @@
     const list = document.getElementById('demirbasList');
     const toplam = state.demirbaslar.reduce((s, d) => s + (d.purchasePrice || 0), 0);
     document.getElementById('demirbasToplam').textContent = formatTL(toplam);
-    if (!state.demirbaslar.length) { list.innerHTML = '<div class="empty-state">Henüz demirbaş yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
+    if (!state.demirbaslar.length) { list.innerHTML = '<div class="empty-state">Henüz demirbaş yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
     const items = state.demirbaslar.slice().sort((a, b) => (b.purchaseDate || '').localeCompare(a.purchaseDate || ''));
     list.innerHTML = items.map((d) => `
       <div class="list-row" data-id="${d.id}">
@@ -9070,7 +9383,7 @@
   }
   function renderProjeList() {
     const list = document.getElementById('projeList');
-    if (!state.projeler.length) { list.innerHTML = '<div class="empty-state">Henüz proje yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
+    if (!state.projeler.length) { list.innerHTML = '<div class="empty-state">Henüz proje yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
     list.innerHTML = state.projeler.map((p) => {
       const { net } = projeStats(p.id);
       return `
@@ -9151,7 +9464,7 @@
   // ================= ÖZEL FİYAT LİSTELERİ =================
   function renderFiyatListesiList() {
     const list = document.getElementById('fiyatListesiList');
-    if (!state.fiyatListeleri.length) { list.innerHTML = '<div class="empty-state">Henüz fiyat listesi yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
+    if (!state.fiyatListeleri.length) { list.innerHTML = '<div class="empty-state">Henüz fiyat listesi yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
     list.innerHTML = state.fiyatListeleri.map((fl) => `
       <div class="list-row" data-id="${fl.id}"><div class="main"><div class="title">${escapeHtml(fl.name)}</div><div class="sub">${Object.keys(fl.fiyatlar || {}).length} üründe özel fiyat</div></div><span class="chev">›</span></div>
     `).join('');
@@ -10015,7 +10328,7 @@
   function calisanTotalPaid(c) { return (c.hareketler || []).reduce((s, h) => s + h.tutar, 0); }
   function renderCalisanList() {
     const list = document.getElementById('calisanList');
-    if (!state.calisanlar.length) { list.innerHTML = '<div class="empty-state">Henüz çalışan yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
+    if (!state.calisanlar.length) { list.innerHTML = '<div class="empty-state">Henüz çalışan yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
     list.innerHTML = state.calisanlar.map((c) => `
       <div class="list-row" data-id="${c.id}">
         <div class="main"><div class="title">${escapeHtml(c.name)}</div><div class="sub">${escapeHtml(c.position || 'Pozisyon belirtilmemiş')}${c.phone ? ' · ' + escapeHtml(c.phone) : ''}</div></div>
@@ -10227,7 +10540,7 @@
   function renderNotlarList() {
     const list = document.getElementById('notlarList');
     const items = state.notlar.slice().sort((a, b) => b.date.localeCompare(a.date));
-    if (!items.length) { list.innerHTML = '<div class="empty-state">Henüz not yok. Yukarıdaki «+ Yeni Ürün / Hizmet» düğmesiyle ekleyebilirsin.</div>'; return; }
+    if (!items.length) { list.innerHTML = '<div class="empty-state">Henüz not yok. Yukarıdaki + ile ekleyebilirsin.</div>'; return; }
     list.innerHTML = items.map((n) => `
       <div class="list-row" data-id="${n.id}">
         <div class="main"><div class="title">${escapeHtml(n.title || 'Başlıksız not')}</div><div class="sub">${formatDate(n.date)}${n.content ? ' · ' + escapeHtml(n.content.slice(0, 60)) : ''}</div></div>
