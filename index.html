@@ -597,38 +597,38 @@
 
     <!-- ÖZET -->
     <section class="view active" id="view-ozet">
-      <div class="hm-uclu">
+      <div class="hm-uclu" data-hm="hizliIslem">
         <button type="button" class="hm-btn satis" id="hmSatisEkle"><span class="hm-ik">🛒</span><span>Satış Ekle</span></button>
         <button type="button" class="hm-btn alis" id="hmAlisEkle"><span class="hm-ik">📦</span><span>Alış Ekle</span></button>
         <button type="button" class="hm-btn masraf" id="hmMasrafEkle"><span class="hm-ik">🧾</span><span>Masraf Ekle</span></button>
       </div>
-      <div class="hm-hizli">
+      <div class="hm-hizli" data-hm="hizliIslem">
         <button type="button" class="hm-btn iade" id="hmIadeAl"><span class="hm-ik">↩️</span><span>İade Al</span></button>
         <button type="button" class="hm-btn teklif" id="hmTeklifVer"><span class="hm-ik">📝</span><span>Teklif Ver</span></button>
       </div>
       <div class="hm-ikili">
-        <div class="card hm-mini" id="hmKurKart" role="button" tabindex="0"></div>
-        <div class="card hm-mini" id="hmHavaKart" role="button" tabindex="0"></div>
+        <div class="card hm-mini" id="hmKurKart" data-hm="kur" role="button" tabindex="0"></div>
+        <div class="card hm-mini" id="hmHavaKart" data-hm="hava" role="button" tabindex="0"></div>
       </div>
-      <div class="card">
+      <div class="card" data-hm="alacak">
         <div class="hm-bas"><h2 class="section-title">Toplam Alacak</h2><div class="hm-top mono income" id="hmAlacakToplam">0,00 TL</div></div>
         <div class="hm-liste" id="hmAlacakListe"></div>
       </div>
-      <div class="card">
+      <div class="card" data-hm="borc">
         <div class="hm-bas"><h2 class="section-title">Toplam Borç</h2><div class="hm-top mono expense" id="hmBorcToplam">0,00 TL</div></div>
         <div class="hm-liste" id="hmBorcListe"></div>
       </div>
-      <div class="card">
+      <div class="card" data-hm="yaklasan">
         <h2 class="section-title">Yaklaşan Ödemeler <span class="hm-not">(30 gün)</span></h2>
         <div class="hm-ozet" id="hmYaklasanOzet"></div>
         <div class="hm-liste" id="hmYaklasanListe"></div>
       </div>
-      <div class="card">
+      <div class="card" data-hm="geciken">
         <h2 class="section-title">Günü Geçmiş Ödemeler</h2>
         <div class="hm-ozet" id="hmGecikenOzet"></div>
         <div class="hm-liste" id="hmGecikenListe"></div>
       </div>
-      <div class="card">
+      <div class="card" data-hm="hareketler">
         <h2 class="section-title">Hareketler</h2>
         <div class="chip-row" id="hmHareketChips">
           <button class="chip active" data-g="7">Son 1 Hafta</button>
@@ -638,10 +638,15 @@
         <div class="hm-ozet" id="hmHareketOzet"></div>
         <div class="hm-liste" id="hmHareketListe"></div>
       </div>
-      <div class="card">
+      <div class="card" data-hm="karHafta">
         <h2 class="section-title">Haftanın En Kârlı Ürünleri</h2>
         <p class="hm-not" id="hmKarNot" style="margin:-6px 0 8px"></p>
         <div class="hm-liste" id="hmKarListe"></div>
+      </div>
+      <div class="card" data-hm="karAy">
+        <h2 class="section-title">Ayın En Kârlı Ürünleri</h2>
+        <p class="hm-not" id="hmKarAyNot" style="margin:-6px 0 8px"></p>
+        <div class="hm-liste" id="hmKarAyListe"></div>
       </div>
     </section>
 
@@ -1469,9 +1474,16 @@
         <div class="menu-row" data-a="tanimlar"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div><div><div class="title">Tanımlar</div><div class="sub">Gelir/gider/masraf kategorileri, ödeme yöntemleri</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-a="veri"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 18v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg></div><div><div class="title">Veri Yönetimi</div><div class="sub">Yedek al, geri yükle, verileri sil</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-a="kullanicilar" id="ayarlarKullanicilarRow" style="display:none"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="9" cy="8" r="3.2"/><path d="M2 21c0-3.8 3-6 7-6s7 2.2 7 6"/><circle cx="17.5" cy="9" r="2.3"/><path d="M16 15.2c2.8.5 4.5 2.2 5 5.8"/></svg></div><div><div class="title">Kullanıcılar</div><div class="sub">Ekibine erişim ver ya da kaldır</div></div><span class="chev">›</span></div>
+        <div class="menu-row" data-a="yetkiler" id="ayarlarYetkiRow" style="display:none"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3Z"/><path d="M9 12l2 2 4-4"/></svg></div><div><div class="title">Çalışan Yetkileri</div><div class="sub">Çalışanın hangi bölümleri göreceğini sen seç</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-a="cikis"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" style="color:var(--expense)"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></div><div><div class="title" style="color:var(--expense)">Çıkış Yap</div></div></div>
       </div>
       <p style="font-size:12px;color:var(--ink-soft);padding:0 4px">E-Fatura, SMS ve Kargo entegrasyonları bu sürümde yok — bunlar gerçek banka/GİB/kurye bağlantısı gerektiriyor.</p>
+    </section>
+
+    <!-- ÇALIŞAN YETKİLERİ -->
+    <section class="view" id="view-calisan-yetkileri">
+      <p style="font-size:12.5px;color:var(--ink-soft);padding:0 4px;margin-bottom:10px">"Çalışan" rolündeki kullanıcılar varsayılan olarak <b>sadece Ana Sayfayı</b> görür. Aşağıdan görmesini istediğin bölümleri aç. Yöneticiler her şeyi görür. Değişiklikler anında kaydedilir.</p>
+      <div id="calisanYetkiBody"></div>
     </section>
 
     <!-- KULLANICILAR -->
@@ -1686,6 +1698,10 @@
       <button class="drawer-item" data-nav="firsatlar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 3 14h6l-1 8 10-14h-6l0-6Z"/></svg>
         Fırsatlar
+      </button>
+      <button class="drawer-item" id="drawerCikisBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
+        Çıkış Yap
       </button>
     </div>
   </nav>
@@ -1954,6 +1970,9 @@
     state.markalar = state.markalar || [];
     state.depolar = state.depolar || [];
     state.firsatlar = state.firsatlar || [];
+    state.calisanYetkileri = state.calisanYetkileri || {};
+    state.calisanYetkileri.menu = state.calisanYetkileri.menu || {};
+    state.calisanYetkileri.anaSayfa = state.calisanYetkileri.anaSayfa || {};
     // Yazdırma/PDF görünüm ayarları artık Satış/Alış/Teklif/Sipariş/İrsaliye için AYRI AYRI tutulur —
     // ör. İrsaliye'de fiyat/toplam gizlenip Teklif'te açık bırakılabilir. Eskiden TEK, ortak bir ayar
     // nesnesiydi (ör. state.sablonAyarlari.logo doğrudan üstte dururdu) — bu eski biçimi tespit edip
@@ -2346,7 +2365,7 @@
     'view-katalog-sec': 'Satış Kataloğu Oluştur',
     'view-etiket-sec': 'Ürün Etiketi Oluştur',
     'view-ayarlar': 'Ayarlar', 'view-sirket-bilgileri': 'Şirket Bilgileri', 'view-sablon-ayarlari': 'Şablon Ayarları', 'view-tanimlar': 'Tanımlar',
-    'view-tanim-liste': 'Tanım Listesi', 'view-veri-yonetimi': 'Veri Yönetimi', 'view-kullanicilar': 'Kullanıcılar',
+    'view-tanim-liste': 'Tanım Listesi', 'view-veri-yonetimi': 'Veri Yönetimi', 'view-kullanicilar': 'Kullanıcılar', 'view-calisan-yetkileri': 'Çalışan Yetkileri',
     'view-rapor-satis': 'Satışlar', 'view-rapor-alis': 'Alışlar', 'view-rapor-masraf': 'Masraflar Raporu',
     'view-rapor-iade': 'İadeler', 'view-rapor-kasa': 'Kasa-Hesap Hareketleri', 'view-rapor-borc': 'Borç Alacak Listesi',
     'view-rapor-cek': 'Çek Senet Durumu', 'view-rapor-geciken': 'Geciken Alacaklar', 'view-rapor-kdv': 'KDV Dökümü',
@@ -2370,6 +2389,7 @@
   let viewPath = [];
   function showView(id, opts) {
     opts = opts || {};
+    if (!viewIzinli(id)) { alert('Bu bölümü görüntüleme yetkin yok. Gerekirse yöneticinden iste.'); id = 'view-ozet'; opts = {}; }
     document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
     document.getElementById(id).classList.add('active');
     appTitle.textContent = VIEW_TITLES[id] || 'DNZ Defter';
@@ -2382,8 +2402,8 @@
     // sayfadaysak (geri gidilecek yer yok) gizlenir.
     headerBack.onclick = stepBack;
     headerBack.style.display = canStepBack() ? 'flex' : 'none';
-    document.getElementById('headerBarkodBtn').style.display = (id === 'view-ozet') ? 'flex' : 'none';
-    document.getElementById('headerFaturaEkleBtn').style.display = (id === 'view-ozet') ? 'flex' : 'none';
+    document.getElementById('headerBarkodBtn').style.display = (id === 'view-ozet' && anaSayfaIzni('hizliIslem')) ? 'flex' : 'none';
+    document.getElementById('headerFaturaEkleBtn').style.display = (id === 'view-ozet' && anaSayfaIzni('hizliIslem')) ? 'flex' : 'none';
     document.getElementById('headerStokFiltreBtn').style.display = (id === 'view-stok') ? 'flex' : 'none';
     const docActionsOn = id === 'view-fatura-detail';
     document.getElementById('headerDocActions').style.display = docActionsOn ? 'flex' : 'none';
@@ -3232,29 +3252,34 @@
     });
     return m > 0 ? tutar / m : ((s.buyPrice || 0) / (s.donusumOrani || 1));
   }
+  // Verilen başlangıç tarihinden bugüne ürün bazlı kâr; ortalama ve ortalamanın üzerindekiler.
   function hmKarCiz() {
-    const bas = new Date(); bas.setDate(bas.getDate() - 6);
-    const basStr = localDateStr(bas);
-    const harita = {};
-    state.faturalar.forEach((f) => {
-      if ((f.docType !== 'fatura' && f.docType !== 'iade') || f.yon !== 'satis' || f.date < basStr) return;
-      const sign = f.docType === 'iade' ? -1 : 1;
-      (f.items || []).forEach((it) => {
-        if (!it.stokId) return;
-        const s = state.stok.find((x) => x.id === it.stokId); if (!s) return;
-        const r = harita[s.id] || (harita[s.id] = { s, ciro: 0, maliyet: 0, adet: 0, birim: hmBirimMaliyet(s) });
-        r.ciro += sign * it.qty * it.unitPrice * faturaKuru(f);
-        r.maliyet += sign * it.qty * r.birim;
-        r.adet += sign * it.qty;
+    function hesapla(basStr, notId, listeId, donemAdi) {
+      const harita = {};
+      state.faturalar.forEach((f) => {
+        if ((f.docType !== 'fatura' && f.docType !== 'iade') || f.yon !== 'satis' || f.date < basStr) return;
+        const sign = f.docType === 'iade' ? -1 : 1;
+        (f.items || []).forEach((it) => {
+          if (!it.stokId) return;
+          const s = state.stok.find((x) => x.id === it.stokId); if (!s) return;
+          const r = harita[s.id] || (harita[s.id] = { s, ciro: 0, maliyet: 0, adet: 0, birim: hmBirimMaliyet(s) });
+          r.ciro += sign * it.qty * it.unitPrice * faturaKuru(f);
+          r.maliyet += sign * it.qty * r.birim;
+          r.adet += sign * it.qty;
+        });
       });
-    });
-    const satirlar = Object.values(harita).map((r) => Object.assign(r, { kar: r.ciro - r.maliyet })).filter((r) => r.ciro > 0 || r.kar !== 0);
-    const ort = satirlar.length ? satirlar.reduce((t, r) => t + r.kar, 0) / satirlar.length : 0;
-    const iyi = satirlar.filter((r) => r.kar > 0 && r.kar >= ort).sort((a, b) => b.kar - a.kar);
-    document.getElementById('hmKarNot').textContent = satirlar.length
-      ? `Son 7 günde ${satirlar.length} ürün satıldı · ürün başına ortalama kâr ${formatTL(ort)}. Ortalamanın üzerinde kalanlar:`
-      : 'Son 7 günde ürüne bağlı satış yok.';
-    document.getElementById('hmKarListe').innerHTML = iyi.length ? iyi.map((r) => hmSatir(`data-stok="${r.s.id}"`, r.s.name, `${r.adet.toLocaleString('tr-TR', { maximumFractionDigits: 2 })} ${escapeHtml(r.s.satisBirimi || 'Adet')} · Ciro ${formatTL(r.ciro)}${r.ciro > 0 ? ' · Marj %' + (r.kar / r.ciro * 100).toFixed(1) : ''}`, r.kar, 'income')).join('') : hmBos(satirlar.length ? 'Ortalamanın üzerinde kârlı ürün yok.' : 'Gösterilecek ürün yok.');
+      const satirlar = Object.values(harita).map((r) => Object.assign(r, { kar: r.ciro - r.maliyet })).filter((r) => r.ciro > 0 || r.kar !== 0);
+      const ort = satirlar.length ? satirlar.reduce((t, r) => t + r.kar, 0) / satirlar.length : 0;
+      const iyi = satirlar.filter((r) => r.kar > 0 && r.kar >= ort).sort((a, b) => b.kar - a.kar);
+      document.getElementById(notId).textContent = satirlar.length
+        ? `${donemAdi} ${satirlar.length} ürün satıldı · ürün başına ortalama kâr ${formatTL(ort)}. Ortalamanın üzerinde kalanlar:`
+        : `${donemAdi} ürüne bağlı satış yok.`;
+      document.getElementById(listeId).innerHTML = iyi.length ? iyi.map((r) => hmSatir(`data-stok="${r.s.id}"`, r.s.name, `${r.adet.toLocaleString('tr-TR', { maximumFractionDigits: 2 })} ${escapeHtml(r.s.satisBirimi || 'Adet')} · Ciro ${formatTL(r.ciro)}${r.ciro > 0 ? ' · Marj %' + (r.kar / r.ciro * 100).toFixed(1) : ''}`, r.kar, 'income')).join('') : hmBos(satirlar.length ? 'Ortalamanın üzerinde kârlı ürün yok.' : 'Gösterilecek ürün yok.');
+    }
+    const hafta = new Date(); hafta.setDate(hafta.getDate() - 6);
+    hesapla(localDateStr(hafta), 'hmKarNot', 'hmKarListe', 'Son 7 günde');
+    const ayBasi = new Date(); ayBasi.setDate(1);
+    hesapla(localDateStr(ayBasi), 'hmKarAyNot', 'hmKarAyListe', 'Bu ay');
   }
 
   // --- Dolar kuru (canlı, yalnızca gösterim — kayıtlı kurlara DOKUNMAZ) ---
@@ -3265,7 +3290,7 @@
     const k = kurFor('USD');
     kart.innerHTML = `<div class="hm-et">💵 Dolar / TL</div>
       <div class="hm-bu mono">${hmKur ? hmKur.v.toLocaleString('tr-TR', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) : (hmKurYukleniyor ? '…' : '—')}</div>
-      <div class="hm-ks">${hmKur ? 'Güncelleme ' + new Date(hmKur.t).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : (hmKurYukleniyor ? 'Alınıyor…' : 'Kur alınamadı, dokun yenile')}${k.satis ? `<br>Kayıtlı: ${k.alis.toLocaleString('tr-TR')} / ${k.satis.toLocaleString('tr-TR')}` : ''}<br><a href="#" id="hmKurAyar">Kuru ayarla</a></div>`;
+      <div class="hm-ks">${hmKur ? 'Güncelleme ' + new Date(hmKur.t).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : (hmKurYukleniyor ? 'Alınıyor…' : 'Kur alınamadı, dokun yenile')}${k.satis ? `<br>Kayıtlı: ${k.alis.toLocaleString('tr-TR')} / ${k.satis.toLocaleString('tr-TR')}` : ''}${currentUserRole === 'yonetici' ? '<br><a href="#" id="hmKurAyar">Kuru ayarla</a>' : ''}</div>`;
   }
   async function hmKurYukle(zorla) {
     if (hmKurYukleniyor) return;
@@ -3358,10 +3383,10 @@
   });
   document.getElementById('view-ozet').addEventListener('click', (e) => {
     const r = e.target.closest('.list-row'); if (!r) return;
-    if (r.dataset.cari) ozettenAc(() => enterCariDetail(r.dataset.cari));
-    else if (r.dataset.fatura) ozettenAc(() => enterFaturaDetail(r.dataset.fatura));
-    else if (r.dataset.stok) ozettenAc(() => enterStokDetail(r.dataset.stok));
-    else if (r.dataset.cek) ozettenAc(() => enterCek());
+    if (r.dataset.cari) { const c = state.cariler.find((x) => x.id === r.dataset.cari); if (c && !menuIzni(c.type === 'tedarikci' ? 'tedarikci' : 'musteri')) return; ozettenAc(() => enterCariDetail(r.dataset.cari)); }
+    else if (r.dataset.fatura) { const f = state.faturalar.find((x) => x.id === r.dataset.fatura); if (f && !(menuIzni(f.yon === 'alis' ? 'alislar' : 'satislar') || anaSayfaIzni('hizliIslem'))) return; ozettenAc(() => enterFaturaDetail(r.dataset.fatura)); }
+    else if (r.dataset.stok) { if (!menuIzni('stok')) return; ozettenAc(() => enterStokDetail(r.dataset.stok)); }
+    else if (r.dataset.cek) { if (!menuIzni('cek')) return; ozettenAc(() => enterCek()); }
   });
   // Özet panellerinden açılan detaydan geri dönünce, ilgili listeye değil yine Özet'e dönülür.
   function ozettenAc(fn, geri) { fn(); const cur = viewPath[viewPath.length - 1]; if (cur) cur.onBack = geri || enterOzet; }
@@ -10627,6 +10652,69 @@
     if (r && r.go) r.go();
   });
 
+
+  // ================= ÇALIŞAN YETKİLERİ =================
+  // Yönetici her şeyi görür. "Çalışan" rolündeki kullanıcı varsayılan olarak SADECE Ana Sayfayı görür;
+  // yönetici Ayarlar > Çalışan Yetkileri'nden hangi menü bölümlerinin ve ana sayfa bloklarının görüneceğini seçer.
+  // Not: bu, uygulama arayüzündeki görünürlüğü yönetir (veri tabanı düzeyinde ayrı bir kısıtlama değildir).
+  const MENU_YETKILERI = [['musteri', 'Müşteriler'], ['tedarikci', 'Tedarikçiler'], ['stok', 'Ürünler (stok)'], ['satislar', 'Satışlar'], ['alislar', 'Alışlar'], ['teklifler', 'Teklifler'], ['firsatlar', 'Fırsatlar'], ['kasa', 'Kasa / Banka'], ['masraf', 'Masraflar'], ['cek', 'Çek / Senet'], ['calisan', 'Çalışanlar (maaş/personel)'], ['kredi', 'Krediler'], ['demirbas', 'Demirbaşlar'], ['proje', 'Projeler'], ['raporlar', 'Raporlar (Genel Özet dahil)'], ['takvim', 'Takvim'], ['notlar', 'Notlar'], ['fihrist', 'Fihrist'], ['ayarlar', 'Ayarlar']];
+  const ANASAYFA_YETKILERI = [['hizliIslem', 'Satış / Alış / Masraf Ekle, İade Al, Teklif Ver düğmeleri'], ['kur', 'Dolar kuru'], ['hava', 'Hava durumu'], ['alacak', 'Toplam alacak ve isim listesi'], ['borc', 'Toplam borç ve isim listesi'], ['yaklasan', 'Yaklaşan ödemeler'], ['geciken', 'Günü geçmiş ödemeler'], ['hareketler', 'Hareketler (1 hafta / 1 ay / 3 ay)'], ['karHafta', 'Haftanın en kârlı ürünleri'], ['karAy', 'Ayın en kârlı ürünleri']];
+  const yoneticiMi = () => currentUserRole === 'yonetici';
+  function menuIzni(k) { return yoneticiMi() || (((state.calisanYetkileri || {}).menu || {})[k] === true); }
+  function anaSayfaIzni(k) { return yoneticiMi() || (((state.calisanYetkileri || {}).anaSayfa || {})[k] !== false); }
+  function navIzinli(nav) { if (nav === 'ozet') return true; return menuIzni(nav.indexOf('raporlar') === 0 ? 'raporlar' : nav); }
+  function viewIzinli(id) {
+    if (yoneticiMi() || id === 'view-ozet') return true;
+    if (id === 'view-kullanicilar' || id === 'view-calisan-yetkileri') return false;
+    if (/^view-(raporlar|rapor-|genel-ozet)/.test(id)) return menuIzni('raporlar');
+    if (id === 'view-cari' || id === 'view-cari-detail' || id === 'view-cari-form') return menuIzni(cariFilter === 'tedarikci' ? 'tedarikci' : 'musteri');
+    if (/^view-(stok|kategori|marka|depo|fiyat-listesi|katalog-sec|etiket-sec)/.test(id)) return menuIzni('stok');
+    if (id === 'view-fatura') return menuIzni(faturaYonFilter === 'alis' ? 'alislar' : 'satislar');
+    if (id === 'view-fatura-form' || id === 'view-fatura-detail' || id === 'view-urun-arama') return anaSayfaIzni('hizliIslem') || menuIzni('satislar') || menuIzni('alislar') || menuIzni('teklifler');
+    const harita = { 'view-teklifler': 'teklifler', 'view-firsatlar': 'firsatlar', 'view-gg': 'masraf', 'view-tekrarlayan': 'masraf', 'view-masraf': 'masraf', 'view-cek': 'cek', 'view-takvim': 'takvim', 'view-notlar': 'notlar', 'view-fihrist': 'fihrist' };
+    if (harita[id]) return menuIzni(harita[id]);
+    if (/^view-kasa/.test(id)) return menuIzni('kasa');
+    if (/^view-kredi/.test(id)) return menuIzni('kredi');
+    if (/^view-demirbas/.test(id)) return menuIzni('demirbas');
+    if (/^view-proje/.test(id)) return menuIzni('proje');
+    if (/^view-calisan/.test(id)) return menuIzni('calisan');
+    if (/^view-(ayarlar|sablon-ayarlari|sirket-bilgileri|tanimlar|tanim-liste|veri-yonetimi)/.test(id)) return menuIzni('ayarlar');
+    return true;
+  }
+  // Çekmece öğelerini, Ayarlar satırlarını ve ana sayfa bloklarını role göre gösterir/gizler.
+  function yetkiUygula() {
+    document.querySelectorAll('.drawer-item[data-nav], .drawer-subitem[data-nav]').forEach((el) => { el.style.display = navIzinli(el.dataset.nav) ? '' : 'none'; });
+    document.querySelectorAll('.drawer-group').forEach((g) => {
+      const alt = [...g.querySelectorAll('.drawer-subitem')];
+      g.style.display = alt.length && alt.every((x) => x.style.display === 'none') ? 'none' : '';
+    });
+    const ky = document.getElementById('ayarlarYetkiRow'); if (ky) ky.style.display = yoneticiMi() ? 'flex' : 'none';
+    document.querySelectorAll('#view-ozet [data-hm]').forEach((el) => { el.style.display = anaSayfaIzni(el.dataset.hm) ? '' : 'none'; });
+    const cur = document.querySelector('.view.active');
+    if (cur && !viewIzinli(cur.id)) enterOzet();
+  }
+  function enterCalisanYetkileri() { showView('view-calisan-yetkileri', { showBack: true, onBack: enterAyarlar }); renderCalisanYetkileri(); setDrawerActive('ayarlar'); }
+  function renderCalisanYetkileri() {
+    const y = state.calisanYetkileri;
+    const satir = (grup, k, ad, acik) => `<label style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)"><span>${escapeHtml(ad)}</span><input type="checkbox" data-grup="${grup}" data-k="${k}" ${acik ? 'checked' : ''} style="width:auto;transform:scale(1.3)"></label>`;
+    document.getElementById('calisanYetkiBody').innerHTML = `
+      <div class="card">
+        <h2 class="section-title">Menüde görebileceği bölümler</h2>
+        <p style="font-size:12px;color:var(--ink-soft);margin-top:-6px">Kapalı olan bölümler çalışanın menüsünde görünmez ve açılamaz.</p>
+        ${MENU_YETKILERI.map(([k, ad]) => satir('menu', k, ad, y.menu[k] === true)).join('')}
+      </div>
+      <div class="card">
+        <h2 class="section-title">Ana sayfada görebileceği bölümler</h2>
+        ${ANASAYFA_YETKILERI.map(([k, ad]) => satir('anaSayfa', k, ad, y.anaSayfa[k] !== false)).join('')}
+      </div>`;
+  }
+  document.getElementById('calisanYetkiBody').addEventListener('change', (e) => {
+    const cb = e.target.closest('input[data-grup]'); if (!cb) return;
+    state.calisanYetkileri[cb.dataset.grup][cb.dataset.k] = cb.checked;
+    saveState();
+  });
+  document.getElementById('drawerCikisBtn').addEventListener('click', () => { if (confirm('Çıkış yapmak istiyor musun?')) sb.auth.signOut(); });
+
   // ================= AYARLAR =================
   document.querySelectorAll('#view-ayarlar .menu-row').forEach((row) => {
     row.addEventListener('click', () => {
@@ -10637,6 +10725,7 @@
       else if (a === 'tanimlar') enterTanimlar();
       else if (a === 'veri') enterVeriYonetimi();
       else if (a === 'kullanicilar') enterKullanicilar();
+      else if (a === 'yetkiler') enterCalisanYetkileri();
       else if (a === 'cikis') {
         if (confirm('Çıkış yapmak istiyor musun?')) sb.auth.signOut();
       }
@@ -10851,6 +10940,7 @@
     renderKrediList(); renderDemirbasList(); renderProjeList(); renderFiyatListesiList();
     renderAllProjeSelects(); renderAllFiyatListesiSelects();
     renderTeklifListesi(); renderFirsatlarList();
+    yetkiUygula();
   }
 
   // ---------------- Auth & Init ----------------
