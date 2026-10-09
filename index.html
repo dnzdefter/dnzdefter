@@ -3247,7 +3247,7 @@
     state.faturalar.forEach((f) => {
       if (!isBelgeEffectDoc(f) || f.date < basStr) return;
       const satis = f.yon === 'satis', iade = f.docType === 'iade';
-      out.push({ tarih: f.date, ad: f.cariAdi || 'Perakende', etiket: (satis ? 'Satış' : 'Alış') + (iade ? ' iadesi' : ' faturası') + ' · ' + (f.belgeNo || f.no), tutar: f.genelToplam, gelir: satis ? !iade : iade, attr: `data-fatura="${f.id}"` });
+      out.push({ tarih: f.date, ad: f.cariAdi || 'Perakende', etiket: (satis ? 'Satış' : 'Alış') + (iade ? ' iadesi' : ' faturası') + ' · ' + (f.belgeNo || f.no), tutar: f.genelToplam, gelir: satis ? !iade : iade, attr: `data-fatura="${f.id}"`, topla: !f.cariId });
     });
     state.cariler.forEach((c) => (c.hareketler || []).forEach((h) => {
       if (!h.odemeId || h.date < basStr) return;
@@ -3258,10 +3258,17 @@
       out.push({ tarih: t.date, ad: t.title || t.category || (t.type === 'gelir' ? 'Gelir' : 'Gider'), etiket: t.type === 'gelir' ? 'Gelir' : 'Gider' + (t.category && t.title ? ' · ' + t.category : ''), tutar: t.amount, gelir: t.type === 'gelir', attr: '' });
     });
     out.sort((a, b) => b.tarih.localeCompare(a.tarih));
-    const giris = out.filter((x) => x.gelir).reduce((t, x) => t + x.tutar, 0);
-    const cikis = out.filter((x) => !x.gelir).reduce((t, x) => t + x.tutar, 0);
-    document.getElementById('hmHareketOzet').innerHTML = `<span>${out.length} hareket</span><span>Giriş: <b class="mono">${formatTL(giris)}</b></span><span>Çıkış: <b class="mono">${formatTL(cikis)}</b></span>`;
-    document.getElementById('hmHareketListe').innerHTML = out.length ? out.slice(0, 150).map((x) => hmSatir(x.attr, x.ad, `${formatDate(x.tarih)} · ${escapeHtml(x.etiket)}`, x.tutar, x.gelir ? 'income' : 'expense')).join('') : hmBos('Bu dönemde hareket yok.');
+    // Giriş/Çıkış yalnızca FİİLEN para hareketini sayar: tahsilat, ödeme, gelir, gider. Cariye bağlı bir fatura ile
+    // onun ödemesi ikisi birden toplanırsa aynı para iki kez sayılır; bu yüzden cariye bağlı faturalar listede görünür
+    // ama toplama girmez. Cariye bağlı olmayan (perakende) fatura için ayrı bir ödeme satırı olmadığından sayılır.
+    const sayilan = out.filter((x) => x.topla !== false);
+    const giris = sayilan.filter((x) => x.gelir).reduce((t, x) => t + x.tutar, 0);
+    const cikis = sayilan.filter((x) => !x.gelir).reduce((t, x) => t + x.tutar, 0);
+    const fSatis = state.faturalar.filter((f) => isBelgeEffectDoc(f) && f.date >= basStr && f.yon === 'satis').reduce((t, f) => t + (f.docType === 'iade' ? -1 : 1) * (f.genelToplam || 0), 0);
+    const fAlis = state.faturalar.filter((f) => isBelgeEffectDoc(f) && f.date >= basStr && f.yon === 'alis').reduce((t, f) => t + (f.docType === 'iade' ? -1 : 1) * (f.genelToplam || 0), 0);
+    const net = giris - cikis;
+    document.getElementById('hmHareketOzet').innerHTML = `<span>${out.length} hareket</span><span>Giriş: <b class="mono">${formatTL(giris)}</b></span><span>Çıkış: <b class="mono">${formatTL(cikis)}</b></span><span>Net: <b class="mono" style="color:${net >= 0 ? 'var(--income)' : 'var(--expense)'}">${formatTL(net)}</b></span><span style="flex-basis:100%;font-size:11.5px">Dönem faturaları (vadeli dahil) · Satış: <b class="mono">${formatTL(fSatis)}</b> · Alış: <b class="mono">${formatTL(fAlis)}</b></span>`;
+    document.getElementById('hmHareketListe').innerHTML = out.length ? out.slice(0, 150).map((x) => hmSatir(x.attr, x.ad, `${formatDate(x.tarih)} · ${escapeHtml(x.etiket)}${x.topla === false ? ' · toplama dahil değil' : ''}`, x.tutar, x.topla === false ? '' : (x.gelir ? 'income' : 'expense'))).join('') : hmBos('Bu dönemde hareket yok.');
   }
 
   // Bir ürünün SATIŞ BİRİMİ başına ortalama maliyeti (alış geçmişinden; yoksa son alış fiyatı).
