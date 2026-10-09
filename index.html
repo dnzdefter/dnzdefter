@@ -784,6 +784,7 @@
           <select id="cfEfaturaDurum"><option value="">Bilinmiyor (sorgulanacak)</option><option value="mukellef">e-Fatura mükellefi</option><option value="degil">Mükellef değil (e-Arşiv)</option></select>
         </div>
         <div class="field"><label>e-Fatura posta kutusu etiketi (opsiyonel)</label><input type="text" id="cfEfaturaEtiket" placeholder="urn:mail:defaultpk@firma.com.tr"></div>
+        <div class="field" id="cfMukellefBlok" style="display:none"><button type="button" class="btn" id="cfMukellefSorgu">🔎 QNB'den mükellef sorgula</button><div id="cfMukellefSonuc" class="sub" style="margin-top:6px"></div></div>
       </div>
 
       <div class="tab-panel hidden" id="cfPanelDiger">
@@ -1137,6 +1138,21 @@
       <div class="field-row">
         <div class="field"><label>Fiyat Listesi (opsiyonel)</label><select id="fFiyatListesi" class="fiyat-listesi-select"><option value="">— Normal fiyatlar —</option></select></div>
         <div class="field"><label>Proje (opsiyonel)</label><select id="fProje" class="proje-select"><option value="">— Yok —</option></select></div>
+      </div>
+      <div id="fSevkBlok" class="hidden">
+        <h2 class="section-title">Sevk Bilgileri (e-İrsaliye)</h2>
+        <div class="field-row">
+          <div class="field"><label>Araç plakası</label><input type="text" id="fSevkPlaka" placeholder="34 ABC 123" autocapitalize="characters"></div>
+          <div class="field"><label>Sevk saati</label><input type="time" id="fSevkSaat"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Şoför adı soyadı</label><input type="text" id="fSevkSofor"></div>
+          <div class="field"><label>Şoför TCKN</label><input type="text" id="fSevkSoforTc" inputmode="numeric" maxlength="11"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Taşıyıcı unvanı (opsiyonel)</label><input type="text" id="fSevkTasiyici" placeholder="Kendi aracımız ise boş bırak"></div>
+          <div class="field"><label>Taşıyıcı VKN (opsiyonel)</label><input type="text" id="fSevkTasiyiciVkn" inputmode="numeric" maxlength="11"></div>
+        </div>
       </div>
       <div class="field">
         <label>Para Birimi</label>
@@ -2786,6 +2802,11 @@
   function enterCariDetail(id) { currentCariDetailId = id; const c0 = state.cariler.find((x) => x.id === id); if (c0) cariFilter = c0.type; showView('view-cari-detail', { showBack: true, onBack: backToCariList }); renderCariDetail(); setDrawerActive(cariFilter === 'tedarikci' ? 'tedarikci' : 'musteri'); }
   function enterCariForm(id) { openCariForm(id); showView('view-cari-form', { showBack: true, onBack: id ? (() => enterCariDetail(id)) : backToCariList }); setDrawerActive(cariFilter === 'tedarikci' ? 'tedarikci' : 'musteri'); }
   let editingFaturaId = null;
+  function sevkBlokGuncelle() {
+    const b = document.getElementById('fSevkBlok'); if (!b) return;
+    b.classList.toggle('hidden', document.getElementById('fBelgeTuru').value !== 'irsaliye');
+  }
+  document.getElementById('fBelgeTuru').addEventListener('change', sevkBlokGuncelle);
   function enterFaturaForm(preset, editId, fromTeklifler, copySource) {
     cameFromTeklifler = !!fromTeklifler;
     editingFaturaId = editId || null;
@@ -2809,6 +2830,14 @@
     document.getElementById('fTarih').value = existing ? existing.date : todayISO();
     document.getElementById('fVade').value = existing && existing.vade ? existing.vade : '';
     document.getElementById('fIrsaliyeNo').value = existing ? (existing.irsaliyeNo || '') : '';
+    const sv = (src && src.sevk) || {};
+    document.getElementById('fSevkPlaka').value = sv.plaka || '';
+    document.getElementById('fSevkSaat').value = sv.saat || '';
+    document.getElementById('fSevkSofor').value = sv.sofor || '';
+    document.getElementById('fSevkSoforTc').value = sv.soforTc || '';
+    document.getElementById('fSevkTasiyici').value = sv.tasiyici || '';
+    document.getElementById('fSevkTasiyiciVkn').value = sv.tasiyiciVkn || '';
+    sevkBlokGuncelle();
     document.getElementById('fNotlar').value = src ? (src.notlar || '') : '';
     const selectedCari = document.getElementById('fCari').value ? state.cariler.find((c) => c.id === document.getElementById('fCari').value) : null;
     document.getElementById('fFiyatListesi').value = src ? (src.fiyatListesiId || '') : ((selectedCari && selectedCari.varsayilanFiyatListesiId) || '');
@@ -2820,8 +2849,489 @@
     showView('view-fatura-form', { showBack: true, onBack: backToFaturaList });
     setDrawerActive(cameFromTeklifler ? 'teklifler' : (faturaYonFilter === 'alis' ? 'alislar' : 'satislar'));
   }
-  function copyFaturaAsNew(f) {
+  function copyFaturaAsNew(f, farkliCari) {
+    if (farkliCari) {
+      enterFaturaForm({ docType: f.docType, yon: f.yon, cariMode: 'kayitli' }, null, false, Object.assign({}, f, { cariId: '', cariAdi: '' }));
+      setCariMode('kayitli');
+      return;
+    }
     enterFaturaForm({ docType: f.docType, yon: f.yon, cariMode: f.cariId ? 'kayitli' : 'perakende', presetCariId: f.cariId }, null, false, f);
+  }
+  // Kopyala: cariye bağlı belgede "aynı müşteri / farklı müşteri" seçeneği sunulur.
+  function kopyalaMenusu(f) {
+    if (!f.cariId) { copyFaturaAsNew(f); return; }
+    const kisi = f.yon === 'satis' ? 'müşteri' : 'tedarikçi';
+    openModal(`<h3>Kopyala</h3><p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px">Kalemler yeni belgeye aynen kopyalanır; numara ve tarih yenilenir.</p>
+      <div class="modal-actions" style="flex-direction:column;gap:8px;align-items:stretch">
+        <button class="btn btn-primary" id="kpAyni">Aynı ${kisi} için</button>
+        <button class="btn" id="kpFarkli">Farklı bir ${kisi} için</button>
+        <button class="btn" id="kpIptal">Vazgeç</button></div>`);
+    document.getElementById('kpAyni').onclick = () => { closeModal(); copyFaturaAsNew(f); };
+    document.getElementById('kpFarkli').onclick = () => { closeModal(); copyFaturaAsNew(f, true); };
+    document.getElementById('kpIptal').onclick = closeModal;
+  }
+  // Paylaş: PDF, e-posta, SMS ve (cariye bağlıysa) müşteri takip bağlantısı.
+  // ---- e-Fatura XML (UBL-TR 1.2) üretimi ----
+  // QNB (veya başka bir entegratör) bağlantısı gelene kadar: faturadan standart UBL-TR XML üretir ve indirir.
+  // Fatura numarasını ve imzayı entegratör atar/ekler; burada üretilen dosya hazırlık/doğrulama içindir.
+  const UBL_BIRIM = { 'adet': 'C62', 'kg': 'KGM', 'gr': 'GRM', 'g': 'GRM', 'ton': 'TNE', 'lt': 'LTR', 'litre': 'LTR', 'm': 'MTR', 'mt': 'MTR', 'metre': 'MTR', 'm2': 'MTK', 'm²': 'MTK', 'm3': 'MTQ', 'm³': 'MTQ', 'paket': 'PA', 'koli': 'BX', 'kutu': 'BX', 'saat': 'HUR', 'gün': 'DAY', 'gun': 'DAY', 'ay': 'MON', 'takım': 'SET', 'takim': 'SET', 'çift': 'PR', 'cift': 'PR', 'düzine': 'DZN', 'duzine': 'DZN', 'rulo': 'RO', 'palet': 'PF' };
+  function ublXml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function ublR2(n) { return Math.round((Number(n) || 0) * 100 + (n < 0 ? -1e-9 : 1e-9)) / 100; }
+  function ublTut(n) { return ublR2(n).toFixed(2); }
+  function ublPara(pb) { return !pb || pb === 'TL' ? 'TRY' : pb; }
+  function ublUuid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID().toUpperCase();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }).toUpperCase();
+  }
+  function ublYalniz(tutar, pb) {
+    const bir = ['', 'Bir', 'İki', 'Üç', 'Dört', 'Beş', 'Altı', 'Yedi', 'Sekiz', 'Dokuz'];
+    const on = ['', 'On', 'Yirmi', 'Otuz', 'Kırk', 'Elli', 'Altmış', 'Yetmiş', 'Seksen', 'Doksan'];
+    const grup = ['', 'Bin', 'Milyon', 'Milyar', 'Trilyon'];
+    const uc = (n) => { const y = Math.floor(n / 100), o = Math.floor(n % 100 / 10), b = n % 10; return (y ? (y > 1 ? bir[y] : '') + 'Yüz' : '') + on[o] + bir[b]; };
+    const yaz = (n) => {
+      if (n === 0) return 'Sıfır';
+      let s = '', i = 0;
+      while (n > 0) { const g = n % 1000; if (g) { s = ((g === 1 && i === 1) ? '' : uc(g)) + grup[i] + s; } n = Math.floor(n / 1000); i++; }
+      return s;
+    };
+    const t = Math.round(Math.abs(tutar) * 100), lira = Math.floor(t / 100), kurus = t % 100;
+    const ad = { TRY: ['TürkLirası', 'Kuruş'], USD: ['Amerikan Doları', 'Sent'], EUR: ['Euro', 'Sent'], GBP: ['İngiliz Sterlini', 'Peni'] }[ublPara(pb)] || [ublPara(pb), ''];
+    return ('Yalnız ' + yaz(lira) + ad[0] + (kurus ? yaz(kurus) + ad[1] : '')).replace(/([a-zçğıöşü])([A-ZÇĞİÖŞÜ])/g, '$1 $2');
+  }
+  function ublTaraf(p, tip) {
+    // p: { ad, vkn, vd, adres, il, ilce, tel, mail }
+    const vkn = String(p.vkn || '').replace(/\s/g, '');
+    const sema = vkn.length === 11 ? 'TCKN' : 'VKN';
+    let adSoyad = '';
+    if (sema === 'TCKN') {
+      const parcalar = String(p.ad || '').trim().split(/\s+/);
+      const soyad = parcalar.length > 1 ? parcalar.pop() : '.';
+      adSoyad = `<cac:Person><cbc:FirstName>${ublXml(parcalar.join(' ') || '.')}</cbc:FirstName><cbc:FamilyName>${ublXml(soyad)}</cbc:FamilyName></cac:Person>`;
+    }
+    return `<cac:${tip}><cac:Party>
+      <cac:PartyIdentification><cbc:ID schemeID="${sema}">${ublXml(vkn)}</cbc:ID></cac:PartyIdentification>
+      ${sema === 'VKN' ? `<cac:PartyName><cbc:Name>${ublXml(p.ad)}</cbc:Name></cac:PartyName>` : ''}
+      <cac:PostalAddress>
+        <cbc:StreetName>${ublXml(p.adres || '-')}</cbc:StreetName>
+        <cbc:CitySubdivisionName>${ublXml(p.ilce || '-')}</cbc:CitySubdivisionName>
+        <cbc:CityName>${ublXml(p.il || '-')}</cbc:CityName>
+        <cac:Country><cbc:Name>Türkiye</cbc:Name></cac:Country>
+      </cac:PostalAddress>
+      <cac:PartyTaxScheme><cac:TaxScheme><cbc:Name>${ublXml(p.vd || '')}</cbc:Name></cac:TaxScheme></cac:PartyTaxScheme>
+      ${(p.tel || p.mail) ? `<cac:Contact>${p.tel ? `<cbc:Telephone>${ublXml(p.tel)}</cbc:Telephone>` : ''}${p.mail ? `<cbc:ElectronicMail>${ublXml(p.mail)}</cbc:ElectronicMail>` : ''}</cac:Contact>` : ''}
+      ${adSoyad}
+    </cac:Party></cac:${tip}>`;
+  }
+  // f: fatura, opt: { profil, tevkifatKodu } → { xml, uyarilar:[{t:'hata'|'uyari', m}] }
+  function ublUret(f, opt) {
+    opt = opt || {};
+    const uy = [];
+    const sb = state.sirketBilgileri || {};
+    const cari = f.cariId ? state.cariler.find((x) => x.id === f.cariId) : null;
+    const pb = ublPara(f.paraBirimi);
+    const doviz = pb !== 'TRY';
+    const profil = opt.profil || ((cari && cari.efaturaDurum === 'degil') ? 'EARSIVFATURA' : 'TEMELFATURA');
+    const tevkifatKodu = String(opt.tevkifatKodu || '627').trim();
+
+    // Satıcı (biz) ve alıcı kontrolleri
+    const sat = { ad: sb.name, vkn: sb.taxNo, vd: sb.taxOffice, adres: sb.address, il: sb.il, ilce: sb.ilce, tel: sb.phone, mail: sb.email };
+    if (!sat.ad) uy.push({ t: 'hata', m: 'Firma unvanı yok (Ayarlar > Şirket Bilgileri).' });
+    if (!/^\d{10,11}$/.test(String(sat.vkn || '').replace(/\s/g, ''))) uy.push({ t: 'hata', m: 'Firma VKN/TCKN eksik ya da hatalı (10 veya 11 haneli olmalı).' });
+    if (!sat.vd) uy.push({ t: 'hata', m: 'Firma vergi dairesi yok.' });
+    if (!sat.adres || !sat.il || !sat.ilce) uy.push({ t: 'hata', m: 'Firma adresi, il veya ilçe eksik.' });
+    let alc;
+    if (cari) {
+      alc = { ad: cari.name, vkn: cari.taxNo, vd: cari.taxOffice, adres: cari.address, il: cari.il, ilce: cari.ilce, tel: cari.phone, mail: cari.email };
+      if (!/^\d{10,11}$/.test(String(alc.vkn || '').replace(/\s/g, ''))) uy.push({ t: 'hata', m: `"${cari.name}" için VKN/TCKN eksik ya da hatalı.` });
+      if (!alc.vd && String(alc.vkn || '').length === 10) uy.push({ t: 'uyari', m: `"${cari.name}" için vergi dairesi boş.` });
+      if (!alc.adres || !alc.il || !alc.ilce) uy.push({ t: 'uyari', m: `"${cari.name}" için adres, il veya ilçe eksik (boş yerine "-" yazılır).` });
+      if (profil !== 'EARSIVFATURA' && cari.efaturaDurum !== 'mukellef') uy.push({ t: 'uyari', m: 'Bu müşterinin e-Fatura mükellefi olduğu doğrulanmadı. Mükellef değilse fatura e-Arşiv olarak kesilmelidir.' });
+    } else {
+      alc = { ad: f.cariAdi || 'Perakende Müşteri', vkn: '11111111111', vd: '', adres: '-', il: '-', ilce: '-' };
+      uy.push({ t: 'uyari', m: 'Kayıtlı cari yok: alıcı "Perakende" olarak, TCKN 11111111111 ile yazıldı (yalnızca e-Arşiv için uygundur).' });
+    }
+    if (f.docType !== 'fatura') uy.push({ t: 'hata', m: 'Yalnızca fatura belgelerinden XML üretilir (teklif/sipariş/irsaliye/iade değil).' });
+    if (f.yon !== 'satis') uy.push({ t: 'hata', m: 'Alış faturasını siz kesmezsiniz; XML yalnızca satış faturası için üretilir.' });
+
+    // Fatura no: geçerli biçimde ise kullan; değilse geçici
+    let faturaNo = String(f.belgeNo || '').toUpperCase().replace(/\s/g, '');
+    if (!/^[A-Z0-9]{3}20\d{2}\d{9}$/.test(faturaNo)) {
+      const yil = (f.date || todayISO()).slice(0, 4);
+      const rakam = String(f.belgeNo || f.no || '').replace(/\D/g, '').slice(-9).padStart(9, '0');
+      faturaNo = 'DNZ' + yil + rakam;
+      uy.push({ t: 'uyari', m: `Belge numarası UBL biçimine (3 harf + yıl + 9 rakam) uymuyor; geçici "${faturaNo}" yazıldı. Gerçek gönderimde numarayı QNB seri tanımınızdan atanacak.` });
+    }
+    if (!f.ettn) { f.ettn = ublUuid(); try { saveState(); } catch (e) {} }
+
+    // Kalemler
+    const tevkifatli = !!f.tevkifatli;
+    const kdvGrup = {}, tevGrup = {};
+    let toplamAra = 0, toplamKdv = 0, toplamTev = 0;
+    const satirlar = f.items.map((it, i) => {
+      const miktar = Number(it.qty) || 0;
+      const fiyat = Number(it.unitPrice) || 0;
+      const ara = ublR2(miktar * fiyat);
+      const oran = Number(it.vat) || 0;
+      const kdv = ublR2(ara * oran / 100);
+      const tevOran = tevkifatli ? (Number(it.tevkifatOrani) || 0) : 0;
+      const tev = ublR2(kdv * tevOran / 100);
+      toplamAra += ara; toplamKdv += kdv; toplamTev += tev;
+      (kdvGrup[oran] = kdvGrup[oran] || { matrah: 0, kdv: 0 }); kdvGrup[oran].matrah += ara; kdvGrup[oran].kdv += kdv;
+      if (tev > 0) { (tevGrup[tevOran] = tevGrup[tevOran] || { matrah: 0, tev: 0 }); tevGrup[tevOran].matrah += kdv; tevGrup[tevOran].tev += tev; }
+      if (oran === 0) uy.push({ t: 'uyari', m: `"${it.name}" KDV %0: UBL'de istisna/muafiyet nedeni gerekir (351 yazıldı); doğru kodu mali müşavirinize sorun.` });
+      const birim = UBL_BIRIM[String(it.unit || 'Adet').trim().toLocaleLowerCase('tr-TR')] || 'C62';
+      const kdvXml = `<cac:TaxTotal><cbc:TaxAmount currencyID="${pb}">${ublTut(kdv)}</cbc:TaxAmount><cac:TaxSubtotal><cbc:TaxableAmount currencyID="${pb}">${ublTut(ara)}</cbc:TaxableAmount><cbc:TaxAmount currencyID="${pb}">${ublTut(kdv)}</cbc:TaxAmount><cbc:Percent>${oran}</cbc:Percent><cac:TaxCategory>${oran === 0 ? '<cbc:TaxExemptionReasonCode>351</cbc:TaxExemptionReasonCode><cbc:TaxExemptionReason>KDV İstisna Olmayan Diğer</cbc:TaxExemptionReason>' : ''}<cac:TaxScheme><cbc:Name>KDV</cbc:Name><cbc:TaxTypeCode>0015</cbc:TaxTypeCode></cac:TaxScheme></cac:TaxCategory></cac:TaxSubtotal></cac:TaxTotal>`;
+      const tevXml = tev > 0 ? `<cac:WithholdingTaxTotal><cbc:TaxAmount currencyID="${pb}">${ublTut(tev)}</cbc:TaxAmount><cac:TaxSubtotal><cbc:TaxableAmount currencyID="${pb}">${ublTut(kdv)}</cbc:TaxableAmount><cbc:TaxAmount currencyID="${pb}">${ublTut(tev)}</cbc:TaxAmount><cbc:Percent>${tevOran}</cbc:Percent><cac:TaxCategory><cac:TaxScheme><cbc:Name>KDV TEVKİFAT</cbc:Name><cbc:TaxTypeCode>${ublXml(tevkifatKodu)}</cbc:TaxTypeCode></cac:TaxScheme></cac:TaxCategory></cac:TaxSubtotal></cac:WithholdingTaxTotal>` : '';
+      return `<cac:InvoiceLine>
+      <cbc:ID>${i + 1}</cbc:ID>
+      ${it.aciklama ? `<cbc:Note>${ublXml(it.aciklama)}</cbc:Note>` : ''}
+      <cbc:InvoicedQuantity unitCode="${birim}">${miktar}</cbc:InvoicedQuantity>
+      <cbc:LineExtensionAmount currencyID="${pb}">${ublTut(ara)}</cbc:LineExtensionAmount>
+      ${kdvXml}
+      ${tevXml}
+      <cac:Item><cbc:Name>${ublXml(it.name)}</cbc:Name></cac:Item>
+      <cac:Price><cbc:PriceAmount currencyID="${pb}">${fiyat.toFixed(4).replace(/0{1,2}$/, '')}</cbc:PriceAmount></cac:Price>
+    </cac:InvoiceLine>`;
+    });
+    if (tevkifatli && toplamTev <= 0) uy.push({ t: 'hata', m: 'Tevkifatlı fatura seçili ama hiçbir kalemde tevkifat oranı yok.' });
+    if (tevkifatli) uy.push({ t: 'uyari', m: `Tevkifat kodu ${tevkifatKodu} olarak yazıldı. Hizmet türüne göre doğru kod/oran listesini QNB veya mali müşavirinizle doğrulayın.` });
+
+    // Tutarlar (belge para biriminde)
+    const kayitliAra = doviz ? f.dovizAraToplam : f.araToplam;
+    if (kayitliAra != null && Math.abs(ublR2(toplamAra) - ublR2(kayitliAra)) > 0.02) uy.push({ t: 'uyari', m: `Kalemlerden hesaplanan ara toplam (${ublTut(toplamAra)}) kayıtlı toplamdan (${ublTut(kayitliAra)}) farklı.` });
+    const vergiDahil = ublR2(toplamAra + toplamKdv);
+    const odenecek = ublR2(vergiDahil - toplamTev);
+
+    const tarih = f.date || todayISO();
+    const simdi = new Date();
+    const saat = [simdi.getHours(), simdi.getMinutes(), simdi.getSeconds()].map((n) => String(n).padStart(2, '0')).join(':');
+    const kdvSub = Object.keys(kdvGrup).map((o) => `<cac:TaxSubtotal><cbc:TaxableAmount currencyID="${pb}">${ublTut(kdvGrup[o].matrah)}</cbc:TaxableAmount><cbc:TaxAmount currencyID="${pb}">${ublTut(kdvGrup[o].kdv)}</cbc:TaxAmount><cbc:Percent>${o}</cbc:Percent><cac:TaxCategory>${Number(o) === 0 ? '<cbc:TaxExemptionReasonCode>351</cbc:TaxExemptionReasonCode><cbc:TaxExemptionReason>KDV İstisna Olmayan Diğer</cbc:TaxExemptionReason>' : ''}<cac:TaxScheme><cbc:Name>KDV</cbc:Name><cbc:TaxTypeCode>0015</cbc:TaxTypeCode></cac:TaxScheme></cac:TaxCategory></cac:TaxSubtotal>`).join('');
+    const tevSub = Object.keys(tevGrup).map((o) => `<cac:TaxSubtotal><cbc:TaxableAmount currencyID="${pb}">${ublTut(tevGrup[o].matrah)}</cbc:TaxableAmount><cbc:TaxAmount currencyID="${pb}">${ublTut(tevGrup[o].tev)}</cbc:TaxAmount><cbc:Percent>${o}</cbc:Percent><cac:TaxCategory><cac:TaxScheme><cbc:Name>KDV TEVKİFAT</cbc:Name><cbc:TaxTypeCode>${ublXml(tevkifatKodu)}</cbc:TaxTypeCode></cac:TaxScheme></cac:TaxCategory></cac:TaxSubtotal>`).join('');
+    const notlar = [ublYalniz(odenecek, pb)];
+    if (f.notlar) notlar.push(f.notlar);
+    if (doviz && f.dovizKuru) notlar.push(`Kur: 1 ${pb} = ${Number(f.dovizKuru).toFixed(4)} TL`);
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <ext:UBLExtensions><ext:UBLExtension><ext:ExtensionContent/></ext:UBLExtension></ext:UBLExtensions>
+  <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+  <cbc:CustomizationID>TR1.2</cbc:CustomizationID>
+  <cbc:ProfileID>${profil}</cbc:ProfileID>
+  <cbc:ID>${faturaNo}</cbc:ID>
+  <cbc:CopyIndicator>false</cbc:CopyIndicator>
+  <cbc:UUID>${f.ettn}</cbc:UUID>
+  <cbc:IssueDate>${tarih}</cbc:IssueDate>
+  <cbc:IssueTime>${saat}</cbc:IssueTime>
+  <cbc:InvoiceTypeCode>${tevkifatli ? 'TEVKIFAT' : 'SATIS'}</cbc:InvoiceTypeCode>
+${notlar.map((n) => `  <cbc:Note>${ublXml(n)}</cbc:Note>`).join('\n')}
+  <cbc:DocumentCurrencyCode>${pb}</cbc:DocumentCurrencyCode>
+  <cbc:LineCountNumeric>${satirlar.length}</cbc:LineCountNumeric>
+${f.irsaliyeNo ? `  <cac:DespatchDocumentReference><cbc:ID>${ublXml(f.irsaliyeNo)}</cbc:ID><cbc:IssueDate>${tarih}</cbc:IssueDate></cac:DespatchDocumentReference>\n` : ''}${profil === 'EARSIVFATURA' ? `  <cac:AdditionalDocumentReference><cbc:ID>ELEKTRONIK</cbc:ID><cbc:IssueDate>${tarih}</cbc:IssueDate><cbc:DocumentTypeCode>SendingType</cbc:DocumentTypeCode></cac:AdditionalDocumentReference>\n` : ''}  <cac:Signature>
+    <cbc:ID schemeID="VKN_TCKN">${ublXml(String(sat.vkn || '').replace(/\s/g, ''))}</cbc:ID>
+    <cac:SignatoryParty>
+      <cac:PartyIdentification><cbc:ID schemeID="${String(sat.vkn || '').length === 11 ? 'TCKN' : 'VKN'}">${ublXml(String(sat.vkn || '').replace(/\s/g, ''))}</cbc:ID></cac:PartyIdentification>
+      <cac:PostalAddress><cbc:StreetName>${ublXml(sat.adres || '-')}</cbc:StreetName><cbc:CitySubdivisionName>${ublXml(sat.ilce || '-')}</cbc:CitySubdivisionName><cbc:CityName>${ublXml(sat.il || '-')}</cbc:CityName><cac:Country><cbc:Name>Türkiye</cbc:Name></cac:Country></cac:PostalAddress>
+    </cac:SignatoryParty>
+    <cac:DigitalSignatureAttachment><cac:ExternalReference><cbc:URI>#Signature</cbc:URI></cac:ExternalReference></cac:DigitalSignatureAttachment>
+  </cac:Signature>
+  ${ublTaraf(sat, 'AccountingSupplierParty')}
+  ${ublTaraf(alc, 'AccountingCustomerParty')}
+${f.vade ? `  <cac:PaymentMeans><cbc:PaymentMeansCode>1</cbc:PaymentMeansCode><cbc:PaymentDueDate>${f.vade}</cbc:PaymentDueDate></cac:PaymentMeans>\n` : ''}${doviz && f.dovizKuru ? `  <cac:PricingExchangeRate><cbc:SourceCurrencyCode>${pb}</cbc:SourceCurrencyCode><cbc:TargetCurrencyCode>TRY</cbc:TargetCurrencyCode><cbc:CalculationRate>${Number(f.dovizKuru).toFixed(4)}</cbc:CalculationRate></cac:PricingExchangeRate>\n` : ''}  <cac:TaxTotal>
+    <cbc:TaxAmount currencyID="${pb}">${ublTut(toplamKdv)}</cbc:TaxAmount>
+    ${kdvSub}
+  </cac:TaxTotal>
+${toplamTev > 0 ? `  <cac:WithholdingTaxTotal>
+    <cbc:TaxAmount currencyID="${pb}">${ublTut(toplamTev)}</cbc:TaxAmount>
+    ${tevSub}
+  </cac:WithholdingTaxTotal>\n` : ''}  <cac:LegalMonetaryTotal>
+    <cbc:LineExtensionAmount currencyID="${pb}">${ublTut(toplamAra)}</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount currencyID="${pb}">${ublTut(toplamAra)}</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="${pb}">${ublTut(vergiDahil)}</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="${pb}">${ublTut(odenecek)}</cbc:PayableAmount>
+  </cac:LegalMonetaryTotal>
+${satirlar.join('\n')}
+</Invoice>
+`;
+    return { xml, uyarilar: uy, faturaNo, profil };
+  }
+  function ublModal(f) {
+    const cari = f.cariId ? state.cariler.find((x) => x.id === f.cariId) : null;
+    const varsayilanProfil = (cari && cari.efaturaDurum === 'degil') ? 'EARSIVFATURA' : 'TEMELFATURA';
+    const ciz = () => {
+      const profil = document.getElementById('ublProfil').value;
+      const kod = document.getElementById('ublTevKod') ? document.getElementById('ublTevKod').value : '627';
+      const r = ublUret(f, { profil, tevkifatKodu: kod });
+      document.getElementById('ublUyarilar').innerHTML = r.uyarilar.length
+        ? r.uyarilar.map((u) => `<div style="font-size:12.5px;margin:6px 0;color:${u.t === 'hata' ? 'var(--expense)' : '#b45309'}">${u.t === 'hata' ? '⛔' : '⚠️'} ${escapeHtml(u.m)}</div>`).join('')
+        : '<div style="font-size:12.5px;margin:6px 0;color:var(--income)">✔ Eksik bilgi bulunmadı.</div>';
+      return r;
+    };
+    openModal(`<h3>e-Fatura XML (UBL-TR)</h3>
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:-4px 0 10px">Faturadan standart UBL-TR 1.2 XML dosyası üretir. Henüz QNB'ye gönderilmez; fatura numarası ve elektronik imza gönderim sırasında entegratör tarafından eklenir.</p>
+      <div class="field"><label>Senaryo</label><select id="ublProfil">
+        <option value="TEMELFATURA"${varsayilanProfil === 'TEMELFATURA' ? ' selected' : ''}>Temel Fatura (e-Fatura)</option>
+        <option value="TICARIFATURA">Ticari Fatura (e-Fatura)</option>
+        <option value="EARSIVFATURA"${varsayilanProfil === 'EARSIVFATURA' ? ' selected' : ''}>e-Arşiv Fatura</option></select></div>
+      ${f.tevkifatli ? '<div class="field"><label>Tevkifat kodu</label><input type="text" id="ublTevKod" value="627" inputmode="numeric"></div>' : ''}
+      <div id="ublUyarilar"></div>
+      <div class="modal-actions"><button class="btn" id="ublKapat">Kapat</button><button class="btn" id="ublIndir">XML indir</button>${currentUserRole === 'yonetici' ? '<button class="btn btn-primary" id="ublGonder">QNB\'ye gönder</button>' : ''}</div>`);
+    ciz();
+    document.getElementById('ublProfil').onchange = ciz;
+    const tk = document.getElementById('ublTevKod'); if (tk) tk.oninput = ciz;
+    document.getElementById('ublKapat').onclick = closeModal;
+    document.getElementById('ublIndir').onclick = () => {
+      const r = ciz();
+      if (r.uyarilar.some((u) => u.t === 'hata') && !confirm('Eksik/hatalı bilgiler var, bu XML gönderime uygun olmaz. Yine de indirilsin mi?')) return;
+      dosyaIndir(new File([r.xml], 'e-fatura-' + r.faturaNo + '.xml', { type: 'application/xml' }));
+    };
+    const gb = document.getElementById('ublGonder');
+    if (gb) gb.onclick = async () => {
+      const r = ciz();
+      if (r.uyarilar.some((u) => u.t === 'hata')) { alert('Önce kırmızı ile işaretli eksikleri tamamla.'); return; }
+      if (r.profil === 'EARSIVFATURA') {
+        if (f.qnb && f.qnb.faturaNo && !confirm('Bu fatura e-Arşiv olarak daha önce kesilmiş. Yeniden göndermek ikinci bir fatura keser. Yine de devam edilsin mi?')) return;
+        if (!confirm('Bu fatura QNB e-Arşiv\'e gönderilip KESİLECEK (TEST ortamında deneme dışında geri alınamaz). Devam edilsin mi?')) return;
+        gb.disabled = true; gb.textContent = 'Gönderiliyor…';
+        try {
+          const d = await qnbCagri('arsiv', { xml: r.xml, yerelNo: f.ettn });
+          if (!d.gonderildi) { alert('e-Arşiv kabul etmedi: ' + (d.hata || 'bilinmeyen hata')); }
+          else {
+            f.qnb = { tur: 'EARSIV', ortam: d.ortam, gonderimZamani: new Date().toISOString(), profil: 'EARSIVFATURA', faturaNo: d.faturaNo, uuid: d.uuid, url: d.faturaURL, numara: d.faturaNo };
+            saveState();
+            alert('e-Arşiv faturası kesildi (' + (d.ortam === 'test' ? 'TEST ortamı' : 'CANLI ortam') + '). Resmî no: ' + (d.faturaNo || '-'));
+            closeModal(); if (currentFaturaDetailId === f.id) renderFaturaDetail(); return;
+          }
+        } catch (e) { alert('Gönderilemedi: ' + e.message); }
+        gb.disabled = false; gb.textContent = 'QNB\'ye gönder';
+        return;
+      }
+      if (f.qnb && f.qnb.oid && !confirm('Bu fatura daha önce gönderilmiş. Yeniden göndermek aynı faturanın ikinci kez kesilmesine yol açabilir. Yine de gönderilsin mi?')) return;
+      if (!confirm('Bu fatura QNB\'ye gönderilecek. Devam edilsin mi?')) return;
+      gb.disabled = true; gb.textContent = 'Gönderiliyor…';
+      try {
+        const d = await qnbCagri('gonder', { xml: r.xml, yerelNo: f.ettn, alanEtiket: (cari && cari.efaturaEtiket) || '' });
+        if (!d.gonderildi) { alert('QNB gönderimi kabul etmedi: ' + (d.hata || 'bilinmeyen hata')); }
+        else {
+          f.qnb = { oid: d.oid, ortam: d.ortam, gonderimZamani: new Date().toISOString(), profil: r.profil, numara: r.faturaNo };
+          saveState();
+          alert('QNB\'ye gönderildi (' + (d.ortam === 'test' ? 'TEST ortamı' : 'CANLI ortam') + '). Durumu fatura sayfasından sorgulayabilirsin.');
+          closeModal();
+          if (currentFaturaDetailId === f.id) renderFaturaDetail();
+          return;
+        }
+      } catch (e) { alert('Gönderilemedi: ' + e.message); }
+      gb.disabled = false; gb.textContent = 'QNB\'ye gönder';
+    };
+  }
+
+  // ---- QNB bağlantısı (Supabase Edge Function "qnb") ----
+  async function qnbCagri(action, ek) {
+    const { data, error } = await sb.functions.invoke('qnb', { body: Object.assign({ sirket_id: currentSirketId, action }, ek || {}) });
+    if (error) {
+      let m = error.message || 'Bağlantı hatası';
+      try { if (error.context && typeof error.context.json === 'function') { const j = await error.context.json(); if (j && j.hata) m = j.hata; } } catch (e) { /* ayrıştırılamadı */ }
+      throw new Error(m);
+    }
+    return data || {};
+  }
+  // QNB'nin durum kodlarının Türkçe karşılığı (QNB örnek kodundaki açıklamalara göre)
+  function qnbDurumMetni(d) {
+    const du = Number(d.durum), gd = Number(d.gonderimDurumu), gk = Number(d.gonderimCevabiKodu), yd = Number(d.yanitDurumu);
+    if (du === 1) return { m: 'QNB aldı, işleniyor. Birazdan tekrar sorgula.', s: 'wait' };
+    if (du === 2) return { m: 'İşleme hatası' + (d.aciklama ? ': ' + d.aciklama : '') + '. Düzeltip yeniden gönder.', s: 'neg' };
+    if (du === 3) {
+      if (gd === -2) return { m: 'GİB\'e gönderilemedi, iptal edildi.', s: 'neg' };
+      if (gd === -1) return { m: 'GİB gönderim kuyruğuna eklendi.', s: 'wait' };
+      if (gd === 0) return { m: 'GİB\'e gönderilemedi, sistem yeniden deneyecek.', s: 'wait' };
+      if (gd === 1) return { m: 'GİB\'e gönderilecek.', s: 'wait' };
+      if (gd === 2) return { m: 'GİB\'e gönderildi.', s: 'wait' };
+      if (gd === 3) {
+        if (gk > 1100 && gk < 1200) return { m: 'Gönderimde hata' + (d.gonderimCevabiDetayi ? ': ' + d.gonderimCevabiDetayi : ' (kod ' + gk + ')'), s: 'neg' };
+        if (gk === 1200) return { m: 'GİB ile alıcı arasında.', s: 'wait' };
+        if (gk === 1210) return { m: 'GİB alıcıya iletemedi, yeniden deniyor. Fatura yeniden gönderilmez.', s: 'wait' };
+        if (gk === 1215) return { m: 'Alıcıya hiç iletilemedi (5 deneme). Alıcıya haber ver; aynı numarayla yeniden gönderilebilir.', s: 'neg' };
+        if (gk === 1220) return { m: 'Alıcıya iletildi, sistem yanıtı bekleniyor.', s: 'wait' };
+        if (gk === 1230) return { m: 'Alıcı sistemi başarısız yanıt verdi; iletilmiş sayılmaz, yeniden gönderilebilir.', s: 'neg' };
+      }
+      if (gd === 4) {
+        if (gk === 1200 || gk === 1300) {
+          if (yd === -1) return { m: 'Alıcıya ulaştı (temel fatura, yanıt beklenmez).', s: 'pos' };
+          if (yd === 0) return { m: 'Alıcıya ulaştı; ticari fatura, alıcının yanıtı bekleniyor.', s: 'pos' };
+          if (yd === 1) return { m: 'Alıcı faturayı REDDETTİ.', s: 'neg' };
+          if (yd === 2) return { m: 'Alıcı faturayı KABUL etti.', s: 'pos' };
+          return { m: 'Alıcıya ulaştı.', s: 'pos' };
+        }
+      }
+      return { m: 'İşlendi (gönderim ' + gd + ', cevap ' + gk + ').', s: 'wait' };
+    }
+    return { m: 'Durum kodu: ' + d.durum, s: 'zero' };
+  }
+  function qnbRozetHtml(f) {
+    const q = f.qnb || {}, d = q.sonDurum;
+    if (q.tur === 'EARSIV') {
+      return `<div style="margin-bottom:10px"><span class="badge info">e-Arşiv${q.ortam === 'test' ? ' (TEST)' : ''}</span> <span class="badge pos">Kesildi</span>
+        <div class="sub" style="margin-top:4px">Resmî no: ${escapeHtml(q.faturaNo || '-')}${q.url ? ' · <a href="' + escapeHtml(q.url) + '" target="_blank" rel="noopener">Görüntüle</a>' : ''}</div></div>`;
+    }
+    const t = d ? qnbDurumMetni(d) : { m: 'Gönderildi; durum henüz sorgulanmadı.', s: 'wait' };
+    return `<div style="margin-bottom:10px"><span class="badge info">${q.tur === 'IRSALIYE' ? 'e-İrsaliye' : 'e-Fatura'}${q.ortam === 'test' ? ' (TEST)' : ''}</span> <span class="badge ${t.s}" style="white-space:normal">${escapeHtml(t.m)}</span>
+      ${d && d.resmiBelgeNo ? `<div class="sub" style="margin-top:4px">Resmî no: ${escapeHtml(d.resmiBelgeNo)}</div>` : ''}
+      ${currentUserRole === 'yonetici' ? '<div><button type="button" class="btn btn-sm qnb-durum-btn" style="margin-top:6px">Durumu sorgula</button></div>' : ''}</div>`;
+  }
+  async function qnbDurumSorgula(f, btn) {
+    if (!f.qnb || !f.qnb.oid) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Sorgulanıyor…'; }
+    try {
+      const d = await qnbCagri('durum', { belgeNo: f.qnb.oid, belgeNoTipi: 'OID', belgeTuru: f.qnb.tur === 'IRSALIYE' ? 'IRSALIYE' : 'FATURA' });
+      if (d.hata) { alert('Durum sorgulanamadı: ' + d.hata); }
+      else if (d.durum) { f.qnb.sonDurum = d.durum; f.qnb.sonSorgu = new Date().toISOString(); saveState(); }
+    } catch (e) { alert('Durum sorgulanamadı: ' + e.message); }
+    if (currentFaturaDetailId === f.id) renderFaturaDetail();
+  }
+
+  // ---- e-İrsaliye XML (UBL-TR DespatchAdvice) ----
+  function ublIrsaliyeUret(f) {
+    const uy = [];
+    const sb = state.sirketBilgileri || {};
+    const cari = f.cariId ? state.cariler.find((x) => x.id === f.cariId) : null;
+    const sv = f.sevk || {};
+    const sat = { ad: sb.name, vkn: sb.taxNo, vd: sb.taxOffice, adres: sb.address, il: sb.il, ilce: sb.ilce, tel: sb.phone, mail: sb.email };
+    if (!sat.ad) uy.push({ t: 'hata', m: 'Firma unvanı yok (Ayarlar > Şirket Bilgileri).' });
+    if (!/^\d{10,11}$/.test(String(sat.vkn || '').replace(/\s/g, ''))) uy.push({ t: 'hata', m: 'Firma VKN/TCKN eksik ya da hatalı.' });
+    if (!sat.adres || !sat.il || !sat.ilce) uy.push({ t: 'hata', m: 'Firma adresi, il veya ilçe eksik.' });
+    let alc;
+    if (cari) {
+      alc = { ad: cari.name, vkn: cari.taxNo, vd: cari.taxOffice, adres: cari.address, il: cari.il, ilce: cari.ilce, tel: cari.phone, mail: cari.email };
+      if (!/^\d{10,11}$/.test(String(alc.vkn || '').replace(/\s/g, ''))) uy.push({ t: 'hata', m: `"${cari.name}" için VKN/TCKN eksik ya da hatalı.` });
+      if (!alc.adres || !alc.il || !alc.ilce) uy.push({ t: 'uyari', m: `"${cari.name}" için adres, il veya ilçe eksik ("-" yazılır).` });
+    } else {
+      alc = { ad: f.cariAdi || '', vkn: '', adres: '-', il: '-', ilce: '-' };
+      uy.push({ t: 'hata', m: 'e-İrsaliye için kayıtlı bir cari (VKN/TCKN ile) seçilmeli.' });
+    }
+    if (f.docType !== 'irsaliye') uy.push({ t: 'hata', m: 'Bu belge bir irsaliye değil.' });
+    if (f.yon !== 'satis') uy.push({ t: 'hata', m: 'Alış irsaliyesini karşı taraf düzenler; XML yalnızca sevk (satış) irsaliyesi için üretilir.' });
+    const plk = String(sv.plaka || '').replace(/\s/g, '').replace(/İ/g, 'I').toUpperCase();
+    if (!plk) uy.push({ t: 'hata', m: 'Araç plakası girilmemiş (irsaliyeyi düzenleyip Sevk Bilgileri\'ne yaz).' });
+    else if (!/^(0[1-9]|[1-7][0-9]|8[01])[A-Z]+[0-9]+$/.test(plk)) uy.push({ t: 'hata', m: 'Plaka GİB kuralına uymuyor (14 Eylül 2026 kontrolü): il kodu (01-81) + harf + rakam, boşluksuz, büyük harf. Yabancı plaka ise şu an desteklenmiyor.' });
+    if (!sv.sofor && !sv.tasiyici) uy.push({ t: 'hata', m: 'Şoför veya taşıyıcı firma bilgisi girilmemiş.' });
+    if (sv.soforTc && !/^\d{11}$/.test(sv.soforTc)) uy.push({ t: 'uyari', m: 'Şoför TCKN 11 haneli olmalı.' });
+
+    let no = String(f.belgeNo || '').toUpperCase().replace(/\s/g, '');
+    if (!/^[A-Z0-9]{3}20\d{2}\d{9}$/.test(no)) {
+      const yil = (f.date || todayISO()).slice(0, 4);
+      no = 'DNZ' + yil + String(f.belgeNo || f.no || '').replace(/\D/g, '').slice(-9).padStart(9, '0');
+      uy.push({ t: 'uyari', m: `Belge numarası UBL biçimine uymuyor; geçici "${no}" yazıldı. Gerçek numarayı QNB seri tanımı atayacak.` });
+    }
+    if (!f.ettn) { f.ettn = ublUuid(); try { saveState(); } catch (e) {} }
+    const tarih = f.date || todayISO();
+    const simdi = new Date();
+    const hhmmss = (t) => (t ? t + ':00' : [simdi.getHours(), simdi.getMinutes(), simdi.getSeconds()].map((n) => String(n).padStart(2, '0')).join(':'));
+    const sofor = String(sv.sofor || '').trim().split(/\s+/);
+    const soyad = sofor.length > 1 ? sofor.pop() : '.';
+    const vkn = String(sat.vkn || '').replace(/\s/g, '');
+    const satirlar = f.items.map((it, i) => {
+      const birim = UBL_BIRIM[String(it.unit || 'Adet').trim().toLocaleLowerCase('tr-TR')] || 'C62';
+      return `<cac:DespatchLine>
+      <cbc:ID>${i + 1}</cbc:ID>
+      <cbc:DeliveredQuantity unitCode="${birim}">${Number(it.qty) || 0}</cbc:DeliveredQuantity>
+      <cac:OrderLineReference><cbc:LineID>${i + 1}</cbc:LineID></cac:OrderLineReference>
+      <cac:Item><cbc:Name>${ublXml(it.name)}</cbc:Name></cac:Item>
+    </cac:DespatchLine>`;
+    });
+    const tasiyici = sv.tasiyici ? `<cac:CarrierParty>
+        <cac:PartyIdentification><cbc:ID schemeID="${String(sv.tasiyiciVkn || '').length === 11 ? 'TCKN' : 'VKN'}">${ublXml(sv.tasiyiciVkn || '')}</cbc:ID></cac:PartyIdentification>
+        <cac:PartyName><cbc:Name>${ublXml(sv.tasiyici)}</cbc:Name></cac:PartyName>
+        <cac:PostalAddress><cbc:CitySubdivisionName>-</cbc:CitySubdivisionName><cbc:CityName>-</cbc:CityName><cac:Country><cbc:Name>Türkiye</cbc:Name></cac:Country></cac:PostalAddress>
+      </cac:CarrierParty>` : '';
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<DespatchAdvice xmlns="urn:oasis:names:specification:ubl:schema:xsd:DespatchAdvice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <ext:UBLExtensions><ext:UBLExtension><ext:ExtensionContent/></ext:UBLExtension></ext:UBLExtensions>
+  <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+  <cbc:CustomizationID>TR1.2.1</cbc:CustomizationID>
+  <cbc:ProfileID>TEMELIRSALIYE</cbc:ProfileID>
+  <cbc:ID>${no}</cbc:ID>
+  <cbc:CopyIndicator>false</cbc:CopyIndicator>
+  <cbc:UUID>${f.ettn}</cbc:UUID>
+  <cbc:IssueDate>${tarih}</cbc:IssueDate>
+  <cbc:IssueTime>${hhmmss(sv.saat)}</cbc:IssueTime>
+  <cbc:DespatchAdviceTypeCode>SEVK</cbc:DespatchAdviceTypeCode>
+${f.notlar ? `  <cbc:Note>${ublXml(f.notlar)}</cbc:Note>\n` : ''}  <cbc:LineCountNumeric>${satirlar.length}</cbc:LineCountNumeric>
+  <cac:Signature>
+    <cbc:ID schemeID="VKN_TCKN">${ublXml(vkn)}</cbc:ID>
+    <cac:SignatoryParty>
+      <cac:PartyIdentification><cbc:ID schemeID="${vkn.length === 11 ? 'TCKN' : 'VKN'}">${ublXml(vkn)}</cbc:ID></cac:PartyIdentification>
+      <cac:PostalAddress><cbc:StreetName>${ublXml(sat.adres || '-')}</cbc:StreetName><cbc:CitySubdivisionName>${ublXml(sat.ilce || '-')}</cbc:CitySubdivisionName><cbc:CityName>${ublXml(sat.il || '-')}</cbc:CityName><cac:Country><cbc:Name>Türkiye</cbc:Name></cac:Country></cac:PostalAddress>
+    </cac:SignatoryParty>
+    <cac:DigitalSignatureAttachment><cac:ExternalReference><cbc:URI>#Signature</cbc:URI></cac:ExternalReference></cac:DigitalSignatureAttachment>
+  </cac:Signature>
+  ${ublTaraf(sat, 'DespatchSupplierParty')}
+  ${ublTaraf(alc, 'DeliveryCustomerParty')}
+  <cac:Shipment>
+    <cbc:ID>1</cbc:ID>
+    <cac:GoodsItem><cbc:ValueAmount currencyID="TRY">0</cbc:ValueAmount></cac:GoodsItem>
+    <cac:ShipmentStage>${sv.sofor ? `<cac:DriverPerson><cbc:FirstName>${ublXml(sofor.join(' ') || '.')}</cbc:FirstName><cbc:FamilyName>${ublXml(soyad)}</cbc:FamilyName><cbc:Title>Şoför</cbc:Title><cbc:NationalityID>${ublXml(sv.soforTc || '11111111111')}</cbc:NationalityID></cac:DriverPerson>` : ''}</cac:ShipmentStage>
+    <cac:Delivery>
+      ${tasiyici}
+      <cac:Despatch><cbc:ActualDespatchDate>${tarih}</cbc:ActualDespatchDate><cbc:ActualDespatchTime>${hhmmss(sv.saat)}</cbc:ActualDespatchTime></cac:Despatch>
+    </cac:Delivery>
+    <cac:TransportHandlingUnit><cac:TransportEquipment><cbc:ID schemeID="PLAKA">${ublXml(String(sv.plaka || '').replace(/\s/g, '').replace(/İ/g, 'I').toUpperCase())}</cbc:ID></cac:TransportEquipment></cac:TransportHandlingUnit>
+  </cac:Shipment>
+${satirlar.join('\n')}
+</DespatchAdvice>
+`;
+    return { xml, uyarilar: uy, no };
+  }
+  function ublIrsaliyeModal(f) {
+    const r = ublIrsaliyeUret(f);
+    openModal(`<h3>e-İrsaliye XML (UBL-TR)</h3>
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:-4px 0 10px">İrsaliyeden UBL-TR e-İrsaliye (DespatchAdvice) XML'i üretir. Numara ve imza gönderimde entegratör tarafından eklenir. Test ortamında denemeden canlıya gönderme.</p>
+      ${r.uyarilar.length ? r.uyarilar.map((u) => `<div style="font-size:12.5px;margin:6px 0;color:${u.t === 'hata' ? 'var(--expense)' : '#b45309'}">${u.t === 'hata' ? '⛔' : '⚠️'} ${escapeHtml(u.m)}</div>`).join('') : '<div style="font-size:12.5px;margin:6px 0;color:var(--income)">✔ Eksik bilgi bulunmadı.</div>'}
+      <div class="modal-actions"><button class="btn" id="ubiKapat">Kapat</button><button class="btn btn-primary" id="ubiIndir">XML indir</button>${currentUserRole === 'yonetici' ? '<button class="btn btn-primary" id="ubiGonder">QNB\'ye gönder</button>' : ''}</div>`);
+    document.getElementById('ubiKapat').onclick = closeModal;
+    const ig = document.getElementById('ubiGonder');
+    if (ig) ig.onclick = async () => {
+      if (r.uyarilar.some((u) => u.t === 'hata')) { alert('Önce kırmızı ile işaretli eksikleri tamamla.'); return; }
+      if (f.qnb && f.qnb.oid && !confirm('Bu irsaliye daha önce gönderilmiş. Yine de yeniden gönderilsin mi?')) return;
+      if (!confirm('Bu irsaliye QNB\'ye gönderilecek. Devam edilsin mi?')) return;
+      ig.disabled = true; ig.textContent = 'Gönderiliyor…';
+      try {
+        const cari = f.cariId ? state.cariler.find((x) => x.id === f.cariId) : null;
+        const d = await qnbCagri('gonder', { belgeTuru: 'IRSALIYE', xml: r.xml, yerelNo: f.ettn, mimeType: 'application/xml', alanEtiket: (cari && cari.efaturaEtiket) || '' });
+        if (!d.gonderildi) { alert('QNB gönderimi kabul etmedi: ' + (d.hata || 'bilinmeyen hata')); }
+        else {
+          f.qnb = { oid: d.oid, ortam: d.ortam, gonderimZamani: new Date().toISOString(), profil: 'IRSALIYE', numara: r.no, tur: 'IRSALIYE' };
+          saveState();
+          alert('QNB\'ye gönderildi (' + (d.ortam === 'test' ? 'TEST ortamı' : 'CANLI ortam') + ').');
+          closeModal(); if (currentFaturaDetailId === f.id) renderFaturaDetail(); return;
+        }
+      } catch (e) { alert('Gönderilemedi: ' + e.message); }
+      ig.disabled = false; ig.textContent = 'QNB\'ye gönder';
+    };
+    document.getElementById('ubiIndir').onclick = () => {
+      if (r.uyarilar.some((u) => u.t === 'hata') && !confirm('Eksik/hatalı bilgiler var, bu XML gönderime uygun olmaz. Yine de indirilsin mi?')) return;
+      dosyaIndir(new File([r.xml], 'e-irsaliye-' + r.no + '.xml', { type: 'application/xml' }));
+    };
+  }
+  function paylasMenusu(f) {
+    const cari = f.cariId ? state.cariler.find((x) => x.id === f.cariId) : null;
+    const belgeNo = f.belgeNo || f.no;
+    const firma = ((state.sirketBilgileri || {}).name || '').trim();
+    const metin = `${printDocTitle(f)} ${belgeNo}\n${f.cariAdi || ''}\nTarih: ${formatDate(f.date)}${f.vade ? '\nVade: ' + formatDate(f.vade) : ''}\nToplam: ${formatTL(f.genelToplam)}${firma ? '\n\n' + firma : ''}`;
+    openModal(`<h3>Paylaş</h3>
+      <div class="modal-actions" style="flex-direction:column;gap:8px;align-items:stretch">
+        <button class="btn btn-primary" id="plPdf">📄 PDF olarak paylaş</button>
+        <button class="btn" id="plMail">✉️ E-posta gönder${cari && cari.email ? ' (' + escapeHtml(cari.email) + ')' : ''}</button>
+        <button class="btn" id="plSms">💬 SMS gönder${cari && cari.phone ? ' (' + escapeHtml(cari.phone) + ')' : ''}</button>
+        ${cari ? '<button class="btn" id="plTakip">🔗 Hesap takip bağlantısı</button>' : ''}
+        ${(f.docType === 'fatura' && f.yon === 'satis') ? '<button class="btn" id="plUbl">🧾 e-Fatura XML (UBL-TR)</button>' : ''}
+        ${(f.docType === 'irsaliye' && f.yon === 'satis') ? '<button class="btn" id="plUbi">🚚 e-İrsaliye XML (UBL-TR)</button>' : ''}
+        <button class="btn" id="plIptal">Vazgeç</button></div>`);
+    document.getElementById('plPdf').onclick = () => { closeModal(); setTimeout(() => shareFatura(f), 300); };
+    document.getElementById('plMail').onclick = () => { closeModal(); location.href = 'mailto:' + encodeURIComponent((cari && cari.email) || '').replace('%40', '@') + '?subject=' + encodeURIComponent(printDocTitle(f) + ' ' + belgeNo) + '&body=' + encodeURIComponent(metin); };
+    document.getElementById('plSms').onclick = () => { closeModal(); location.href = 'sms:' + ((cari && cari.phone) || '').replace(/[^0-9+]/g, '') + '?&body=' + encodeURIComponent(metin); };
+    const ui = document.getElementById('plUbi'); if (ui) ui.onclick = () => { closeModal(); setTimeout(() => ublIrsaliyeModal(f), 300); };
+    const ub = document.getElementById('plUbl'); if (ub) ub.onclick = () => { closeModal(); setTimeout(() => ublModal(f), 300); };
+    const tk = document.getElementById('plTakip'); if (tk) tk.onclick = () => { closeModal(); setTimeout(() => cariTakipLinkiModal(cari), 300); };
+    document.getElementById('plIptal').onclick = closeModal;
   }
   function enterFaturaDetail(id, fromTeklifler, fromCariId) {
     cameFromTeklifler = !!fromTeklifler;
@@ -3837,6 +4347,8 @@
     document.getElementById('cfIlce').value = c ? (c.ilce || '') : '';
     document.getElementById('cfEfaturaDurum').value = c ? (c.efaturaDurum || '') : '';
     document.getElementById('cfEfaturaEtiket').value = c ? (c.efaturaEtiket || '') : '';
+    document.getElementById('cfMukellefBlok').style.display = currentUserRole === 'yonetici' ? 'block' : 'none';
+    document.getElementById('cfMukellefSonuc').textContent = '';
     document.getElementById('cfEmail').value = c ? (c.email || '') : '';
     document.getElementById('cfCurrency').value = c ? (c.currency || 'TL') : 'TL';
     renderAllFiyatListesiSelects();
@@ -3863,6 +4375,28 @@
     if (val && !cfEtiketler.some((t) => t.toLocaleLowerCase('tr-TR') === val.toLocaleLowerCase('tr-TR'))) cfEtiketler.push(val);
     e.target.value = '';
     renderCfEtiketList();
+  });
+  document.getElementById('cfMukellefSorgu').addEventListener('click', async () => {
+    const vkn = document.getElementById('cfTaxNo').value.replace(/\s/g, '');
+    const out = document.getElementById('cfMukellefSonuc');
+    if (!/^\d{10,11}$/.test(vkn)) { out.textContent = 'Önce 10 veya 11 haneli VKN/TCKN gir.'; return; }
+    out.textContent = 'Sorgulanıyor…';
+    try {
+      const d = await qnbCagri('mukellef', { vkn });
+      if (d.hata) { out.textContent = 'Sorgulanamadı: ' + d.hata; return; }
+      const test = d.ortam === 'test';
+      if (d.mukellef) {
+        out.textContent = '✔ e-Fatura mükellefi: ' + ((d.kayit && d.kayit.unvan) || '') + (test ? ' (TEST ortamı sonucu; alanlar değiştirilmedi)' : '');
+        if (!test) {
+          document.getElementById('cfEfaturaDurum').value = 'mukellef';
+          document.getElementById('cfEfaturaEtiket').value = (d.kayit && d.kayit.etiket) || '';
+          if (!document.getElementById('cfName').value.trim() && d.kayit && d.kayit.unvan) document.getElementById('cfName').value = d.kayit.unvan;
+        }
+      } else {
+        out.textContent = 'Mükellef değil → e-Arşiv ile kesilir.' + (test ? ' (TEST ortamı sonucu; gerçek durumu yansıtmayabilir, alanlar değiştirilmedi)' : '');
+        if (!test) { document.getElementById('cfEfaturaDurum').value = 'degil'; document.getElementById('cfEfaturaEtiket').value = ''; }
+      }
+    } catch (e) { out.textContent = 'Sorgulanamadı: ' + e.message; }
   });
   document.getElementById('cfSaveBtn').addEventListener('click', () => {
     const name = document.getElementById('cfName').value.trim();
@@ -7924,6 +8458,14 @@
     const date = document.getElementById('fTarih').value || todayISO();
     const vade = document.getElementById('fVade').value || null;
     const irsaliyeNo = document.getElementById('fIrsaliyeNo').value.trim();
+    const sevk = docType === 'irsaliye' ? {
+      plaka: document.getElementById('fSevkPlaka').value.trim().toLocaleUpperCase('tr-TR'),
+      saat: document.getElementById('fSevkSaat').value,
+      sofor: document.getElementById('fSevkSofor').value.trim(),
+      soforTc: document.getElementById('fSevkSoforTc').value.trim(),
+      tasiyici: document.getElementById('fSevkTasiyici').value.trim(),
+      tasiyiciVkn: document.getElementById('fSevkTasiyiciVkn').value.trim()
+    } : null;
     const fiyatListesiId = document.getElementById('fFiyatListesi').value || null;
     const projeId = document.getElementById('fProje').value || null;
     const notlar = document.getElementById('fNotlar').value.trim();
@@ -7962,7 +8504,7 @@
       const old = state.faturalar.find((x) => x.id === editingFaturaId);
       if (!old) { editingFaturaId = null; backToFaturaList(); return; }
       reverseBelgeEffects(old);
-      Object.assign(old, { belgeNo, docType, yon, cariId, cariAdi: finalCariAdi, date, vade, irsaliyeNo, fiyatListesiId, projeId, items: validItems, notlar, araToplam: ara, kdvToplam: kdv, genelToplam, tevkifatli, tevkifatToplam, vergilerDahilToplam, paraBirimi, dovizKuru, dovizAraToplam, dovizKdvToplam, dovizGenelToplam });
+      Object.assign(old, { belgeNo, docType, yon, cariId, cariAdi: finalCariAdi, date, vade, irsaliyeNo, sevk, fiyatListesiId, projeId, items: validItems, notlar, araToplam: ara, kdvToplam: kdv, genelToplam, tevkifatli, tevkifatToplam, vergilerDahilToplam, paraBirimi, dovizKuru, dovizAraToplam, dovizKdvToplam, dovizGenelToplam });
       applyBelgeEffectsIfFatura(old);
       updateBuyPricesFromFatura(old);
       editingFaturaId = null;
@@ -7971,7 +8513,7 @@
       return;
     }
 
-    const fatura = { id: genId(), no: nextBelgeNo(docType, yon), belgeNo, docType, yon, cariId, cariAdi: finalCariAdi, date, vade, irsaliyeNo, fiyatListesiId, projeId, items: validItems, notlar, araToplam: ara, kdvToplam: kdv, genelToplam, tevkifatli, tevkifatToplam, vergilerDahilToplam, paraBirimi, dovizKuru, dovizAraToplam, dovizKdvToplam, dovizGenelToplam, durum: docType === 'teklif' ? 'bekliyor' : null };
+    const fatura = { id: genId(), no: nextBelgeNo(docType, yon), belgeNo, docType, yon, cariId, cariAdi: finalCariAdi, date, vade, irsaliyeNo, sevk, fiyatListesiId, projeId, items: validItems, notlar, araToplam: ara, kdvToplam: kdv, genelToplam, tevkifatli, tevkifatToplam, vergilerDahilToplam, paraBirimi, dovizKuru, dovizAraToplam, dovizKdvToplam, dovizGenelToplam, durum: docType === 'teklif' ? 'bekliyor' : null };
     state.faturalar.push(fatura);
     applyBelgeEffectsIfFatura(fatura);
     updateBuyPricesFromFatura(fatura);
@@ -8605,10 +9147,10 @@
     if (!f) return;
     const cari = f.cariId ? state.cariler.find((x) => x.id === f.cariId) : null;
     const action = btn.dataset.a;
-    if (action === 'paylas') shareFatura(f);
+    if (action === 'paylas') paylasMenusu(f);
     else if (action === 'yazdir') printFatura(f);
     else if (action === 'duzenle') enterFaturaForm(null, f.id, cameFromTeklifler);
-    else if (action === 'kopyala') copyFaturaAsNew(f);
+    else if (action === 'kopyala') kopyalaMenusu(f);
     else if (action === 'cariye-git') { if (cari) enterCariDetail(cari.id); }
     else if (action === 'odeme') openFaturaOdemeModal(f);
     else if (action === 'siparise') convertFaturaDoc(f, 'siparis');
@@ -8625,6 +9167,8 @@
       <div class="title" style="font-size:16px;font-weight:700">${escapeHtml(f.belgeNo || f.no)} · ${DOC_LABELS[f.docType] || 'Belge'}</div>
       <div class="sub" style="margin:4px 0 12px">${formatDate(f.date)} · ${escapeHtml(f.cariAdi || 'Cari yok')} · ${f.yon === 'satis' ? 'Satış' : 'Alış'}</div>
       ${f.docType === 'teklif' && f.durum ? `<div class="badge ${TEKLIF_DURUM_CLASS[f.durum]}" style="margin-bottom:10px">${TEKLIF_DURUM_LABEL[f.durum]}</div>` : ''}
+      ${isBelgeEffectDoc(f) ? (() => { const k = faturaKalanTutar(f), od = faturaOdenenToplam(f); const gec = f.vade && f.vade < todayISO() && k > 0.005; return `<div style="margin-bottom:8px"><span class="badge ${k <= 0.005 ? 'pos' : (od > 0 ? 'wait' : 'zero')}">${k <= 0.005 ? 'Ödendi' : (od > 0 ? 'Kısmen ödendi' : 'Ödenmedi')}</span>${gec ? '<span class="badge neg">Vadesi geçmiş</span>' : ''}</div>`; })() : ''}
+      ${f.qnb ? qnbRozetHtml(f) : ''}
       ${f.vade ? `<div class="sub">Vade: ${formatDate(f.vade)}</div>` : ''}
       ${f.irsaliyeNo ? `<div class="sub" style="margin-bottom:10px">İrsaliye No: ${escapeHtml(f.irsaliyeNo)}</div>` : ''}
       ${f.items.map((it, idx) => `
@@ -8667,6 +9211,8 @@
   document.getElementById('faturaDetailBody').addEventListener('click', (e) => {
     const f = state.faturalar.find((x) => x.id === currentFaturaDetailId);
     if (!f) return;
+    const qnbBtn = e.target.closest('.qnb-durum-btn');
+    if (qnbBtn) { qnbDurumSorgula(f, qnbBtn); return; }
     const odemeSilBtn = e.target.closest('.odeme-sil-btn');
     if (odemeSilBtn) { deleteFaturaOdeme(f, odemeSilBtn.dataset.odemeId); return; }
     const odemeRow = e.target.closest('.odeme-row');
