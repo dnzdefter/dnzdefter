@@ -3870,10 +3870,12 @@ ${satirlar.join('\n')}
     const out = [];
     const acikS = acikFaturaTutarlari('satis'), acikA = acikFaturaTutarlari('alis');
     state.faturalar.forEach((f) => {
-      if (f.docType !== 'fatura' || !f.vade) return;
+      if (f.docType !== 'fatura') return;
+      // Vadesi girilmemiş açık faturada fatura tarihi esas alınır (vade girilmeyen borç "günü geçmiş"te de görünsün).
+      const vadesiz = !f.vade; const vTarih = f.vade || f.date; if (!vTarih) return;
       const tut = f.cariId ? ((f.yon === 'satis' ? acikS : acikA)[f.id] || 0) : Math.max(0, faturaKalanTutar(f));
       if (tut <= 0.004) return;
-      out.push({ tarih: f.vade, tip: f.yon === 'satis' ? 'tahsilat' : 'odeme', ad: f.cariAdi || 'Cari yok', tutar: yuvarla2(tut), etiket: (f.yon === 'satis' ? 'Satış' : 'Alış') + ' faturası · ' + (f.belgeNo || f.no), attr: `data-fatura="${f.id}"` });
+      out.push({ tarih: vTarih, vadesiz, tip: f.yon === 'satis' ? 'tahsilat' : 'odeme', ad: f.cariAdi || 'Cari yok', tutar: yuvarla2(tut), etiket: (f.yon === 'satis' ? 'Satış' : 'Alış') + ' faturası · ' + (f.belgeNo || f.no), attr: `data-fatura="${f.id}"` });
     });
     (state.cekSenet || []).forEach((c) => {
       if (c.durum !== 'bekliyor' || !c.vade) return;
@@ -3886,11 +3888,11 @@ ${satirlar.join('\n')}
     const topla = (l, tip) => l.filter((k) => k.tip === tip).reduce((t, k) => t + k.tutar, 0);
     const ozet = (l) => `<span>Ödenecek: <b class="mono">${formatTL(topla(l, 'odeme'))}</b></span><span>Tahsil edilecek: <b class="mono">${formatTL(topla(l, 'tahsilat'))}</b></span>`;
     const satir = (k, gec) => {
-      const gunMetni = gec ? `${-k.gun} gün gecikti` : (k.gun === 0 ? 'Bugün' : `${k.gun} gün sonra`);
+      const gunMetni = gec ? (k.vadesiz ? `${-k.gun} gündür ödenmedi` : `${-k.gun} gün gecikti`) : (k.gun === 0 ? 'Bugün' : `${k.gun} gün sonra`);
       const et = `<span class="hm-etiket ${k.tip}">${k.tip === 'odeme' ? 'Ödeme' : 'Tahsilat'}</span>`;
-      return hmSatir(k.attr, k.ad, `${escapeHtml(k.etiket)} · Vade ${formatDate(k.tarih)} · <span class="hm-etiket ${gec ? 'gecik' : (k.gun <= 3 ? 'yakin' : '')}" style="margin:0">${gunMetni}</span>`, k.tutar, k.tip === 'odeme' ? 'expense' : 'income', et);
+      return hmSatir(k.attr, k.ad, `${escapeHtml(k.etiket)} · ${k.vadesiz ? 'Fatura ' + formatDate(k.tarih) + ' (vade girilmemiş)' : 'Vade ' + formatDate(k.tarih)} · <span class="hm-etiket ${gec ? 'gecik' : (k.gun <= 3 ? 'yakin' : '')}" style="margin:0">${gunMetni}</span>`, k.tutar, k.tip === 'odeme' ? 'expense' : 'income', et);
     };
-    const yakin = kalemler.filter((k) => k.gun >= 0 && k.gun <= 30).sort((a, b) => a.tarih.localeCompare(b.tarih));
+    const yakin = kalemler.filter((k) => !k.vadesiz && k.gun >= 0 && k.gun <= 30).sort((a, b) => a.tarih.localeCompare(b.tarih));
     const gec = kalemler.filter((k) => k.gun < 0).sort((a, b) => a.tarih.localeCompare(b.tarih));
     document.getElementById('hmYaklasanOzet').innerHTML = ozet(yakin);
     document.getElementById('hmGecikenOzet').innerHTML = ozet(gec);
