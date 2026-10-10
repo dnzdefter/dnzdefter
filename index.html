@@ -3134,7 +3134,7 @@ ${satirlar.join('\n')}
         <option value="EARSIVFATURA"${varsayilanProfil === 'EARSIVFATURA' ? ' selected' : ''}>e-Arşiv Fatura</option></select></div>
       ${f.tevkifatli ? '<div class="field"><label>Tevkifat kodu</label><input type="text" id="ublTevKod" value="627" inputmode="numeric"></div>' : ''}
       <div id="ublUyarilar"></div>
-      <div class="modal-actions"><button class="btn" id="ublKapat">Kapat</button><button class="btn" id="ublIndir">XML indir</button>${currentUserRole === 'yonetici' ? '<button class="btn btn-primary" id="ublGonder">QNB\'ye gönder</button>' : ''}</div>`);
+      <div class="modal-actions"><button class="btn" id="ublKapat">Kapat</button><button class="btn" id="ublIndir">XML indir</button>${(currentUserRole === 'yonetici' && platformSahibi) ? '<button class="btn btn-primary" id="ublGonder">QNB\'ye gönder</button>' : ''}</div>`);
     ciz();
     document.getElementById('ublProfil').onchange = ciz;
     const tk = document.getElementById('ublTevKod'); if (tk) tk.oninput = ciz;
@@ -3251,7 +3251,7 @@ ${satirlar.join('\n')}
   // ---- e-Belgeler ekranı: gelen / giden belgeleri gör, indir, yazdır ----
   let ebelgeSekme = 'gelenFatura';
   const ebelgeGelen = { FATURA: null, IRSALIYE: null };
-  function enterEBelge() { showView('view-ebelge', { showBack: true, onBack: enterAyarlar }); setDrawerActive('ayarlar'); renderEBelge(); }
+  function enterEBelge() { if (!platformSahibi) return; showView('view-ebelge', { showBack: true, onBack: enterAyarlar }); setDrawerActive('ayarlar'); renderEBelge(); }
   function b64Blob(b64, mime) {
     const bin = atob(b64), a = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
@@ -3455,7 +3455,7 @@ ${satirlar.join('\n')}
     openModal(`<h3>e-İrsaliye XML (UBL-TR)</h3>
       <p style="font-size:12.5px;color:var(--ink-soft);margin:-4px 0 10px">İrsaliyeden UBL-TR e-İrsaliye (DespatchAdvice) XML'i üretir. Numara ve imza gönderimde entegratör tarafından eklenir. Test ortamında denemeden canlıya gönderme.</p>
       ${r.uyarilar.length ? r.uyarilar.map((u) => `<div style="font-size:12.5px;margin:6px 0;color:${u.t === 'hata' ? 'var(--expense)' : '#b45309'}">${u.t === 'hata' ? '⛔' : '⚠️'} ${escapeHtml(u.m)}</div>`).join('') : '<div style="font-size:12.5px;margin:6px 0;color:var(--income)">✔ Eksik bilgi bulunmadı.</div>'}
-      <div class="modal-actions"><button class="btn" id="ubiKapat">Kapat</button><button class="btn btn-primary" id="ubiIndir">XML indir</button>${currentUserRole === 'yonetici' ? '<button class="btn btn-primary" id="ubiGonder">QNB\'ye gönder</button>' : ''}</div>`);
+      <div class="modal-actions"><button class="btn" id="ubiKapat">Kapat</button><button class="btn btn-primary" id="ubiIndir">XML indir</button>${(currentUserRole === 'yonetici' && platformSahibi) ? '<button class="btn btn-primary" id="ubiGonder">QNB\'ye gönder</button>' : ''}</div>`);
     document.getElementById('ubiKapat').onclick = closeModal;
     const ig = document.getElementById('ubiGonder');
     if (ig) ig.onclick = async () => {
@@ -11948,7 +11948,7 @@ ${satirlar.join('\n')}
     if (platformSahibi) platformRozetYukle();
     hesapSilAltGuncelle();
     document.getElementById('ayarlarKullanicilarRow').style.display = currentUserRole === 'yonetici' ? 'flex' : 'none';
-    document.getElementById('ayarlarEBelgeRow').style.display = currentUserRole === 'yonetici' ? 'flex' : 'none';
+    document.getElementById('ayarlarEBelgeRow').style.display = (currentUserRole === 'yonetici' && platformSahibi) ? 'flex' : 'none';
     document.getElementById('drawerAktifFirmaAdi').textContent = currentSirketAdi;
     document.getElementById('ayarlarAktifFirmaAdi').textContent = currentSirketAdi || 'Aktif firma';
     document.getElementById('headerBarkodBtn').style.display = 'flex';
