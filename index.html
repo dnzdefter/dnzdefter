@@ -574,11 +574,25 @@
   <div class="auth-card">
     <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="var(--flame)" stroke-width="1.6" style="margin-bottom:14px"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
     <p class="auth-title" style="margin-bottom:8px;font-size:16px;color:var(--ink)">Hesabın onay bekliyor</p>
-    <p style="font-size:13px;color:var(--ink-soft);margin-bottom:24px;line-height:1.5">Hesabın oluştu, ama henüz bir işletmeye bağlı değil. Yöneticinin seni <b>Ayarlar → Kullanıcılar</b> bölümünden e-posta adresinle eklemesini bekle.</p>
+    <p style="font-size:13px;color:var(--ink-soft);margin-bottom:24px;line-height:1.5">Hesabın oluştu, ama henüz bir firmaya bağlı değil. Mevcut bir firmaya katılacaksan yöneticinin seni <b>Ayarlar → Kullanıcılar</b> bölümünden e-posta adresinle eklemesini bekle. Kendi firmanı kuracaksan aşağıdan oluştur; firman <b>uygulama sahibi onayladıktan sonra</b> kullanıma açılır.</p>
+    <button class="auth-login-btn" id="pendingFirmaOlusturBtn" style="margin-bottom:10px">Kendi Firmamı Oluştur</button>
     <button class="auth-login-btn" id="pendingSignOutBtn" style="background:var(--ink-soft)">Çıkış Yap</button>
   </div>
 </div>
 
+<div id="hesapDurumScreen" class="auth-overlay" style="display:none">
+  <div class="auth-blob" style="width:340px;height:340px;background:#8FD1FF;top:-120px;left:-100px"></div>
+  <div class="auth-blob" style="width:300px;height:300px;background:#B9C8FF;bottom:-100px;right:-90px"></div>
+  <div class="auth-card">
+    <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="var(--flame)" stroke-width="1.6" style="margin-bottom:14px"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+    <p class="auth-title" id="hdBaslik" style="margin-bottom:8px;font-size:16px;color:var(--ink)"></p>
+    <p id="hdMetin" style="font-size:13px;color:var(--ink-soft);margin-bottom:12px;line-height:1.5"></p>
+    <p id="hdSilmeNot" style="display:none;font-size:12.5px;color:var(--expense);margin-bottom:12px;line-height:1.5"></p>
+    <button class="auth-login-btn" id="hdYenileBtn" style="margin-bottom:10px">Durumu Kontrol Et</button>
+    <button class="auth-login-btn" id="hdSilBtn" style="margin-bottom:10px;background:var(--expense)">Hesabımı Sil (Talep Et)</button>
+    <button class="auth-login-btn" id="hdCikisBtn" style="background:var(--ink-soft)">Çıkış Yap</button>
+  </div>
+</div>
 <div id="sirketSecScreen" class="auth-overlay" style="display:none">
   <div class="auth-blob" style="width:340px;height:340px;background:#8FD1FF;top:-120px;left:-100px"></div>
   <div class="auth-blob" style="width:300px;height:300px;background:#B9C8FF;bottom:-100px;right:-90px"></div>
@@ -1532,6 +1546,8 @@
         <div class="menu-row" data-a="kullanicilar" id="ayarlarKullanicilarRow" style="display:none"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="9" cy="8" r="3.2"/><path d="M2 21c0-3.8 3-6 7-6s7 2.2 7 6"/><circle cx="17.5" cy="9" r="2.3"/><path d="M16 15.2c2.8.5 4.5 2.2 5 5.8"/></svg></div><div><div class="title">Kullanıcılar</div><div class="sub">Ekibine erişim ver ya da kaldır</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-a="yetkiler" id="ayarlarYetkiRow" style="display:none"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3Z"/><path d="M9 12l2 2 4-4"/></svg></div><div><div class="title">Çalışan Yetkileri</div><div class="sub">Çalışanın hangi bölümleri göreceğini sen seç</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-a="islemgecmisi" id="ayarlarLogRow" style="display:none"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div><div class="title">İşlem Geçmişi</div><div class="sub">Kim ne ekledi, değiştirdi, sildi — silinenleri geri yükle</div></div><span class="chev">›</span></div>
+        <div class="menu-row" data-a="platform" id="ayarlarPlatformRow" style="display:none"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 21h18M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/></svg></div><div><div class="title">Platform Yönetimi <span id="platformRozet" style="display:none;background:var(--expense);color:#fff;border-radius:999px;font-size:11px;padding:1px 7px;margin-left:6px"></span></div><div class="sub">Müşteri firmaları: onay, süre, aktif/pasif, silme talepleri</div></div><span class="chev">›</span></div>
+        <div class="menu-row" data-a="hesapsil" id="ayarlarHesapSilRow" style="display:none"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" style="color:var(--expense)"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></div><div><div class="title" style="color:var(--expense)">Hesabımı Sil</div><div class="sub" id="hesapSilAlt">Tüm verilerin kalıcı silinmesi için talep gönder</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-a="cikis"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" style="color:var(--expense)"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></div><div><div class="title" style="color:var(--expense)">Çıkış Yap</div></div></div>
       </div>
       <p style="font-size:12px;color:var(--ink-soft);padding:0 4px">E-Fatura, SMS ve Kargo entegrasyonları bu sürümde yok — bunlar gerçek banka/GİB/kurye bağlantısı gerektiriyor.</p>
@@ -1552,6 +1568,10 @@
       <p style="font-size:12.5px;color:var(--ink-soft);padding:0 4px;margin-bottom:10px">Son 180 günün kayıtları. Yanlışlıkla silinen veya değiştirilen bir kaydı <b>Geri Yükle</b> ile eski haline getirebilirsin.</p>
       <div class="field" style="margin-bottom:10px"><select id="logFiltre"><option value="">Tüm işlemler</option><option value="SIL">Silinenler</option><option value="DEGISTIR">Değiştirilenler</option><option value="EKLE">Eklenenler</option><option value="YETKI_DEGISTI,FIRMA_BILGISI_DEGISTI,UYE_EKLENDI,UYE_SILINDI">Ayar / yetki / kullanıcı</option></select></div>
       <div id="logBody"></div>
+    </section>
+    <section class="view" id="view-platform">
+      <p style="font-size:12.5px;color:var(--ink-soft);padding:0 4px;margin-bottom:10px">Kayıt olup firma açan müşteriler burada görünür. <b>Onay vermedikçe</b> firma kullanılamaz. Pasif ya da süresi dolan firmanın verileri silinmez, sadece erişim kapanır; tekrar aktif edince kaldığı yerden devam eder.</p>
+      <div id="platformBody"></div>
     </section>
     <section class="view" id="view-calisan-yetkileri">
       <p style="font-size:12.5px;color:var(--ink-soft);padding:0 4px;margin-bottom:10px">"Çalışan" rolündeki kullanıcılar varsayılan olarak <b>sadece Ana Sayfayı</b> görür. Aşağıdan görmesini istediğin bölümleri aç. Yöneticiler her şeyi görür. Değişiklikler anında kaydedilir.</p>
@@ -1939,6 +1959,7 @@
   let currentSirketId = null;
   let currentSirketAdi = '';
   let mySirketler = [];
+  let platformSahibi = false; // uygulama sahibi (müşteri onay / aktif-pasif / silme yetkisi)
   async function resolveMembership(userId) {
     try {
       const { data, error } = await sb.rpc('get_my_membership');
@@ -2441,7 +2462,7 @@
     'view-katalog-sec': 'Satış Kataloğu Oluştur',
     'view-etiket-sec': 'Ürün Etiketi Oluştur',
     'view-ayarlar': 'Ayarlar', 'view-sirket-bilgileri': 'Şirket Bilgileri', 'view-sablon-ayarlari': 'Şablon Ayarları', 'view-tanimlar': 'Tanımlar',
-    'view-tanim-liste': 'Tanım Listesi', 'view-veri-yonetimi': 'Veri Yönetimi', 'view-kullanicilar': 'Kullanıcılar', 'view-ebelge': 'e-Belgeler', 'view-calisan-yetkileri': 'Çalışan Yetkileri', 'view-islem-gecmisi': 'İşlem Geçmişi',
+    'view-tanim-liste': 'Tanım Listesi', 'view-veri-yonetimi': 'Veri Yönetimi', 'view-kullanicilar': 'Kullanıcılar', 'view-ebelge': 'e-Belgeler', 'view-calisan-yetkileri': 'Çalışan Yetkileri', 'view-islem-gecmisi': 'İşlem Geçmişi', 'view-platform': 'Platform Yönetimi',
     'view-rapor-satis': 'Satışlar', 'view-rapor-alis': 'Alışlar', 'view-rapor-masraf': 'Masraflar Raporu',
     'view-rapor-iade': 'İadeler', 'view-rapor-kasa': 'Kasa-Hesap Hareketleri', 'view-rapor-borc': 'Borç Alacak Listesi',
     'view-rapor-cek': 'Çek Senet Durumu', 'view-rapor-geciken': 'Geciken Alacaklar', 'view-rapor-kdv': 'KDV Dökümü',
@@ -5179,7 +5200,7 @@ ${satirlar.join('\n')}
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); takipKurulumOlayi = e; const b = document.getElementById('tkKur'); if (b) b.style.display = 'inline-flex'; });
 
   async function takipSayfasiGoster(token) {
-    ['authScreen', 'pendingScreen', 'sirketSecScreen', 'appRoot'].forEach((id) => { const e = document.getElementById(id); if (e) e.style.display = 'none'; });
+    ['authScreen', 'pendingScreen', 'hesapDurumScreen', 'sirketSecScreen', 'appRoot'].forEach((id) => { const e = document.getElementById(id); if (e) e.style.display = 'none'; });
     const ekran = document.getElementById('takipScreen');
     ekran.style.display = 'block';
     if (!document.getElementById('tkStyle')) {
@@ -11421,7 +11442,7 @@ ${satirlar.join('\n')}
   function navIzinli(nav) { if (nav === 'ozet') return true; return menuIzni(nav.indexOf('raporlar') === 0 ? 'raporlar' : nav); }
   function viewIzinli(id) {
     if (yoneticiMi() || id === 'view-ozet') return true;
-    if (id === 'view-ebelge' || id === 'view-kullanicilar' || id === 'view-calisan-yetkileri' || id === 'view-islem-gecmisi') return false;
+    if (id === 'view-ebelge' || id === 'view-kullanicilar' || id === 'view-calisan-yetkileri' || id === 'view-islem-gecmisi' || id === 'view-platform') return false;
     if (/^view-(raporlar|rapor-|genel-ozet)/.test(id)) return menuIzni('raporlar');
     if (id === 'view-cari' || id === 'view-cari-detail' || id === 'view-cari-form') return menuIzni(cariFilter === 'tedarikci' ? 'tedarikci' : 'musteri');
     if (/^view-(stok|kategori|marka|depo|fiyat-listesi|katalog-sec|etiket-sec)/.test(id)) return menuIzni('stok');
@@ -11487,6 +11508,8 @@ ${satirlar.join('\n')}
       else if (a === 'kullanicilar') enterKullanicilar();
       else if (a === 'yetkiler') enterCalisanYetkileri();
       else if (a === 'islemgecmisi') enterIslemGecmisi();
+      else if (a === 'platform') enterPlatform();
+      else if (a === 'hesapsil') hesapSilTalebiAyarlardan();
       else if (a === 'cikis') {
         if (confirm('Çıkış yapmak istiyor musun?')) guvenliCikis();
       }
@@ -11709,11 +11732,221 @@ ${satirlar.join('\n')}
   }
 
   // ---------------- Auth & Init ----------------
+
+  // ================= HESAP DURUMU (onay bekliyor / pasif) + PLATFORM YÖNETİMİ =================
+  let hdSirket = null;
+  function hdGizle() { const e = document.getElementById('hesapDurumScreen'); if (e) e.style.display = 'none'; }
+  function platformTarihYaz(d) { if (!d) return 'süresiz'; const p = String(d).split('-'); return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : String(d); }
+  function platformTarihOku(txt) {
+    const t = String(txt || '').trim();
+    if (!t) return { ok: true, v: null };
+    let y, a, g, m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (m) { y = m[1]; a = m[2]; g = m[3]; }
+    else { m = t.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/); if (!m) return { ok: false }; g = m[1]; a = m[2]; y = m[3]; }
+    a = String(a).padStart(2, '0'); g = String(g).padStart(2, '0');
+    const d = new Date(y + '-' + a + '-' + g + 'T12:00:00');
+    if (isNaN(d.getTime()) || d.getMonth() + 1 !== Number(a)) return { ok: false };
+    return { ok: true, v: y + '-' + a + '-' + g };
+  }
+  function platformVarsayilanBitis() {
+    const d = new Date(); d.setDate(d.getDate() + 30);
+    const z = (n) => String(n).padStart(2, '0');
+    return z(d.getDate()) + '.' + z(d.getMonth() + 1) + '.' + d.getFullYear();
+  }
+  async function hdGoster(sirket) {
+    hdSirket = sirket;
+    try { await yerelVeriyiTemizle(); } catch (e) { /* yok say */ }
+    const ad = sirket.sirket_adi || 'Firman';
+    let baslik, metin;
+    if (sirket.durum === 'beklemede') {
+      baslik = 'Onay bekleniyor';
+      metin = '“' + ad + '” firman oluşturuldu. Uygulama sahibi onayladığında kullanmaya başlayabilirsin. Onaydan sonra aşağıdaki düğmeyle durumu kontrol et.';
+    } else if (sirket.durum === 'aktif') {
+      baslik = 'Kullanım süren doldu';
+      metin = (sirket.bitis_tarihi ? platformTarihYaz(sirket.bitis_tarihi) + ' tarihinde sona erdi. ' : '') + 'Verilerin güvenle saklanıyor, hiçbiri silinmedi. Ödeme tamamlanıp hesabın yeniden aktif edilince kaldığın yerden devam edersin.';
+    } else {
+      baslik = 'Hesabın pasif';
+      metin = 'Hesabın şu an kullanıma kapalı (ödeme bekleniyor olabilir). Verilerin güvenle saklanıyor, hiçbiri silinmedi. Hesabın yeniden aktif edilince kaldığın yerden devam edersin.';
+    }
+    document.getElementById('hdBaslik').textContent = baslik;
+    document.getElementById('hdMetin').textContent = metin;
+    const not = document.getElementById('hdSilmeNot');
+    if (sirket.silme_talebi_at) { not.style.display = 'block'; not.textContent = 'Hesap silme talebin iletildi. Onaylanırsa firmanın tüm verileri kalıcı olarak silinecek.'; }
+    else not.style.display = 'none';
+    const sil = document.getElementById('hdSilBtn');
+    sil.textContent = sirket.silme_talebi_at ? 'Silme Talebini Geri Çek' : 'Hesabımı Sil (Talep Et)';
+    sil.style.background = sirket.silme_talebi_at ? 'var(--ink-soft)' : 'var(--expense)';
+    ['authScreen', 'pendingScreen', 'sirketSecScreen', 'appRoot'].forEach((id) => { const e = document.getElementById(id); if (e) e.style.display = 'none'; });
+    document.getElementById('hesapDurumScreen').style.display = 'flex';
+  }
+  async function silmeTalebiGonder(sirket, iptal) {
+    const { error } = await sb.rpc('silme_talebi', { p_sirket_id: sirket.sirket_id, p_iptal: !!iptal });
+    if (error) throw error;
+    sirket.silme_talebi_at = iptal ? null : new Date().toISOString();
+  }
+  const SILME_UYARI = 'Hesabını silmek için talep göndereceksin.\n\nUygulama sahibi onaylarsa firmanın TÜM verileri (faturalar, cariler, stok, fotoğraflar) ve giriş hesabın KALICI olarak silinir; geri getirilemez.\n\nTalep gönderilsin mi?';
+  document.getElementById('hdYenileBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('hdYenileBtn');
+    btn.disabled = true; btn.textContent = 'Kontrol ediliyor…';
+    try {
+      mySirketler = await resolveSirketler();
+      const s = hdSirket && mySirketler.find((x) => x.sirket_id === hdSirket.sirket_id);
+      if (s && s.aktif !== false) { hdGizle(); await selectSirketAndEnter(s.sirket_id, s.sirket_adi); return; }
+      if (s) { await hdGoster(s); alert('Durum henüz değişmedi.'); }
+      else alert('Firma bilgisi alınamadı. İnternet bağlantını kontrol et.');
+    } finally { btn.disabled = false; btn.textContent = 'Durumu Kontrol Et'; }
+  });
+  document.getElementById('hdSilBtn').addEventListener('click', async () => {
+    if (!hdSirket) return;
+    try {
+      if (hdSirket.silme_talebi_at) {
+        if (!confirm('Silme talebini geri çekmek istiyor musun?')) return;
+        await silmeTalebiGonder(hdSirket, true);
+      } else {
+        if (!confirm(SILME_UYARI)) return;
+        await silmeTalebiGonder(hdSirket, false);
+        alert('Silme talebin iletildi.');
+      }
+      await hdGoster(hdSirket);
+    } catch (e) { alert('İşlem yapılamadı: ' + (e.message || 'bağlantı sorunu')); }
+  });
+  document.getElementById('hdCikisBtn').addEventListener('click', () => guvenliCikis());
+
+  function hesapSilAltGuncelle() {
+    const el = document.getElementById('hesapSilAlt'); if (!el) return;
+    const s = mySirketler.find((x) => x.sirket_id === currentSirketId);
+    el.textContent = (s && s.silme_talebi_at) ? 'Silme talebin iletildi. Geri çekmek için dokun.' : 'Tüm verilerin kalıcı silinmesi için talep gönder';
+  }
+  async function hesapSilTalebiAyarlardan() {
+    const s = mySirketler.find((x) => x.sirket_id === currentSirketId);
+    if (!s || currentUserRole !== 'yonetici') return;
+    try {
+      if (s.silme_talebi_at) {
+        if (!confirm('Silme talebini geri çekmek istiyor musun?')) return;
+        await silmeTalebiGonder(s, true);
+        alert('Silme talebi geri çekildi.');
+      } else {
+        if (!confirm(SILME_UYARI)) return;
+        await silmeTalebiGonder(s, false);
+        alert('Silme talebin uygulama sahibine iletildi. Onaylanana kadar hesabını kullanmaya devam edebilirsin.');
+      }
+      hesapSilAltGuncelle();
+    } catch (e) { alert('İşlem yapılamadı: ' + (e.message || 'bağlantı sorunu')); }
+  }
+
+  // ---- Platform Yönetimi (yalnızca uygulama sahibi) ----
+  let platformFirmalar = [];
+  let platformUyarildi = false;
+  function platformBekleyenSayisi(liste) { return (liste || []).filter((f) => !f.f_benim && (f.f_durum === 'beklemede' || f.f_silme)).length; }
+  function platformRozetGuncelle(liste) {
+    const r = document.getElementById('platformRozet'); if (!r) return;
+    const n = platformBekleyenSayisi(liste);
+    r.textContent = n; r.style.display = n ? 'inline-block' : 'none';
+  }
+  async function platformRozetYukle() {
+    try {
+      const { data, error } = await sb.rpc('platform_firmalar');
+      if (error) throw error;
+      platformRozetGuncelle(data || []);
+      const n = platformBekleyenSayisi(data || []);
+      if (n && !platformUyarildi) {
+        platformUyarildi = true;
+        setTimeout(() => { if (confirm(n + ' firma işleminiz bekliyor (onay / silme talebi). Şimdi bakmak ister misin?')) enterPlatform(); }, 600);
+      }
+    } catch (e) { /* sessiz */ }
+  }
+  function enterPlatform() {
+    if (!platformSahibi) return;
+    showView('view-platform', { showBack: true, onBack: enterAyarlar });
+    setDrawerActive('ayarlar');
+    renderPlatform();
+  }
+  function platformKartHtml(f) {
+    let rozet;
+    if (f.f_durum === 'beklemede') rozet = ['Onay bekliyor', 'var(--amber-soft)', 'var(--amber)'];
+    else if (!f.f_aktif) rozet = [f.f_durum === 'aktif' ? 'Süresi doldu' : 'Pasif', 'var(--expense-soft)', 'var(--expense)'];
+    else rozet = ['Aktif', 'var(--income-soft)', 'var(--income)'];
+    const kayit = f.f_olusturma ? new Date(f.f_olusturma).toLocaleDateString('tr-TR') : '';
+    const alt = [f.f_yonetici || '—', 'kayıt ' + kayit, f.f_uye + ' kullanıcı', f.f_durum === 'aktif' ? 'bitiş: ' + platformTarihYaz(f.f_bitis) : ''].filter(Boolean).join(' · ');
+    let b = '';
+    if (f.f_benim) b = '<div style="font-size:12px;color:var(--ink-soft)">Senin firman — buradan değiştirilemez.</div>';
+    else {
+      if (f.f_durum === 'beklemede') b += '<button type="button" class="btn btn-primary btn-sm" data-pa="onayla" data-id="' + f.f_id + '">Onayla</button><button type="button" class="btn btn-sm" data-pa="pasif" data-id="' + f.f_id + '">Reddet</button>';
+      else if (f.f_durum === 'aktif') b += '<button type="button" class="btn btn-sm" data-pa="sure" data-id="' + f.f_id + '">Süreyi Değiştir</button><button type="button" class="btn btn-sm" data-pa="pasif" data-id="' + f.f_id + '">Pasif Yap</button>';
+      else b += '<button type="button" class="btn btn-primary btn-sm" data-pa="onayla" data-id="' + f.f_id + '">Aktif Et</button>';
+      if (f.f_silme || f.f_durum !== 'aktif') b += '<button type="button" class="btn btn-danger btn-sm" data-pa="sil" data-id="' + f.f_id + '">' + (f.f_silme ? 'Silme Talebini Onayla' : 'Kalıcı Sil') + '</button>';
+    }
+    return '<div style="background:var(--glass-strong);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px">'
+      + '<div style="display:flex;align-items:center;gap:8px;justify-content:space-between"><div style="font-weight:700;min-width:0;overflow-wrap:anywhere">' + escapeHtml(f.f_ad) + '</div>'
+      + '<span style="flex-shrink:0;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:999px;background:' + rozet[1] + ';color:' + rozet[2] + '">' + rozet[0] + '</span></div>'
+      + '<div style="font-size:12px;color:var(--ink-soft);margin:4px 0 8px;overflow-wrap:anywhere">' + escapeHtml(alt) + '</div>'
+      + (f.f_silme ? '<div style="font-size:12.5px;color:var(--expense);margin-bottom:8px">Silme talebi var (' + new Date(f.f_silme).toLocaleDateString('tr-TR') + ')</div>' : '')
+      + '<div style="display:flex;flex-wrap:wrap;gap:8px">' + b + '</div></div>';
+  }
+  async function renderPlatform() {
+    const body = document.getElementById('platformBody');
+    body.innerHTML = '<div class="empty-state">Yükleniyor…</div>';
+    try {
+      const { data, error } = await sb.rpc('platform_firmalar');
+      if (error) throw error;
+      platformFirmalar = data || [];
+      platformRozetGuncelle(platformFirmalar);
+      body.innerHTML = platformFirmalar.length ? platformFirmalar.map(platformKartHtml).join('') : '<div class="empty-state">Henüz firma yok.</div>';
+    } catch (e) {
+      body.innerHTML = '<div class="empty-state">Liste alınamadı: ' + escapeHtml(e.message || 'bağlantı sorunu') + '</div>';
+    }
+  }
+  async function platformDurumKaydet(id, durum, bitis) {
+    const { error } = await sb.rpc('platform_durum_ayarla', { p_id: id, p_durum: durum, p_bitis: bitis });
+    if (error) throw error;
+  }
+  async function platformKalıcıSil(f) {
+    if (!f.f_silme && !confirm('Bu firma için müşteriden silme talebi yok. Yine de KALICI silmek istiyor musun? Tüm verileri, fotoğrafları ve giriş hesapları geri getirilemez şekilde silinir.')) return;
+    const ad = prompt('KALICI SİLME. Tüm veriler, fotoğraflar ve giriş hesapları silinecek, geri alınamaz.\n\nOnaylamak için firma adını aynen yaz:\n' + f.f_ad);
+    if (ad === null) return;
+    const { data, error } = await sb.functions.invoke('platform', { body: { action: 'sil', sirket_id: f.f_id, onay_ad: ad } });
+    let hata = data && data.hata;
+    if (error) {
+      hata = error.message;
+      try { const j = await error.context.json(); if (j && j.hata) hata = j.hata; } catch (e) { /* yok say */ }
+    }
+    if (hata) { alert('Silinemedi: ' + hata); return; }
+    alert('Silindi: ' + (data.firma || f.f_ad) + '\nDosya: ' + data.dosya + ' · Giriş hesabı: ' + data.hesap + (data.hesapHatalari && data.hesapHatalari.length ? '\nUyarı: ' + data.hesapHatalari.join('; ') : ''));
+  }
+  document.getElementById('platformBody').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-pa]'); if (!b) return;
+    const f = platformFirmalar.find((x) => x.f_id === b.dataset.id); if (!f) return;
+    const eylem = b.dataset.pa;
+    b.disabled = true;
+    try {
+      if (eylem === 'onayla' || eylem === 'sure') {
+        const varsayilan = f.f_bitis ? platformTarihYaz(f.f_bitis) : platformVarsayilanBitis();
+        const g = prompt((eylem === 'onayla' ? 'Firma aktif edilecek.\n' : '') + 'Kullanım bitiş tarihi (GG.AA.YYYY). Süresiz için boş bırak:', varsayilan);
+        if (g === null) return;
+        const t = platformTarihOku(g);
+        if (!t.ok) { alert('Tarihi GG.AA.YYYY şeklinde yaz (örn. 31.12.2026).'); return; }
+        await platformDurumKaydet(f.f_id, 'aktif', t.v);
+      } else if (eylem === 'pasif') {
+        if (!confirm('"' + f.f_ad + '" pasif yapılsın mı? Verileri silinmez; kullanıcılar uygulamayı açamaz.')) return;
+        await platformDurumKaydet(f.f_id, 'pasif', f.f_bitis || null);
+      } else if (eylem === 'sil') {
+        await platformKalıcıSil(f);
+      }
+    } catch (err) { alert('İşlem yapılamadı: ' + (err.message || 'bağlantı sorunu')); }
+    finally { b.disabled = false; }
+    renderPlatform();
+  });
+
   async function showApp() {
     document.getElementById('authScreen').style.display = 'none';
     document.getElementById('pendingScreen').style.display = 'none';
+    hdGizle();
     document.getElementById('sirketSecScreen').style.display = 'none';
     document.getElementById('appRoot').style.display = '';
+    document.getElementById('ayarlarPlatformRow').style.display = platformSahibi ? 'flex' : 'none';
+    document.getElementById('ayarlarHesapSilRow').style.display = (currentUserRole === 'yonetici' && !platformSahibi) ? 'flex' : 'none';
+    if (platformSahibi) platformRozetYukle();
+    hesapSilAltGuncelle();
     document.getElementById('ayarlarKullanicilarRow').style.display = currentUserRole === 'yonetici' ? 'flex' : 'none';
     document.getElementById('ayarlarEBelgeRow').style.display = currentUserRole === 'yonetici' ? 'flex' : 'none';
     document.getElementById('drawerAktifFirmaAdi').textContent = currentSirketAdi;
@@ -11773,6 +12006,7 @@ ${satirlar.join('\n')}
     if (degisti) saveStateSessiz();
   }
   function showPendingScreen() {
+    hdGizle();
     document.getElementById('authScreen').style.display = 'none';
     document.getElementById('sirketSecScreen').style.display = 'none';
     document.getElementById('appRoot').style.display = 'none';
@@ -11788,13 +12022,15 @@ ${satirlar.join('\n')}
         <div class="main"><div class="title">${escapeHtml(s.sirket_adi)}</div></div>
         ${s.role === 'yonetici' ? `
           <button type="button" class="icon-btn sirket-rename-btn" data-id="${s.sirket_id}" data-ad="${escapeHtml(s.sirket_adi)}" style="width:30px;height:30px;flex-shrink:0" title="Adını düzenle"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
-          <button type="button" class="icon-btn sirket-delete-btn" data-id="${s.sirket_id}" data-ad="${escapeHtml(s.sirket_adi)}" style="width:30px;height:30px;flex-shrink:0;color:var(--expense)" title="Firmayı sil"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>
+          ${platformSahibi ? `<button type="button" class="icon-btn sirket-delete-btn" data-id="${s.sirket_id}" data-ad="${escapeHtml(s.sirket_adi)}" style="width:30px;height:30px;flex-shrink:0;color:var(--expense)" title="Firmayı sil"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>` : ''}
         ` : ''}
         <span class="chev">›</span>
       </div>
     `).join('');
   }
   function showSirketSecScreen() {
+    hdGizle();
+    document.getElementById('sirketYeniEkleBtn').style.display = platformSahibi ? '' : 'none';
     document.getElementById('authScreen').style.display = 'none';
     document.getElementById('pendingScreen').style.display = 'none';
     document.getElementById('appRoot').style.display = 'none';
@@ -11818,6 +12054,9 @@ ${satirlar.join('\n')}
     // rolü ayrı ayrı verdiği için, seçilen firmanın rolünü buradan alıp güncelliyoruz.
     const secilen = mySirketler.find((s) => s.sirket_id === sirketId);
     if (secilen) currentUserRole = secilen.role;
+    // Firma onay bekliyor / pasif / süresi dolmuş: veritabanı zaten erişimi kapatıyor; burada kullanıcıya
+    // anlaşılır bir ekran gösterip bu cihazdaki yerel önbelleği de temizliyoruz (veri sunucuda saklı kalır).
+    if (secilen && secilen.aktif === false) { await hdGoster(secilen); return; }
     sonOturumuKaydet();
     await showApp();
   }
@@ -11882,6 +12121,26 @@ ${satirlar.join('\n')}
       btn.disabled = false; btn.textContent = '+ Yeni Firma Ekle';
     }
   });
+  document.getElementById('pendingFirmaOlusturBtn').addEventListener('click', async () => {
+    const ad = prompt('Firmanın adı:');
+    if (!ad || !ad.trim()) return;
+    const btn = document.getElementById('pendingFirmaOlusturBtn');
+    btn.disabled = true; btn.textContent = 'Oluşturuluyor…';
+    try {
+      const { data, error } = await sb.rpc('create_sirket', { p_ad: ad.trim() });
+      if (error) throw error;
+      document.getElementById('pendingScreen').style.display = 'none';
+      mySirketler = await resolveSirketler();
+      await selectSirketAndEnter(data, ad.trim());
+    } catch (e) {
+      const m = String((e && e.message) || '');
+      alert(/Zaten bir firmaya/i.test(m)
+        ? 'Bu hesap zaten bir firmaya bağlı. Çıkış yapıp tekrar giriş yapmayı dene.'
+        : 'Firma oluşturulamadı: ' + (m || 'bağlantı sorunu'));
+    } finally {
+      btn.disabled = false; btn.textContent = 'Kendi Firmamı Oluştur';
+    }
+  });
   document.getElementById('sirketSecCikisBtn').addEventListener('click', () => guvenliCikis());
   // Ayarlar'dan (uygulama İÇİNDEN) firma değiştirme: mevcut oturumu korur, sadece hangi firmanın
   // verisiyle çalışıldığını değiştirir.
@@ -11890,6 +12149,7 @@ ${satirlar.join('\n')}
     showSirketSecScreen();
   }
   function showAuthScreen() {
+    hdGizle();
     document.getElementById('authScreen').style.display = 'flex';
     document.getElementById('pendingScreen').style.display = 'none';
     document.getElementById('sirketSecScreen').style.display = 'none';
@@ -11926,7 +12186,7 @@ ${satirlar.join('\n')}
       if (error) { statusEl.textContent = 'Giriş başarısız: ' + error.message; statusEl.classList.add('error'); }
     } else {
       const { data, error } = await sb.auth.signUp({ email, password });
-      if (error) { statusEl.textContent = 'Kayıt başarısız: ' + error.message; statusEl.classList.add('error'); }
+      if (error) { const onayYok = /KAYIT_ONAYI|Database error saving new user/i.test(error.message || ''); statusEl.textContent = onayYok ? 'Kayıt için yönetici onayı gerekiyor. Onay için uygulama sahibiyle iletişime geçin.' : 'Kayıt başarısız: ' + error.message; statusEl.classList.add('error'); }
       else if (data && data.user && !data.session) { statusEl.classList.remove('error'); statusEl.textContent = 'Hesabın oluştu. E-postana gelen bağlantıyla onaylayıp tekrar giriş yap.'; }
     }
     btn.disabled = false;
@@ -11973,6 +12233,7 @@ ${satirlar.join('\n')}
       const membership = await resolveMembership(session.user.id);
       currentOwnerId = membership ? membership.ownerId : null;
       currentUserRole = membership ? membership.role : null;
+      try { const { data: ps } = await sb.rpc('is_platform_sahibi'); platformSahibi = ps === true; } catch (e) { platformSahibi = false; }
       mySirketler = await resolveSirketler();
       if (!mySirketler.length) {
         // Sunucuya ulaşılamadığı (çevrimdışı/ağ hatası) için boş döndüyse VE önbellekte bir son oturum
@@ -11997,6 +12258,7 @@ ${satirlar.join('\n')}
       currentUserRole = null;
       currentSirketId = null;
       currentSirketAdi = '';
+      platformSahibi = false;
       showAuthScreen();
     }
   }
