@@ -3828,8 +3828,33 @@ ${satirlar.join('\n')}
   // uygulamayı kapatır, tıpkı diğer birçok mobil uygulamada olduğu gibi). Önceki, "art arda kaç
   // kayıt itildi" hesabına dayanan karmaşık sürüm gerçek cihazlarda güvenilir çalışmıyordu; bu en
   // yalın, en yaygın kullanılan sürüm.
-  function armBackTrap() { try { history.pushState(null, '', location.href); } catch (e) {} }
+  // GERİ TUŞU (v2): Telefonun geri tuşu uygulamadan ÇIKMADAN önce uygulama içinde bir adım geri gider.
+  // Tarayıcı bazı durumlarda sayfanın dokunmadan eklediği geçmiş kayıtlarını atlayıp siteyi terk
+  // ettiği için TEK kayıt yerine bir TAMPON (BACK_BUF kayıt) tutulur ve her dokunuşta (kullanıcı
+  // etkileşimiyle eklenen kayıtlar atlanmaz) eksik kalan kayıtlar tamamlanır. Ana sayfadayken
+  // geri tuşuna ilk basış "Çıkmak için tekrar basın" uyarısı verir; 2,5 sn içinde ikinci basış çıkar.
+  const BACK_BUF = 5;
+  let backExitUntil = 0, backToastTimer = null;
+  function backIdx() { const s = history.state; return (s && typeof s.dnzI === 'number') ? s.dnzI : 0; }
+  function armBackTrap() {
+    try {
+      if (!(history.state && typeof history.state.dnzI === 'number')) history.replaceState({ dnzI: 0 }, '', location.href);
+      for (let i = backIdx() + 1; i <= BACK_BUF; i++) history.pushState({ dnzI: i }, '', location.href);
+    } catch (e) { /* geçmiş API'si yoksa sessiz geç */ }
+  }
+  function backToast(msg) {
+    let t = document.getElementById('backToast');
+    if (!t) {
+      t = document.createElement('div'); t.id = 'backToast';
+      t.style.cssText = 'position:fixed;left:50%;bottom:70px;transform:translateX(-50%);background:rgba(11,37,69,.92);color:#fff;padding:10px 16px;border-radius:20px;font-size:13px;z-index:10050;max-width:80%;text-align:center;pointer-events:none;transition:opacity .2s';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg; t.style.opacity = '1';
+    clearTimeout(backToastTimer); backToastTimer = setTimeout(() => { t.style.opacity = '0'; }, 2300);
+  }
   armBackTrap();
+  // Her gerçek dokunuşta tamponu tamamla (kullanıcı etkileşimi sırasında eklenen kayıtlar atlanmaz).
+  document.addEventListener('pointerup', () => { if (backIdx() < BACK_BUF) armBackTrap(); }, { capture: true, passive: true });
   // Tarayıcının (Android/Chrome/Samsung Internet) siteyi gerçek bir "yüklenebilir" PWA olarak
   // tanıması için manifest.json tek başına yetmiyor — bir service worker da gerekiyor. Bu olmadan
   // "Ana Ekrana Ekle" sadece bir kısayol oluşturuyor ve geri tuşu tarayıcının kendi kontrolünde
@@ -3839,10 +3864,23 @@ ${satirlar.join('\n')}
     window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
   }
   window.addEventListener('popstate', () => {
-    armBackTrap();
-    if (drawerOverlay.classList.contains('open')) { closeDrawer(); return; }
-    if (modalOverlay.classList.contains('open')) { closeModal(); return; }
-    if (document.getElementById('appRoot').style.display === 'none') { return; }
+    const drawerAcik = drawerOverlay.classList.contains('open');
+    const modalAcik = modalOverlay.classList.contains('open');
+    const appGorunur = document.getElementById('appRoot').style.display !== 'none';
+    const aktif = document.querySelector('.view.active');
+    const current = viewPath[viewPath.length - 1];
+    const evde = appGorunur && !drawerAcik && !modalAcik && aktif && aktif.id === 'view-ozet' && !(current && current.onBack);
+    // Ana sayfada ikinci kez (2,5 sn içinde) geri: uygulamadan çık.
+    if (evde && Date.now() < backExitUntil) {
+      backExitUntil = 0;
+      try { history.go(-(backIdx() + 1)); } catch (e) { history.back(); }
+      return;
+    }
+    if (backIdx() < 2) armBackTrap(); // tampon bitmek üzere — en iyi çaba ile yenile
+    if (drawerAcik) { closeDrawer(); return; }
+    if (modalAcik) { closeModal(); return; }
+    if (!appGorunur) { return; }
+    if (evde) { backExitUntil = Date.now() + 2500; backToast('Çıkmak için tekrar geri tuşuna basın'); return; }
     stepBack();
   });
 
