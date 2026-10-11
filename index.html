@@ -1444,7 +1444,7 @@
       <div class="menu-row-wrap">
         <div class="menu-row" data-kategori="genel"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></div><div><div class="title">Genel Özet</div><div class="sub">Stok değeri, net kâr, ciro, gelir-gider, son 6 ay, son belgeler, kritik stok</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-kategori="satisalis"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/><path d="M3 4h2l2.4 11.5a2 2 0 0 0 2 1.6h7.2a2 2 0 0 0 2-1.6L20 7H6"/></svg></div><div><div class="title">Satış &amp; Alış</div><div class="sub">9 rapor</div></div><span class="chev">›</span></div>
-        <div class="menu-row" data-kategori="stok"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8l9-5 9 5-9 5-9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg></div><div><div class="title">Stok</div><div class="sub">5 rapor</div></div><span class="chev">›</span></div>
+        <div class="menu-row" data-kategori="stok"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8l9-5 9 5-9 5-9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg></div><div><div class="title">Stok</div><div class="sub">6 rapor</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-kategori="finans"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="3" width="14" height="18" rx="1"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/></svg></div><div><div class="title">Finans &amp; Muhasebe</div><div class="sub">10 rapor</div></div><span class="chev">›</span></div>
       </div>
     </section>
@@ -1467,6 +1467,7 @@
     <!-- RAPOR GRUBU: STOK -->
     <section class="view" id="view-raporlar-stok">
       <div class="menu-row-wrap">
+        <div class="menu-row" data-rapor="stokdeger"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l9 5-9 5-9-5 9-5Z"/><path d="M3 13l9 5 9-5"/><path d="M3 17.5l9 5 9-5"/></svg></div><div><div class="title">Stok Değeri (Kategori / Marka)</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-rapor="depo"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8l9-5 9 5-9 5-9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg></div><div><div class="title">Depo Stokları</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-rapor="stokhareket"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div><div><div class="title">Stok Hareketleri</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-rapor="stoksatiskarsilama"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div><div><div class="title">Stok-Satış Karşılama</div></div><span class="chev">›</span></div>
@@ -1501,6 +1502,7 @@
     <section class="view" id="view-rapor-geciken"><div class="card" id="rapGecikenBody"></div></section>
     <section class="view" id="view-rapor-kdv"><div class="card" id="rapKdvBody"></div></section>
     <section class="view" id="view-rapor-depo"><div class="card" id="rapDepoBody"></div></section>
+    <section class="view" id="view-rapor-stokdeger"><div class="card" id="rapStokDegerBody"></div></section>
     <section class="view" id="view-rapor-stokhareket"><div class="card" id="rapStokHarBody"></div></section>
     <section class="view" id="view-rapor-nakitakis"><div class="card" id="rapNakitAkisBody"></div></section>
     <section class="view" id="view-rapor-hareketsiz"><div class="card" id="rapHareketsizBody"></div></section>
@@ -2487,7 +2489,7 @@
     'view-rapor-satis': 'Satışlar', 'view-rapor-alis': 'Alışlar', 'view-rapor-masraf': 'Masraflar Raporu',
     'view-rapor-iade': 'İadeler', 'view-rapor-kasa': 'Kasa-Hesap Hareketleri', 'view-rapor-borc': 'Borç Alacak Listesi',
     'view-rapor-cek': 'Çek Senet Durumu', 'view-rapor-geciken': 'Geciken Alacaklar', 'view-rapor-kdv': 'KDV Dökümü',
-    'view-rapor-depo': 'Depo Stokları', 'view-rapor-stokhareket': 'Stok Hareketleri', 'view-rapor-nakitakis': 'Nakit Akış Tahmini',
+    'view-rapor-depo': 'Depo Stokları', 'view-rapor-stokdeger': 'Stok Değeri (Kategori / Marka)','view-rapor-stokhareket': 'Stok Hareketleri', 'view-rapor-nakitakis': 'Nakit Akış Tahmini',
     'view-rapor-hareketsiz': 'Hareket Görmeyen Ürünler', 'view-rapor-urunalissatis': 'Ürün Alış-Satış Raporu',
     'view-rapor-stoksatiskarsilama': 'Stok-Satış Karşılama', 'view-rapor-kategorisatis': 'Kategori Bazlı Satış Raporu',
     'view-rapor-satis6ay': '6 Aylık Satışlar', 'view-rapor-teklifler': 'Teklifler Raporu', 'view-rapor-gelirgider': 'Gelir Gider Durumu',
@@ -2761,6 +2763,7 @@
   function enterRaporGeciken() { showView('view-rapor-geciken', { showBack: true, onBack: enterRaporlarFinans }); renderRaporGeciken(); setDrawerActive('raporlar'); }
   function enterRaporKdv() { showView('view-rapor-kdv', { showBack: true, onBack: enterRaporlarFinans }); renderRaporKdv(); setDrawerActive('raporlar'); }
   function enterRaporDepo() { showView('view-rapor-depo', { showBack: true, onBack: enterRaporlarStokBolum }); renderRaporDepo(); setDrawerActive('raporlar'); }
+  function enterRaporStokDeger() { showView('view-rapor-stokdeger', { showBack: true, onBack: enterRaporlarStokBolum }); renderRaporStokDeger(); setDrawerActive('raporlar'); }
   function enterRaporStokHareket() { showView('view-rapor-stokhareket', { showBack: true, onBack: enterRaporlarStokBolum }); renderRaporStokHareket(); setDrawerActive('raporlar'); }
   function enterRaporNakitAkis() { showView('view-rapor-nakitakis', { showBack: true, onBack: enterRaporlarFinans }); renderRaporNakitAkis(); setDrawerActive('raporlar'); }
   function enterRaporHareketsiz() { showView('view-rapor-hareketsiz', { showBack: true, onBack: enterRaporlarStokBolum }); renderRaporHareketsiz(); setDrawerActive('raporlar'); }
@@ -2778,7 +2781,7 @@
   const RAPOR_MAP = {
     satis: enterRaporSatis, alis: enterRaporAlis, masraf: enterRaporMasraf, iade: enterRaporIade,
     kasa: enterRaporKasa, borc: enterRaporBorc, cek: enterRaporCek, geciken: enterRaporGeciken,
-    kdv: enterRaporKdv, depo: enterRaporDepo, stokhareket: enterRaporStokHareket, nakitakis: enterRaporNakitAkis,
+    kdv: enterRaporKdv, depo: enterRaporDepo, stokdeger: enterRaporStokDeger, stokhareket: enterRaporStokHareket, nakitakis: enterRaporNakitAkis,
     hareketsiz: enterRaporHareketsiz, urunalissatis: enterRaporUrunAlisSatis, stoksatiskarsilama: enterRaporStokSatisKarsilama,
     kategorisatis: enterRaporKategoriSatis, satis6ay: enterRaporSatis6Ay, teklifler: enterRaporTeklifler, gelirgider: enterRaporGelirGider,
     satiskaybi: enterRaporSatisKaybi, musteriliste: enterRaporMusteriListesi, babs: enterRaporBaBs, karzarar: enterRaporKarZarar,
@@ -10672,6 +10675,82 @@ ${satirlar.join('\n')}
     setExcelExport('Depo_Stoklari_Raporu.xlsx', exportRows, 'view-rapor-depo');
   }
   document.getElementById('rapDepoBody').addEventListener('click', (e) => { const r = e.target.closest('.list-row[data-id]'); if (r) enterStokDetail(r.dataset.id); });
+
+  // ---- Stok Değeri Raporu: Kategori › Marka › Ürün (veya Marka › Kategori › Ürün) — çeşit, miktar, maliyet ve satış değeri ----
+  let rsdGrup = 'kat';        // 'kat' = Kategori › Marka, 'mar' = Marka › Kategori
+  let rsdUrunGoster = true;   // ürün satırlarını da listele
+  let rsdStoksuz = false;     // stoğu olmayan (0 / eksi) ürünleri de dahil et
+  function rsdMiktarMetni(list) {
+    // Farklı birimler (Adet, Metre, Kg...) toplanamaz — her birim ayrı yazılır: "120 Adet, 35 Metre"
+    const m = {};
+    list.forEach((r) => { m[r.birim] = (m[r.birim] || 0) + r.qty; });
+    const parts = Object.entries(m).map(([b, q]) => `${yuvarla2(q).toLocaleString('tr-TR', { maximumFractionDigits: 2 })} ${b}`);
+    return parts.join(', ') || '0';
+  }
+  function rsdTopla(list) {
+    return { cesit: list.length, miktar: rsdMiktarMetni(list), maliyet: yuvarla2(list.reduce((s, r) => s + r.maliyet, 0)), satis: yuvarla2(list.reduce((s, r) => s + r.satis, 0)) };
+  }
+  function renderRaporStokDeger() {
+    const rows = state.stok.filter((s) => (s.kind || 'urun') !== 'hizmet').map((s) => {
+      const cat = s.categoryId ? state.kategoriler.find((k) => k.id === s.categoryId) : null;
+      const sub = s.subCategoryId ? state.kategoriler.find((k) => k.id === s.subCategoryId) : null;
+      const qty = Number(s.quantity) || 0;
+      const kat = cat ? cat.name : ((s.category || '').split(' / ')[0].trim() || 'Kategorisiz');
+      const marka = (s.brandId && (state.markalar.find((m) => m.id === s.brandId) || {}).name) || (s.brand || '').trim() || 'Markasız';
+      return { s, kat, alt: sub ? sub.name : '', marka, qty, birim: s.satisBirimi || 'Adet',
+        maliyet: yuvarla2(stokDegeriHesapla(s)) || 0, satis: yuvarla2(Math.max(0, qty) * (Number(s.sellPrice) || 0)) || 0 };
+    }).filter((r) => rsdStoksuz || r.qty > 0);
+    const l1Key = rsdGrup === 'kat' ? 'kat' : 'marka', l2Key = rsdGrup === 'kat' ? 'marka' : 'kat';
+    const l1Ad = rsdGrup === 'kat' ? 'Kategori' : 'Marka', l2Ad = rsdGrup === 'kat' ? 'Marka' : 'Kategori';
+    const trSort = (a, b) => a.localeCompare(b, 'tr');
+    const grupla = (list, key) => { const m = {}; list.forEach((r) => { (m[r[key]] = m[r[key]] || []).push(r); }); return m; };
+    const top = grupla(rows, l1Key);
+    const genel = rsdTopla(rows);
+    const chip = (act, attr, txt) => `<button class="chip ${act ? 'active' : ''}" ${attr}>${txt}</button>`;
+    let html = `
+      <div class="chip-row" id="rsdGrupChips">${chip(rsdGrup === 'kat', 'data-g="kat"', 'Kategori › Marka')}${chip(rsdGrup === 'mar', 'data-g="mar"', 'Marka › Kategori')}</div>
+      <div class="chip-row" id="rsdOpsChips">${chip(rsdUrunGoster, 'data-o="urun"', 'Ürünleri göster')}${chip(rsdStoksuz, 'data-o="stoksuz"', 'Stoksuzlar dahil')}</div>
+      <div class="stat-card" style="margin-bottom:6px"><div class="label">Toplam stok maliyeti</div><div class="value mono">${formatTL(genel.maliyet)}</div></div>
+      <div style="font-size:12.5px;color:var(--ink-soft);margin:0 2px 14px;line-height:1.55">${genel.cesit} ürün çeşidi · ${escapeHtml(genel.miktar)}<br>Satış değeri: <b class="mono">${formatTL(genel.satis)}</b></div>`;
+    const ex = [];
+    const exHeader = rsdUrunGoster ? [l1Ad, l2Ad, 'Ürün', 'Miktar', 'Birim', 'Maliyet Tutarı', 'Satış Değeri'] : [l1Ad, l2Ad, 'Ürün Çeşidi', 'Miktar', 'Maliyet Tutarı', 'Satış Değeri'];
+    ex.push(exHeader);
+    Object.keys(top).sort(trSort).forEach((k1) => {
+      const t1 = rsdTopla(top[k1]);
+      html += `<div style="margin-top:14px;padding:9px 2px 6px;border-bottom:2px solid var(--glass-border);display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+        <div><div style="font-size:14px;font-weight:700">${escapeHtml(k1)}</div><div style="font-size:11.5px;color:var(--ink-soft)">${t1.cesit} çeşit · ${escapeHtml(t1.miktar)} · Satış: ${formatTL(t1.satis)}</div></div>
+        <div class="mono" style="font-weight:700;white-space:nowrap">${formatTL(t1.maliyet)}</div></div>`;
+      const alt = grupla(top[k1], l2Key);
+      Object.keys(alt).sort(trSort).forEach((k2) => {
+        const lst = alt[k2].slice().sort((a, b) => a.s.name.localeCompare(b.s.name, 'tr'));
+        const t2 = rsdTopla(lst);
+        html += `<div class="list-row" style="${rsdUrunGoster ? 'background:rgba(11,37,69,0.04);' : ''}cursor:default"><div class="main"><div class="title">${escapeHtml(k2)}</div><div class="sub">${t2.cesit} çeşit · ${escapeHtml(t2.miktar)} · Satış: ${formatTL(t2.satis)}</div></div><div class="amt mono">${formatTL(t2.maliyet)}</div></div>`;
+        if (rsdUrunGoster) {
+          lst.forEach((r) => {
+            html += `<div class="list-row" data-id="${r.s.id}" style="padding-left:18px"><div class="main"><div class="title" style="font-weight:500">${escapeHtml(r.s.name)}</div><div class="sub">${r.qty.toLocaleString('tr-TR', { maximumFractionDigits: 2 })} ${escapeHtml(r.birim)}${r.alt ? ' · ' + escapeHtml(r.alt) : ''} · Satış: ${formatTL(r.satis)}</div></div><div class="amt mono ${r.qty <= 0 ? 'expense' : ''}">${formatTL(r.maliyet)}</div></div>`;
+            ex.push([r[l1Key], r[l2Key], r.s.name, r.qty, r.birim, r.maliyet, r.satis]);
+          });
+          ex.push([k1, k2, `Ara toplam (${t2.cesit} çeşit)`, t2.miktar, '', t2.maliyet, t2.satis]);
+        } else {
+          ex.push([k1, k2, String(t2.cesit), t2.miktar, t2.maliyet, t2.satis]);
+        }
+      });
+      if (rsdUrunGoster) ex.push([k1, 'TOPLAM', `${l1Ad} toplamı (${t1.cesit} çeşit)`, t1.miktar, '', t1.maliyet, t1.satis]);
+    });
+    if (!rows.length) html += '<div class="empty-state">Gösterilecek stoklu ürün yok.</div>';
+    html += `<p style="font-size:11.5px;color:var(--ink-soft);margin-top:14px">Maliyet: stoktaki miktar × ağırlıklı ortalama alış maliyeti (KDV hariç). Satış değeri: miktar × tanımlı satış fiyatı (KDV hariç). Farklı birimler (Adet, Metre, Kg…) birbirine eklenmez, ayrı yazılır.</p>`;
+    document.getElementById('rapStokDegerBody').innerHTML = html;
+    const ozet = [['Toplam ürün çeşidi', String(genel.cesit)], ['Toplam miktar', genel.miktar], ['Toplam satış değeri', genel.satis], ['Toplam stok maliyeti', genel.maliyet]];
+    const opts = { ozet, altBaslik: (rsdGrup === 'kat' ? 'Kategori › Marka' : 'Marka › Kategori') + (rsdStoksuz ? ' · stoksuzlar dahil' : '') };
+    if (!rsdUrunGoster) opts.toplam = ['Maliyet Tutarı', 'Satış Değeri'];
+    setExcelExport('Stok_Degeri_Raporu.xlsx', rows.length ? ex : null, 'view-rapor-stokdeger', opts);
+  }
+  document.getElementById('rapStokDegerBody').addEventListener('click', (e) => {
+    const g = e.target.closest('#rsdGrupChips .chip'); if (g) { rsdGrup = g.dataset.g; renderRaporStokDeger(); return; }
+    const o = e.target.closest('#rsdOpsChips .chip');
+    if (o) { if (o.dataset.o === 'urun') rsdUrunGoster = !rsdUrunGoster; else rsdStoksuz = !rsdStoksuz; renderRaporStokDeger(); return; }
+    const r = e.target.closest('.list-row[data-id]'); if (r) enterStokDetail(r.dataset.id);
+  });
 
   function renderRaporStokHareket() {
     const items = (state.stokHareketleri || []).slice().sort((a, b) => b.date.localeCompare(a.date));
