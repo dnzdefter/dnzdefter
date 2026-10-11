@@ -49,6 +49,9 @@
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; color: var(--ink); font-family: 'Inter', sans-serif; }
   body { background: linear-gradient(160deg, #BFE0FF 0%, #EAF6FF 45%, #CFE8FF 100%); min-height: 100vh; }
+  /* Uygulama gibi davransın: yazılar uzun basınca/çift dokunuşta seçilmesin (Google/Lens arama çubuğu açılmasın). Yazı girilen alanlar hariç. */
+  body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  input, textarea, select, [contenteditable="true"], #sozlesmeIcerik, .secilebilir { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
   .blob { position: fixed; border-radius: 50%; filter: blur(70px); z-index: -1; pointer-events: none; }
   .blob1 { width: 320px; height: 320px; background: #8FD1FF; opacity: 0.55; top: -90px; left: -110px; }
   .blob2 { width: 300px; height: 300px; background: #B9C8FF; opacity: 0.5; bottom: -110px; right: -90px; }
