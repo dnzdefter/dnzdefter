@@ -2975,6 +2975,7 @@
       const bekleyen = belgeCocuklari(src).filter((c) => c.docType === 'irsaliye' && !irsaliyeFaturaDurumu(c));
       if (bekleyen.length && !confirm('Bu siparişin faturalanmamış irsaliyesi var (' + bekleyen.map((c) => c.no).join(', ') + '). İrsaliyeler üzerinden faturalamak daha doğru olur. Yine de siparişten doğrudan fatura kesilsin mi?')) return;
     }
+    if (hedefTur === 'fatura' && src.items.some((it) => !(it.vat > 0)) && !confirm('Bazı kalemlerde KDV %0. Fatura KDV\'siz kesilecek. Devam edilsin mi?')) return;
     if (!confirm(src.no + ' belgesinden ' + adlar[hedefTur] + ' oluşturulsun mu?')) return;
     const yeni = belgeKopyala(src, hedefTur);
     state.faturalar.push(yeni);
@@ -3032,16 +3033,14 @@
       }
       const items = [];
       secili.forEach((x) => x.items.forEach((it) => {
-        const k = Object.assign({}, it);
-        const ref = 'İrsaliye ' + irsRefNo(x) + ' (' + formatDate(x.date) + ')';
-        k.aciklama = it.aciklama ? it.aciklama + ' · ' + ref : ref;
-        items.push(k);
+        items.push(Object.assign({}, it));
       }));
+      if (items.some((it) => !(it.vat > 0)) && !confirm('Bazı kalemlerde KDV %0. Fatura KDV\'siz kesilecek (e-Faturada KDV istisna kodu gerekir). Devam edilsin mi?')) return;
       let ara = 0, kdv = 0;
       items.forEach((it) => { const la = it.qty * it.unitPrice; ara += la; kdv += la * (it.vat / 100); });
       const genelToplam = ara + kdv;
       const irsNo = secili.map((x) => irsRefNo(x)).join(', ');
-      const fatura = { id: genId(), no: nextBelgeNo('fatura', f.yon), belgeNo: '', docType: 'fatura', yon: f.yon, cariId: f.cariId, cariAdi: f.cariAdi, date: todayISO(), vade: null, irsaliyeNo: irsNo, fiyatListesiId: null, projeId: f.projeId || null, items, notlar: '', araToplam: ara, kdvToplam: kdv, genelToplam, tevkifatli: false, tevkifatToplam: 0, vergilerDahilToplam: genelToplam, paraBirimi: 'TL', durum: null };
+      const fatura = { id: genId(), no: nextBelgeNo('fatura', f.yon), belgeNo: '', docType: 'fatura', yon: f.yon, cariId: f.cariId, cariAdi: f.cariAdi, date: todayISO(), vade: null, irsaliyeNo: irsNo, fiyatListesiId: null, projeId: f.projeId || null, items, notlar: 'İrsaliye No: ' + irsNo, araToplam: ara, kdvToplam: kdv, genelToplam, tevkifatli: false, tevkifatToplam: 0, vergilerDahilToplam: genelToplam, paraBirimi: 'TL', durum: null };
       state.faturalar.push(fatura);
       secili.forEach((x) => { x.faturaId = fatura.id; });
       applyBelgeEffectsIfFatura(fatura);
