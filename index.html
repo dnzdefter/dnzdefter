@@ -3462,12 +3462,12 @@ ${f.notlar ? `  <cbc:Note>${ublXml(f.notlar)}</cbc:Note>\n` : ''}  <cbc:LineCoun
   <cac:Shipment>
     <cbc:ID>1</cbc:ID>
     <cac:GoodsItem><cbc:ValueAmount currencyID="TRY">0</cbc:ValueAmount></cac:GoodsItem>
-    <cac:ShipmentStage>${sv.sofor ? `<cac:DriverPerson><cbc:FirstName>${ublXml(sofor.join(' ') || '.')}</cbc:FirstName><cbc:FamilyName>${ublXml(soyad)}</cbc:FamilyName><cbc:Title>Şoför</cbc:Title><cbc:NationalityID>${ublXml(sv.soforTc || '11111111111')}</cbc:NationalityID></cac:DriverPerson>` : ''}</cac:ShipmentStage>
+    <cac:ShipmentStage><cac:TransportMeans><cac:RoadTransport><cbc:LicensePlateID schemeID="PLAKA">${ublXml(plk)}</cbc:LicensePlateID></cac:RoadTransport></cac:TransportMeans>${sv.sofor ? `<cac:DriverPerson><cbc:FirstName>${ublXml(sofor.join(' ') || '.')}</cbc:FirstName><cbc:FamilyName>${ublXml(soyad)}</cbc:FamilyName><cbc:Title>Şoför</cbc:Title><cbc:NationalityID>${ublXml(sv.soforTc || '11111111111')}</cbc:NationalityID></cac:DriverPerson>` : ''}</cac:ShipmentStage>
     <cac:Delivery>
+      <cac:DeliveryAddress><cbc:StreetName>${ublXml(alc.adres || '-')}</cbc:StreetName><cbc:CitySubdivisionName>${ublXml(alc.ilce || '-')}</cbc:CitySubdivisionName><cbc:CityName>${ublXml(alc.il || '-')}</cbc:CityName><cbc:PostalZone>${ublXml(alc.posta || '00000')}</cbc:PostalZone><cac:Country><cbc:Name>Türkiye</cbc:Name></cac:Country></cac:DeliveryAddress>
       ${tasiyici}
       <cac:Despatch><cbc:ActualDespatchDate>${tarih}</cbc:ActualDespatchDate><cbc:ActualDespatchTime>${hhmmss(sv.saat)}</cbc:ActualDespatchTime></cac:Despatch>
     </cac:Delivery>
-    <cac:TransportHandlingUnit><cac:TransportEquipment><cbc:ID schemeID="PLAKA">${ublXml(String(sv.plaka || '').replace(/\s/g, '').replace(/İ/g, 'I').toUpperCase())}</cbc:ID></cac:TransportEquipment></cac:TransportHandlingUnit>
   </cac:Shipment>
 ${satirlar.join('\n')}
 </DespatchAdvice>
@@ -11169,7 +11169,7 @@ ${satirlar.join('\n')}
   function computeKarZararRows() {
     const map = {};
     function ensure(id, s) {
-      if (!map[id]) map[id] = { s, alisTutar: 0, satisTutar: 0 };
+      if (!map[id]) map[id] = { s, alisTutar: 0, satisTutar: 0, satilanMiktar: 0 };
       return map[id];
     }
     state.faturalar.forEach((f) => {
@@ -11181,36 +11181,39 @@ ${satirlar.join('\n')}
         if (!s) return;
         const row = ensure(it.stokId, s);
         const tutar = it.qty * it.unitPrice * faturaKuru(f);
-        if (f.yon === 'satis') row.satisTutar += sign * tutar;
+        if (f.yon === 'satis') { row.satisTutar += sign * tutar; row.satilanMiktar += sign * it.qty; }
         else row.alisTutar += sign * tutar;
       });
     });
     return Object.values(map).filter((r) => r.alisTutar || r.satisTutar).map((r) => {
       const stokDegeri = stokDegeriHesapla(r.s);
-      const satilanMaliyet = Math.max(0, r.alisTutar - stokDegeri);
+      // Satılan malın maliyeti = satılan miktar × birim maliyet (alış faturalarının ağırlıklı ortalaması; alış faturası yoksa
+      // ürün kartındaki alış fiyatı). Eskiden "toplam alış − stokta kalan" alınıyordu: elle kaydedilmiş ürünün alış faturası
+      // olmadığından maliyet 0 çıkıyor ve satışın tamamı kâr görünüyordu.
+      const satilanMaliyet = (r.s.kind || 'urun') === 'hizmet' ? 0 : Math.max(0, r.satilanMiktar) * hmBirimMaliyet(r.s);
       const kar = r.satisTutar - satilanMaliyet;
       const marj = r.satisTutar > 0 ? (kar / r.satisTutar * 100) : null;
-      return { id: r.s.id, name: r.s.name, alisTutar: r.alisTutar, satisTutar: r.satisTutar, stokDegeri, kar, marj };
+      return { id: r.s.id, name: r.s.name, alisTutar: r.alisTutar, satisTutar: r.satisTutar, stokDegeri, satilanMaliyet, kar, marj };
     }).sort((a, b) => b.kar - a.kar);
   }
   function renderRaporKarZarar() {
     const rows = computeKarZararRows();
     const toplamKar = rows.reduce((s, r) => s + r.kar, 0);
     document.getElementById('rapKarZararBody').innerHTML = `
-      <p style="font-size:12px;color:var(--ink-soft);margin-top:0">Yaklaşık ürün kârı: toplam alıştan stokta kalan değer düşülerek satılan malın maliyeti bulunur, kâr da toplam satıştan bu maliyet düşülerek hesaplanır (KDV hariç tutarlarla). Ürünün alış fiyatı zaman içinde değiştiyse ya da miktar sayım/manuel düzeltmeyle değiştiyse sonuç yaklaşık olur.</p>
+      <p style="font-size:12px;color:var(--ink-soft);margin-top:0">Yaklaşık ürün kârı: satılan miktar × ürünün ortalama alış maliyeti = satılan malın maliyeti; kâr, satıştan bu maliyetin düşülmesiyle bulunur (KDV hariç tutarlarla). Ürünün alış faturası yoksa ürün kartındaki alış fiyatı kullanılır — o da boşsa maliyet 0 sayılır, bu yüzden ürün kartına alış fiyatı yazmayı unutma.</p>
       <div class="label" style="font-size:12px;color:var(--ink-soft)">Toplam kâr</div>
       <div class="mono" style="font-size:22px;font-weight:700;color:${toplamKar >= 0 ? 'var(--income)' : 'var(--expense)'};margin-bottom:14px">${formatTL(toplamKar)}</div>
       ${rows.length ? rows.map((r) => `
-        <div class="list-row" data-id="${r.id}"><div class="main"><div class="title">${escapeHtml(r.name)}</div><div class="sub">Alış: ${formatTL(r.alisTutar)} · Satış: ${formatTL(r.satisTutar)} · Stokta kalan: ${formatTL(r.stokDegeri)}${r.marj !== null ? ' · Marj %' + r.marj.toFixed(1) : ''}</div></div><div class="amt mono ${r.kar >= 0 ? 'income' : 'expense'}">${r.kar >= 0 ? '+' : ''}${formatTL(r.kar)}</div></div>
+        <div class="list-row" data-id="${r.id}"><div class="main"><div class="title">${escapeHtml(r.name)}</div><div class="sub">Alış: ${formatTL(r.alisTutar)} · Satış: ${formatTL(r.satisTutar)} · Satılan maliyet: ${formatTL(r.satilanMaliyet)} · Stokta kalan: ${formatTL(r.stokDegeri)}${r.marj !== null ? ' · Marj %' + r.marj.toFixed(1) : ''}</div></div><div class="amt mono ${r.kar >= 0 ? 'income' : 'expense'}">${r.kar >= 0 ? '+' : ''}${formatTL(r.kar)}</div></div>
       `).join('') : '<div class="empty-state">Henüz veri yok.</div>'}
     `;
-    setExcelExport('Urun_Kar_Zarar_Raporu.xlsx', [['Ürün', 'Alış', 'Satış', 'Stokta Kalan', 'Kâr/Zarar', 'Marj %'], ...rows.map((r) => [r.name, yuvarla2(r.alisTutar), yuvarla2(r.satisTutar), yuvarla2(r.stokDegeri), yuvarla2(r.kar), r.marj !== null ? r.marj.toFixed(1) : ''])], 'view-rapor-karzarar', { toplam: ['Alış', 'Satış', 'Stokta Kalan', 'Kâr/Zarar'] });
+    setExcelExport('Urun_Kar_Zarar_Raporu.xlsx', [['Ürün', 'Alış', 'Satış', 'Satılan Maliyet', 'Stokta Kalan', 'Kâr/Zarar', 'Marj %'], ...rows.map((r) => [r.name, yuvarla2(r.alisTutar), yuvarla2(r.satisTutar), yuvarla2(r.satilanMaliyet), yuvarla2(r.stokDegeri), yuvarla2(r.kar), r.marj !== null ? r.marj.toFixed(1) : ''])], 'view-rapor-karzarar', { toplam: ['Alış', 'Satış', 'Satılan Maliyet', 'Stokta Kalan', 'Kâr/Zarar'] });
   }
   document.getElementById('rapKarZararBody').addEventListener('click', (e) => { const r = e.target.closest('.list-row[data-id]'); if (r) openKarZararDetayModal(r.dataset.id); });
   function openKarZararDetayModal(stokId) {
     const s = state.stok.find((x) => x.id === stokId);
     if (!s) return;
-    let alisTutar = 0, satisTutar = 0;
+    let alisTutar = 0, satisTutar = 0, satilanMiktar = 0;
     const hareketler = [];
     state.faturalar.forEach((f) => {
       if (f.docType !== 'fatura' && f.docType !== 'iade') return;
@@ -11218,12 +11221,12 @@ ${satirlar.join('\n')}
       f.items.forEach((it) => {
         if (it.stokId !== stokId) return;
         const tutar = it.qty * it.unitPrice * faturaKuru(f);
-        if (f.yon === 'satis') satisTutar += sign * tutar; else alisTutar += sign * tutar;
+        if (f.yon === 'satis') { satisTutar += sign * tutar; satilanMiktar += sign * it.qty; } else alisTutar += sign * tutar;
         hareketler.push({ f, it, tutar: sign * tutar });
       });
     });
     const stokDegeri = stokDegeriHesapla(s);
-    const satilanMaliyet = Math.max(0, alisTutar - stokDegeri);
+    const satilanMaliyet = (s.kind || 'urun') === 'hizmet' ? 0 : Math.max(0, satilanMiktar) * hmBirimMaliyet(s);
     const kar = satisTutar - satilanMaliyet;
     const marj = satisTutar > 0 ? (kar / satisTutar * 100) : null;
     hareketler.sort((a, b) => b.f.date.localeCompare(a.f.date));
