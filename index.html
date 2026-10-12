@@ -2943,6 +2943,57 @@
     enterFaturaForm({ docType: f.docType, yon: f.yon, cariMode: f.cariId ? 'kayitli' : 'perakende', presetCariId: f.cariId }, null, false, f);
   }
   // Kopyala: cariye bağlı belgede "aynı müşteri / farklı müşteri" seçeneği sunulur.
+  // ---- İrsaliye → Fatura (tek ya da aynı cariye ait birden çok irsaliyeyi tek faturada birleştirir) ----
+  function irsaliyeFaturaDurumu(ir) {
+    const fat = ir.faturaId ? state.faturalar.find((x) => x.id === ir.faturaId) : null;
+    return fat || null;
+  }
+  function irsaliyeFaturayaCevirModal(f) {
+    if (f.docType !== 'irsaliye') return;
+    if (!f.cariId) { alert('Faturaya çevirmek için irsaliyenin kayıtlı bir cariye bağlı olması gerekir.'); return; }
+    const aday = state.faturalar.filter((x) => x.docType === 'irsaliye' && x.yon === f.yon && x.cariId === f.cariId && !irsaliyeFaturaDurumu(x));
+    if (!aday.some((x) => x.id === f.id)) { alert('Bu irsaliye zaten faturalanmış.'); return; }
+    const ay = (f.date || '').slice(0, 7);
+    aday.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const satir = (x) => {
+      const top = x.items.reduce((t, it) => t + it.qty * it.unitPrice * (1 + it.vat / 100), 0);
+      return `<label style="display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--line,#e5e7eb);font-size:13px"><input type="checkbox" class="irfCb" value="${x.id}" ${x.id === f.id || (x.date || '').slice(0, 7) === ay ? 'checked' : ''} style="margin-top:3px"><span><b>${escapeHtml(x.belgeNo || x.no)}</b> · ${formatDate(x.date)}<br><span style="color:var(--ink-soft)">${x.items.length} kalem · ${formatMoney(top, x.paraBirimi || 'TL')}</span></span></label>`;
+    };
+    openModal(`<h3>Faturaya çevir</h3>
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:-4px 0 8px">${escapeHtml(f.cariAdi || '')} için faturalanmamış irsaliyeler. Seçtiklerin tek faturada birleşir; aynı ayın irsaliyeleri hazır işaretli gelir.</p>
+      <div style="max-height:46vh;overflow:auto">${aday.map(satir).join('')}</div>
+      <div class="modal-actions"><button class="btn" id="irfIptal">Vazgeç</button><button class="btn btn-primary" id="irfTamam">Fatura oluştur</button></div>`);
+    document.getElementById('irfIptal').onclick = closeModal;
+    document.getElementById('irfTamam').onclick = () => {
+      const idler = Array.from(document.querySelectorAll('.irfCb:checked')).map((c) => c.value);
+      const secili = aday.filter((x) => idler.includes(x.id));
+      if (!secili.length) { alert('En az bir irsaliye seç.'); return; }
+      if (new Set(secili.map((x) => x.paraBirimi || 'TL')).size > 1) { alert('Farklı para birimli irsaliyeler tek faturada birleştirilemez.'); return; }
+      const pb = secili[0].paraBirimi || 'TL';
+      if (pb !== 'TL') { alert('Döviz cinsli irsaliyeler için faturayı "Kopyala" ile oluştur.'); return; }
+      if (secili.some((x) => x.items.some((it) => !(it.unitPrice > 0)))) {
+        if (!confirm('Bazı kalemlerde birim fiyat 0. Yine de fatura oluşturulsun mu?')) return;
+      }
+      const items = [];
+      secili.forEach((x) => x.items.forEach((it) => {
+        const k = Object.assign({}, it);
+        const ref = 'İrsaliye ' + (x.belgeNo || x.no) + ' (' + formatDate(x.date) + ')';
+        k.aciklama = it.aciklama ? it.aciklama + ' · ' + ref : ref;
+        items.push(k);
+      }));
+      let ara = 0, kdv = 0;
+      items.forEach((it) => { const la = it.qty * it.unitPrice; ara += la; kdv += la * (it.vat / 100); });
+      const genelToplam = ara + kdv;
+      const irsNo = secili.map((x) => x.belgeNo || x.no).join(', ');
+      const fatura = { id: genId(), no: nextBelgeNo('fatura', f.yon), belgeNo: '', docType: 'fatura', yon: f.yon, cariId: f.cariId, cariAdi: f.cariAdi, date: todayISO(), vade: null, irsaliyeNo: irsNo, fiyatListesiId: null, projeId: f.projeId || null, items, notlar: '', araToplam: ara, kdvToplam: kdv, genelToplam, tevkifatli: false, tevkifatToplam: 0, vergilerDahilToplam: genelToplam, paraBirimi: 'TL', durum: null };
+      state.faturalar.push(fatura);
+      secili.forEach((x) => { x.faturaId = fatura.id; });
+      applyBelgeEffectsIfFatura(fatura);
+      updateBuyPricesFromFatura(fatura);
+      saveState(); renderAll(); closeModal();
+      enterFaturaDetail(fatura.id, false);
+    };
+  }
   function kopyalaMenusu(f) {
     if (!f.cariId) { copyFaturaAsNew(f); return; }
     const kisi = f.yon === 'satis' ? 'müşteri' : 'tedarikçi';
@@ -3111,7 +3162,7 @@
 ${notlar.map((n) => `  <cbc:Note>${ublXml(n)}</cbc:Note>`).join('\n')}
   <cbc:DocumentCurrencyCode>${pb}</cbc:DocumentCurrencyCode>
   <cbc:LineCountNumeric>${satirlar.length}</cbc:LineCountNumeric>
-${f.irsaliyeNo ? `  <cac:DespatchDocumentReference><cbc:ID>${ublXml(f.irsaliyeNo)}</cbc:ID><cbc:IssueDate>${tarih}</cbc:IssueDate></cac:DespatchDocumentReference>\n` : ''}${profil === 'EARSIVFATURA' ? `  <cac:AdditionalDocumentReference><cbc:ID>ELEKTRONIK</cbc:ID><cbc:IssueDate>${tarih}</cbc:IssueDate><cbc:DocumentTypeCode>SendingType</cbc:DocumentTypeCode></cac:AdditionalDocumentReference>\n` : ''}  <cac:Signature>
+${f.irsaliyeNo ? String(f.irsaliyeNo).split(',').map((x) => x.trim()).filter(Boolean).map((x) => `  <cac:DespatchDocumentReference><cbc:ID>${ublXml(x)}</cbc:ID><cbc:IssueDate>${tarih}</cbc:IssueDate></cac:DespatchDocumentReference>\n`).join('') : ''}${profil === 'EARSIVFATURA' ? `  <cac:AdditionalDocumentReference><cbc:ID>ELEKTRONIK</cbc:ID><cbc:IssueDate>${tarih}</cbc:IssueDate><cbc:DocumentTypeCode>SendingType</cbc:DocumentTypeCode></cac:AdditionalDocumentReference>\n` : ''}  <cac:Signature>
     <cbc:ID schemeID="VKN_TCKN">${ublXml(String(sat.vkn || '').replace(/\s/g, ''))}</cbc:ID>
     <cac:SignatoryParty>
       <cac:PartyIdentification><cbc:ID schemeID="${String(sat.vkn || '').length === 11 ? 'TCKN' : 'VKN'}">${ublXml(String(sat.vkn || '').replace(/\s/g, ''))}</cbc:ID></cac:PartyIdentification>
@@ -9456,6 +9507,7 @@ ${satirlar.join('\n')}
       ${f.qnb ? qnbRozetHtml(f) : ''}
       ${f.vade ? `<div class="sub">Vade: ${formatDate(f.vade)}</div>` : ''}
       ${f.irsaliyeNo ? `<div class="sub" style="margin-bottom:10px">İrsaliye No: ${escapeHtml(f.irsaliyeNo)}</div>` : ''}
+      ${f.docType === 'irsaliye' ? (() => { const ft = irsaliyeFaturaDurumu(f); return ft ? `<div style="margin-bottom:10px"><span class="badge pos">Faturalandı: ${escapeHtml(ft.belgeNo || ft.no)}</span> <button type="button" class="btn btn-sm irs-fatura-ac" data-id="${ft.id}">Faturayı aç</button></div>` : (f.cariId ? '<div style="margin-bottom:10px"><button type="button" class="btn btn-primary btn-sm irs-fatura-btn">🧾 Faturaya çevir</button></div>' : ''); })() : ''}
       ${f.items.map((it, idx) => `
         <div class="list-row"><div class="main"><div class="title">${escapeHtml(it.name)}</div><div class="sub">${it.qty} ${escapeHtml(it.unit || 'Adet')} x ${formatUnitPrice(it.unitPrice, f.paraBirimi || 'TL')} · KDV %${it.vat}${f.tevkifatli ? ' · Tevkifat %' + (it.tevkifatOrani || 0) : ''}</div>
         ${it.aciklama ? `<div class="sub" style="font-style:italic">${escapeHtml(it.aciklama)}</div>` : ''}
@@ -9498,6 +9550,9 @@ ${satirlar.join('\n')}
     if (!f) return;
     const qnbBtn = e.target.closest('.qnb-durum-btn');
     if (qnbBtn) { qnbDurumSorgula(f, qnbBtn); return; }
+    if (e.target.closest('.irs-fatura-btn')) { irsaliyeFaturayaCevirModal(f); return; }
+    const irsAc = e.target.closest('.irs-fatura-ac');
+    if (irsAc) { enterFaturaDetail(irsAc.dataset.id, false); return; }
     const odemeSilBtn = e.target.closest('.odeme-sil-btn');
     if (odemeSilBtn) { deleteFaturaOdeme(f, odemeSilBtn.dataset.odemeId); return; }
     const odemeRow = e.target.closest('.odeme-row');
