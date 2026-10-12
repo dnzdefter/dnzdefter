@@ -838,6 +838,7 @@
         <div class="field-row">
           <div class="field"><label>İl (e-fatura)</label><input type="text" id="cfIl" placeholder="İstanbul"></div>
           <div class="field"><label>İlçe (e-fatura)</label><input type="text" id="cfIlce" placeholder="Kadıköy"></div>
+          <div class="field"><label>Posta kodu (e-irsaliye)</label><input type="text" id="cfPosta" inputmode="numeric" maxlength="5" placeholder="34710"></div>
         </div>
         <div class="field"><label>Vergi Dairesi (opsiyonel)</label><input type="text" id="cfTaxOffice"></div>
         <div class="field"><label>Vergi / TC Kimlik No (opsiyonel)</label><input type="text" id="cfTaxNo"></div>
@@ -3394,7 +3395,7 @@ ${satirlar.join('\n')}
     if (!sat.adres || !sat.il || !sat.ilce) uy.push({ t: 'hata', m: 'Firma adresi, il veya ilçe eksik.' });
     let alc;
     if (cari) {
-      alc = { ad: cari.name, vkn: cari.taxNo, vd: cari.taxOffice, adres: cari.address, il: cari.il, ilce: cari.ilce, tel: cari.phone, mail: cari.email };
+      alc = { ad: cari.name, vkn: cari.taxNo, vd: cari.taxOffice, adres: cari.address, il: cari.il, ilce: cari.ilce, posta: cari.posta, tel: cari.phone, mail: cari.email };
       if (!/^\d{10,11}$/.test(String(alc.vkn || '').replace(/\s/g, ''))) uy.push({ t: 'hata', m: `"${cari.name}" için VKN/TCKN eksik ya da hatalı.` });
       if (!alc.adres || !alc.il || !alc.ilce) uy.push({ t: 'uyari', m: `"${cari.name}" için adres, il veya ilçe eksik ("-" yazılır).` });
     } else {
@@ -3464,7 +3465,7 @@ ${f.notlar ? `  <cbc:Note>${ublXml(f.notlar)}</cbc:Note>\n` : ''}  <cbc:LineCoun
     <cac:GoodsItem><cbc:ValueAmount currencyID="TRY">0</cbc:ValueAmount></cac:GoodsItem>
     <cac:ShipmentStage><cac:TransportMeans><cac:RoadTransport><cbc:LicensePlateID schemeID="PLAKA">${ublXml(plk)}</cbc:LicensePlateID></cac:RoadTransport></cac:TransportMeans>${sv.sofor ? `<cac:DriverPerson><cbc:FirstName>${ublXml(sofor.join(' ') || '.')}</cbc:FirstName><cbc:FamilyName>${ublXml(soyad)}</cbc:FamilyName><cbc:Title>Şoför</cbc:Title><cbc:NationalityID>${ublXml(sv.soforTc || '11111111111')}</cbc:NationalityID></cac:DriverPerson>` : ''}</cac:ShipmentStage>
     <cac:Delivery>
-      <cac:DeliveryAddress><cbc:StreetName>${ublXml(alc.adres || '-')}</cbc:StreetName><cbc:CitySubdivisionName>${ublXml(alc.ilce || '-')}</cbc:CitySubdivisionName><cbc:CityName>${ublXml(alc.il || '-')}</cbc:CityName><cbc:PostalZone>${ublXml(alc.posta || '00000')}</cbc:PostalZone><cac:Country><cbc:Name>Türkiye</cbc:Name></cac:Country></cac:DeliveryAddress>
+      <cac:DeliveryAddress><cbc:StreetName>${ublXml(alc.adres || '-')}</cbc:StreetName><cbc:CitySubdivisionName>${ublXml(alc.ilce || '-')}</cbc:CitySubdivisionName><cbc:CityName>${ublXml(alc.il || '-')}</cbc:CityName><cbc:PostalZone>${ublXml(/^\d{5}$/.test(alc.posta || '') ? alc.posta : '34000')}</cbc:PostalZone><cac:Country><cbc:Name>Türkiye</cbc:Name></cac:Country></cac:DeliveryAddress>
       ${tasiyici}
       <cac:Despatch><cbc:ActualDespatchDate>${tarih}</cbc:ActualDespatchDate><cbc:ActualDespatchTime>${hhmmss(sv.saat)}</cbc:ActualDespatchTime></cac:Despatch>
     </cac:Delivery>
@@ -4627,6 +4628,7 @@ ${satirlar.join('\n')}
     document.getElementById('cfTaxNo').value = c ? (c.taxNo || '') : '';
     document.getElementById('cfIl').value = c ? (c.il || '') : '';
     document.getElementById('cfIlce').value = c ? (c.ilce || '') : '';
+    document.getElementById('cfPosta').value = c ? (c.posta || '') : '';
     document.getElementById('cfEfaturaDurum').value = c ? (c.efaturaDurum || '') : '';
     document.getElementById('cfEfaturaEtiket').value = c ? (c.efaturaEtiket || '') : '';
     document.getElementById('cfMukellefBlok').style.display = currentUserRole === 'yonetici' ? 'block' : 'none';
@@ -4692,6 +4694,7 @@ ${satirlar.join('\n')}
       taxNo: document.getElementById('cfTaxNo').value.trim(),
       il: document.getElementById('cfIl').value.trim(),
       ilce: document.getElementById('cfIlce').value.trim(),
+      posta: document.getElementById('cfPosta').value.replace(/\D/g, '').slice(0, 5),
       efaturaDurum: document.getElementById('cfEfaturaDurum').value,
       efaturaEtiket: document.getElementById('cfEfaturaEtiket').value.trim(),
       email: document.getElementById('cfEmail').value.trim(),
