@@ -1454,6 +1454,7 @@
     <section class="view" id="view-raporlar-satisalis">
       <div class="menu-row-wrap">
         <div class="menu-row" data-rapor="satis"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/><path d="M3 4h2l2.4 11.5a2 2 0 0 0 2 1.6h7.2a2 2 0 0 0 2-1.6L20 7H6"/></svg></div><div><div class="title">Satışlar</div></div><span class="chev">›</span></div>
+        <div class="menu-row" data-rapor="faturakar"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 17l2-3 2 2 2-3"/></svg></div><div><div class="title">Fatura Bazında Kâr</div><div class="sub">Satış faturalarının maliyeti ve kârı</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-rapor="alis"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h16l-2 5H6L4 8Z"/><path d="M6 13v6h12v-6"/></svg></div><div><div class="title">Alışlar</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-rapor="iade"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12a8 8 0 1 1 2.5 5.8"/><path d="M4 18v-5h5"/></svg></div><div><div class="title">İadeler</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-rapor="teklifler"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h8l4 4v14H7V3Z"/><path d="M15 3v4h4"/><path d="M9 12h6M9 16h6"/></svg></div><div><div class="title">Teklifler Raporu</div></div><span class="chev">›</span></div>
@@ -1493,6 +1494,7 @@
       </div>
     </section>
 
+    <section class="view" id="view-rapor-faturakar"><div class="card" id="rapFaturaKarBody"></div></section>
     <section class="view" id="view-rapor-satis"><div class="card" id="rapSatisBody"></div></section>
     <section class="view" id="view-rapor-alis"><div class="card" id="rapAlisBody"></div></section>
     <section class="view" id="view-rapor-masraf"><div class="card" id="rapMasrafBody"></div></section>
@@ -1565,6 +1567,7 @@
         <div class="menu-row" data-a="firmadegistir"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 8h2M14 8h2M8 12h2M14 12h2M8 16h2M14 16h2"/></svg></div><div><div class="title">Firma Değiştir</div><div class="sub" id="ayarlarAktifFirmaAdi">Aktif firma</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-a="tanimlar"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div><div><div class="title">Tanımlar</div><div class="sub">Gelir/gider/masraf kategorileri, ödeme yöntemleri</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-a="veri"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 18v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg></div><div><div class="title">Veri Yönetimi</div><div class="sub">Yedek al, geri yükle, verileri sil</div></div><span class="chev">›</span></div>
+        <div class="menu-row" data-a="faturaayar" id="ayarlarFaturaAyarRow" style="display:none"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg></div><div><div class="title">Fatura Ayarları</div><div class="sub">e-Fatura / e-Arşiv (QNB) kullanıcı adı ve şifre</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-a="ebelge" id="ayarlarEBelgeRow" style="display:none"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></div><div><div class="title">e-Belgeler (QNB)</div><div class="sub">Gelen/giden e-Fatura, e-İrsaliye, e-Arşiv: gör, indir, yazdır</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-a="kullanicilar" id="ayarlarKullanicilarRow" style="display:none"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="9" cy="8" r="3.2"/><path d="M2 21c0-3.8 3-6 7-6s7 2.2 7 6"/><circle cx="17.5" cy="9" r="2.3"/><path d="M16 15.2c2.8.5 4.5 2.2 5 5.8"/></svg></div><div><div class="title">Kullanıcılar</div><div class="sub">Ekibine erişim ver ya da kaldır</div></div><span class="chev">›</span></div>
         <div class="menu-row" data-a="yetkiler" id="ayarlarYetkiRow" style="display:none"><div class="icon-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3Z"/><path d="M9 12l2 2 4-4"/></svg></div><div><div class="title">Çalışan Yetkileri</div><div class="sub">Çalışanın hangi bölümleri göreceğini sen seç</div></div><span class="chev">›</span></div>
@@ -1578,6 +1581,25 @@
     </section>
 
     <!-- E-BELGELER (QNB) -->
+    <section class="view" id="view-faturaayar">
+      <div class="card">
+        <div id="faAyarDurum" class="sub" style="margin-bottom:10px"></div>
+        <div class="field"><label>Firma VKN / TCKN</label><input type="text" id="faVkn" inputmode="numeric" maxlength="11" autocomplete="off"></div>
+        <div class="field"><label>e-Fatura kullanıcı adı (QNB web servis)</label><input type="text" id="faKullanici" autocomplete="off" autocapitalize="off"></div>
+        <div class="field"><label>e-Fatura şifre</label><input type="password" id="faSifre" autocomplete="new-password" placeholder=""></div>
+        <div class="field"><label>e-Arşiv kullanıcı adı <span class="sub">(QNB e-Arşiv için ayrı kullanıcı verdiyse, değilse boş bırak)</span></label><input type="text" id="faEaKullanici" autocomplete="off" autocapitalize="off"></div>
+        <div class="field"><label>e-Arşiv şifre</label><input type="password" id="faEaSifre" autocomplete="new-password"></div>
+        <div class="field"><label>Ortam</label><select id="faOrtam"><option value="test">Test (deneme — gerçek fatura gitmez)</option><option value="canli">Canlı (gerçek fatura, GİB'e gider)</option></select></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+          <button type="button" class="btn btn-primary" id="faKaydet" style="flex:2">Kaydet</button>
+          <button type="button" class="btn" id="faTest" style="flex:2">Bağlantıyı Test Et</button>
+        </div>
+        <div id="faSonuc" class="sub" style="margin-top:10px"></div>
+        <button type="button" class="btn btn-danger btn-sm" id="faSil" style="margin-top:12px;display:none">Kayıtlı bilgileri sil</button>
+      </div>
+      <p class="sub" style="padding:8px 4px">Şifren sunucuda şifreli saklanır; uygulamaya ve tarayıcıya geri gönderilmez. Şifreyi değiştirmek için yeni şifreyi yazıp Kaydet'e bas, boş bırakırsan eski şifre korunur. QNB web servis şifreleri 90 günde bir yenilenir; yenileyince buradan da güncelle.</p>
+    </section>
+
     <section class="view" id="view-ebelge">
       <div class="segmented" id="ebelgeSeg" style="margin-bottom:12px">
         <button type="button" class="active" data-s="gelenFatura">Gelen Fatura</button>
@@ -2486,7 +2508,7 @@
     'view-katalog-sec': 'Satış Kataloğu Oluştur',
     'view-etiket-sec': 'Ürün Etiketi Oluştur',
     'view-ayarlar': 'Ayarlar', 'view-sirket-bilgileri': 'Şirket Bilgileri', 'view-sablon-ayarlari': 'Şablon Ayarları', 'view-tanimlar': 'Tanımlar',
-    'view-tanim-liste': 'Tanım Listesi', 'view-veri-yonetimi': 'Veri Yönetimi', 'view-kullanicilar': 'Kullanıcılar', 'view-ebelge': 'e-Belgeler', 'view-calisan-yetkileri': 'Çalışan Yetkileri', 'view-islem-gecmisi': 'İşlem Geçmişi', 'view-platform': 'Platform Yönetimi',
+    'view-tanim-liste': 'Tanım Listesi', 'view-veri-yonetimi': 'Veri Yönetimi', 'view-kullanicilar': 'Kullanıcılar', 'view-ebelge': 'e-Belgeler', 'view-faturaayar': 'Fatura Ayarları', 'view-calisan-yetkileri': 'Çalışan Yetkileri', 'view-islem-gecmisi': 'İşlem Geçmişi', 'view-platform': 'Platform Yönetimi',
     'view-rapor-satis': 'Satışlar', 'view-rapor-alis': 'Alışlar', 'view-rapor-masraf': 'Masraflar Raporu',
     'view-rapor-iade': 'İadeler', 'view-rapor-kasa': 'Kasa-Hesap Hareketleri', 'view-rapor-borc': 'Borç Alacak Listesi',
     'view-rapor-cek': 'Çek Senet Durumu', 'view-rapor-geciken': 'Geciken Alacaklar', 'view-rapor-kdv': 'KDV Dökümü',
@@ -2495,7 +2517,7 @@
     'view-rapor-stoksatiskarsilama': 'Stok-Satış Karşılama', 'view-rapor-kategorisatis': 'Kategori Bazlı Satış Raporu',
     'view-rapor-satis6ay': '6 Aylık Satışlar', 'view-rapor-teklifler': 'Teklifler Raporu', 'view-rapor-gelirgider': 'Gelir Gider Durumu',
     'view-rapor-satiskaybi': 'Satış Kaybı', 'view-rapor-musteriliste': 'Müşteri Listesi', 'view-rapor-babs': 'BA-BS Listesi',
-    'view-rapor-karzarar': 'Ürün Kâr/Zarar Raporu', 'view-rapor-muhasebedefteri': 'Yevmiye / Muhasebe Defteri',
+    'view-rapor-karzarar': 'Ürün Kâr/Zarar Raporu', 'view-rapor-faturakar': 'Fatura Bazında Kâr', 'view-rapor-muhasebedefteri': 'Yevmiye / Muhasebe Defteri',
     'view-calisan': 'Çalışanlar', 'view-calisan-detail': 'Çalışan Detayı',
     'view-takvim': 'Takvim', 'view-notlar': 'Notlar', 'view-fihrist': 'Fihrist'
   };
@@ -2754,6 +2776,7 @@
       else if (k === 'genel') enterGenelOzet();
     });
   });
+  function enterRaporFaturaKar() { showView('view-rapor-faturakar', { showBack: true, onBack: enterRaporlarSatisAlis }); renderRaporFaturaKar(); setDrawerActive('raporlar'); }
   function enterRaporSatis() { showView('view-rapor-satis', { showBack: true, onBack: enterRaporlarSatisAlis }); renderRaporSatis(); setDrawerActive('raporlar'); }
   function enterRaporAlis() { showView('view-rapor-alis', { showBack: true, onBack: enterRaporlarSatisAlis }); renderRaporAlis(); setDrawerActive('raporlar'); }
   function enterRaporMasraf() { showView('view-rapor-masraf', { showBack: true, onBack: enterRaporlarFinans }); renderRaporMasraf(); setDrawerActive('raporlar'); }
@@ -2786,7 +2809,7 @@
     hareketsiz: enterRaporHareketsiz, urunalissatis: enterRaporUrunAlisSatis, stoksatiskarsilama: enterRaporStokSatisKarsilama,
     kategorisatis: enterRaporKategoriSatis, satis6ay: enterRaporSatis6Ay, teklifler: enterRaporTeklifler, gelirgider: enterRaporGelirGider,
     satiskaybi: enterRaporSatisKaybi, musteriliste: enterRaporMusteriListesi, babs: enterRaporBaBs, karzarar: enterRaporKarZarar,
-    muhasebedefteri: enterRaporMuhasebeDefteri
+    muhasebedefteri: enterRaporMuhasebeDefteri, faturakar: enterRaporFaturaKar
   };
   document.querySelectorAll('#view-raporlar-satisalis .menu-row, #view-raporlar-stok .menu-row, #view-raporlar-finans .menu-row').forEach((row) => {
     row.addEventListener('click', () => { RAPOR_MAP[row.dataset.rapor](); });
@@ -3265,7 +3288,7 @@ ${satirlar.join('\n')}
         <option value="EARSIVFATURA"${varsayilanProfil === 'EARSIVFATURA' ? ' selected' : ''}>e-Arşiv Fatura</option></select></div>
       ${f.tevkifatli ? '<div class="field"><label>Tevkifat kodu</label><input type="text" id="ublTevKod" value="627" inputmode="numeric"></div>' : ''}
       <div id="ublUyarilar"></div>
-      <div class="modal-actions"><button class="btn" id="ublKapat">Kapat</button><button class="btn" id="ublIndir">XML indir</button>${(currentUserRole === 'yonetici' && platformSahibi) ? '<button class="btn btn-primary" id="ublGonder">QNB\'ye gönder</button>' : ''}</div>`);
+      <div class="modal-actions"><button class="btn" id="ublKapat">Kapat</button><button class="btn" id="ublIndir">XML indir</button>${qnbErisim() ? '<button class="btn btn-primary" id="ublGonder">QNB\'ye gönder</button>' : ''}</div>`);
     ciz();
     document.getElementById('ublProfil').onchange = ciz;
     const tk = document.getElementById('ublTevKod'); if (tk) tk.oninput = ciz;
@@ -3382,7 +3405,7 @@ ${satirlar.join('\n')}
   // ---- e-Belgeler ekranı: gelen / giden belgeleri gör, indir, yazdır ----
   let ebelgeSekme = 'gelenFatura';
   const ebelgeGelen = { FATURA: null, IRSALIYE: null };
-  function enterEBelge() { if (!platformSahibi) return; showView('view-ebelge', { showBack: true, onBack: enterAyarlar }); setDrawerActive('ayarlar'); renderEBelge(); }
+  function enterEBelge() { if (!qnbErisim()) return; showView('view-ebelge', { showBack: true, onBack: enterAyarlar }); setDrawerActive('ayarlar'); renderEBelge(); }
   function b64Blob(b64, mime) {
     const bin = atob(b64), a = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
@@ -3528,6 +3551,73 @@ ${satirlar.join('\n')}
     saveState(); renderAll(); renderEBelge();
     alert('Alış faturası kaydedildi (' + fatura.no + ').\n' + esli + ' kalem mevcut ürüne eklendi, ' + yeni + ' yeni ürün oluşturuldu. Stok ve cari güncellendi.');
   }
+
+  // ---- Fatura Ayarları (QNB bilgileri uygulamadan girilir, sunucuda şifreli saklanır) ----
+  let qnbTanimli = false, qnbAyarBilgi = null;
+  function qnbErisim() { return currentUserRole === 'yonetici' && (platformSahibi || qnbTanimli); }
+  async function qnbDurumYukle() {
+    if (currentUserRole !== 'yonetici' || !currentSirketId) { qnbTanimli = false; return; }
+    try {
+      const d = await qnbCagri('ayarDurum');
+      qnbTanimli = !!d.tanimli; qnbAyarBilgi = d;
+    } catch (e) { /* sunucuya ulaşılamadı: mevcut durum korunur */ }
+    const r = document.getElementById('ayarlarEBelgeRow'); if (r) r.style.display = qnbErisim() ? 'flex' : 'none';
+  }
+  function faAlanlariDoldur() {
+    const d = qnbAyarBilgi || {}, sb = state.sirketBilgileri || {};
+    document.getElementById('faVkn').value = d.vkn || sb.taxNo || '';
+    document.getElementById('faKullanici').value = d.kullanici || '';
+    document.getElementById('faSifre').value = '';
+    document.getElementById('faEaKullanici').value = d.earsivKullanici || '';
+    document.getElementById('faEaSifre').value = '';
+    document.getElementById('faOrtam').value = d.canli ? 'canli' : 'test';
+    document.getElementById('faSifre').placeholder = d.kaynak === 'uygulama' ? 'Kayıtlı — değiştirmek için yaz' : '';
+    document.getElementById('faEaSifre').placeholder = d.earsivSifreVar ? 'Kayıtlı — değiştirmek için yaz' : '';
+    document.getElementById('faSil').style.display = d.kaynak === 'uygulama' ? '' : 'none';
+    document.getElementById('faAyarDurum').innerHTML = d.kaynak === 'uygulama'
+      ? 'Durum: <b>Tanımlı</b> (' + (d.canli ? 'CANLI' : 'test') + ' ortamı)'
+      : d.kaynak === 'sunucu' ? 'Durum: bu firma için bilgiler sunucuda tanımlı. Buradan girersen o bilgiler yerine bunlar kullanılır.' : 'Durum: henüz tanımlı değil.';
+    document.getElementById('faSonuc').textContent = '';
+  }
+  async function enterFaturaAyar() {
+    if (currentUserRole !== 'yonetici') return;
+    showView('view-faturaayar', { showBack: true, onBack: enterAyarlar }); setDrawerActive('ayarlar');
+    faAlanlariDoldur();
+    await qnbDurumYukle(); faAlanlariDoldur();
+  }
+  document.getElementById('faKaydet').addEventListener('click', async () => {
+    const out = document.getElementById('faSonuc'), btn = document.getElementById('faKaydet');
+    const canli = document.getElementById('faOrtam').value === 'canli';
+    if (canli && !(qnbAyarBilgi && qnbAyarBilgi.canli)) {
+      const t = prompt('CANLI ortamda gönderilen e-Fatura/e-İrsaliyeler GİB\'e gerçekten iletilir ve iptal edilemez.\nOnaylamak için CANLI yaz:');
+      if (t === null || t.trim().toLocaleUpperCase('tr-TR') !== 'CANLI') { out.textContent = 'Canlı ortam etkinleştirilmedi.'; return; }
+    }
+    btn.disabled = true; out.textContent = 'Kaydediliyor…';
+    try {
+      const d = await qnbCagri('ayarKaydet', {
+        vkn: document.getElementById('faVkn').value, kullanici: document.getElementById('faKullanici').value, sifre: document.getElementById('faSifre').value,
+        earsivKullanici: document.getElementById('faEaKullanici').value, earsivSifre: document.getElementById('faEaSifre').value, canli
+      });
+      if (d.hata) { out.textContent = 'Kaydedilemedi: ' + d.hata; }
+      else { await qnbDurumYukle(); faAlanlariDoldur(); out.textContent = 'Kaydedildi. "Bağlantıyı Test Et" ile doğrulayabilirsin.'; }
+    } catch (er) { out.textContent = 'Kaydedilemedi: ' + er.message; }
+    btn.disabled = false;
+  });
+  document.getElementById('faTest').addEventListener('click', async () => {
+    const out = document.getElementById('faSonuc'), btn = document.getElementById('faTest');
+    btn.disabled = true; out.textContent = 'QNB\'ye bağlanılıyor…';
+    try {
+      const vkn = (qnbAyarBilgi && qnbAyarBilgi.vkn) || document.getElementById('faVkn').value.replace(/\s/g, '');
+      const d = await qnbCagri('mukellef', { vkn });
+      if (d.hata) out.textContent = 'Bağlantı başarısız: ' + d.hata;
+      else out.textContent = 'Bağlantı başarılı (' + (d.ortam === 'test' ? 'test' : 'CANLI') + ' ortam). ' + (d.mukellef ? 'Firman e-Fatura mükellefi: ' + ((d.kayit && d.kayit.unvan) || '') : 'Bu VKN QNB e-Fatura kullanıcı listesinde bulunmadı.');
+    } catch (er) { out.textContent = 'Bağlantı başarısız: ' + er.message; }
+    btn.disabled = false;
+  });
+  document.getElementById('faSil').addEventListener('click', async () => {
+    if (!confirm('Kayıtlı QNB bilgileri silinsin mi? Silince bu firma e-Fatura gönderemez.')) return;
+    try { await qnbCagri('ayarSil'); qnbAyarBilgi = null; qnbTanimli = false; await qnbDurumYukle(); faAlanlariDoldur(); } catch (er) { alert('Silinemedi: ' + er.message); }
+  });
   function ebelgeTutar(b) { return b.tutar ? escapeHtml(b.tutar + ' ' + (b.para || '')) : ''; }
   function renderEBelge() {
     const body = document.getElementById('ebelgeBody'); if (!body) return;
@@ -3717,7 +3807,7 @@ ${satirlar.join('\n')}
     openModal(`<h3>e-İrsaliye XML (UBL-TR)</h3>
       <p style="font-size:12.5px;color:var(--ink-soft);margin:-4px 0 10px">İrsaliyeden UBL-TR e-İrsaliye (DespatchAdvice) XML'i üretir. Numara ve imza gönderimde entegratör tarafından eklenir. Test ortamında denemeden canlıya gönderme.</p>
       ${r.uyarilar.length ? r.uyarilar.map((u) => `<div style="font-size:12.5px;margin:6px 0;color:${u.t === 'hata' ? 'var(--expense)' : '#b45309'}">${u.t === 'hata' ? '⛔' : '⚠️'} ${escapeHtml(u.m)}</div>`).join('') : '<div style="font-size:12.5px;margin:6px 0;color:var(--income)">✔ Eksik bilgi bulunmadı.</div>'}
-      <div class="modal-actions"><button class="btn" id="ubiKapat">Kapat</button><button class="btn btn-primary" id="ubiIndir">XML indir</button>${(currentUserRole === 'yonetici' && platformSahibi) ? '<button class="btn btn-primary" id="ubiGonder">QNB\'ye gönder</button>' : ''}</div>`);
+      <div class="modal-actions"><button class="btn" id="ubiKapat">Kapat</button><button class="btn btn-primary" id="ubiIndir">XML indir</button>${qnbErisim() ? '<button class="btn btn-primary" id="ubiGonder">QNB\'ye gönder</button>' : ''}</div>`);
     document.getElementById('ubiKapat').onclick = closeModal;
     const ig = document.getElementById('ubiGonder');
     if (ig) ig.onclick = async () => {
@@ -10792,6 +10882,54 @@ ${satirlar.join('\n')}
   }
   document.getElementById('rapSatisBody').addEventListener('click', (e) => { const r = e.target.closest('.list-row[data-id]'); if (r) enterFaturaDetail(r.dataset.id); });
 
+
+  // ---- Fatura Bazında Kâr: satış faturası başına KDV hariç ciro − ürünlerin ortalama alış maliyeti ----
+  let fkarDonem = 'buay';
+  function fkarAralik(d) {
+    const n = new Date(), y = n.getFullYear(), m = n.getMonth();
+    const str = (dt) => localDateStr(dt);
+    if (d === 'buay') return [str(new Date(y, m, 1)), '9999-12-31'];
+    if (d === 'gecenay') return [str(new Date(y, m - 1, 1)), str(new Date(y, m, 0))];
+    if (d === 'buyil') return [str(new Date(y, 0, 1)), '9999-12-31'];
+    return ['0000-01-01', '9999-12-31'];
+  }
+  function fkarHesapla(f, maliyetOnbellek) {
+    const sign = f.docType === 'iade' ? -1 : 1, kur = faturaKuru(f);
+    let ciro = 0, maliyet = 0, bilinmeyen = 0;
+    (f.items || []).forEach((it) => {
+      const satirCiro = sign * it.qty * it.unitPrice * kur;
+      ciro += satirCiro;
+      const s = it.stokId ? state.stok.find((x) => x.id === it.stokId) : null;
+      if (!s) { bilinmeyen++; return; }
+      if ((s.kind || 'urun') === 'hizmet') return;
+      if (!(s.id in maliyetOnbellek)) maliyetOnbellek[s.id] = hmBirimMaliyet(s);
+      const b = maliyetOnbellek[s.id];
+      if (!b) bilinmeyen++;
+      maliyet += sign * it.qty * b;
+    });
+    return { ciro, maliyet, kar: ciro - maliyet, bilinmeyen };
+  }
+  function renderRaporFaturaKar() {
+    const [bas, bit] = fkarAralik(fkarDonem), onb = {};
+    const rows = state.faturalar.filter((f) => (f.docType === 'fatura' || f.docType === 'iade') && f.yon === 'satis' && f.date >= bas && f.date <= bit)
+      .sort((a, b) => b.date.localeCompare(a.date)).map((f) => Object.assign({ f }, fkarHesapla(f, onb)));
+    const T = rows.reduce((t, r) => ({ ciro: t.ciro + r.ciro, maliyet: t.maliyet + r.maliyet, kar: t.kar + r.kar }), { ciro: 0, maliyet: 0, kar: 0 });
+    const marj = T.ciro ? T.kar / T.ciro * 100 : 0;
+    const eksik = rows.filter((r) => r.bilinmeyen).length;
+    const renk = (v) => v < 0 ? 'var(--expense)' : 'var(--income)';
+    document.getElementById('rapFaturaKarBody').innerHTML = `
+      <div class="field"><select id="fkarDonem">${[['buay', 'Bu ay'], ['gecenay', 'Geçen ay'], ['buyil', 'Bu yıl'], ['tum', 'Tümü']].map(([v, l]) => `<option value="${v}"${v === fkarDonem ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="label" style="font-size:12px;color:var(--ink-soft)">Toplam kâr (KDV hariç)</div>
+      <div class="mono" style="font-size:24px;font-weight:700;color:${renk(T.kar)}">${formatTL(T.kar)}</div>
+      <div class="sub" style="margin-bottom:12px">Ciro ${formatTL(T.ciro)} · Maliyet ${formatTL(T.maliyet)} · Marj %${marj.toLocaleString('tr-TR', { maximumFractionDigits: 1 })}</div>
+      ${eksik ? `<div class="sub" style="color:var(--expense);margin-bottom:10px">⚠ ${eksik} faturada stoğa bağlı olmayan ya da alış fiyatı bilinmeyen kalem var; bu kalemlerin maliyeti 0 sayıldı, kâr olduğundan yüksek görünebilir. (⚠ işaretli faturalar)</div>` : ''}
+      ${rows.length ? rows.map((r) => `<div class="list-row" data-id="${r.f.id}"><div class="main"><div class="title">${r.bilinmeyen ? '⚠ ' : ''}${escapeHtml(r.f.no)}${r.f.docType === 'iade' ? ' · İade' : ''}</div><div class="sub">${formatDate(r.f.date)} · ${escapeHtml(r.f.cariAdi || '')}</div><div class="sub">Ciro ${formatTL(r.ciro)} · Maliyet ${formatTL(r.maliyet)} · %${(r.ciro ? r.kar / r.ciro * 100 : 0).toLocaleString('tr-TR', { maximumFractionDigits: 1 })}</div></div><div class="amt mono" style="color:${renk(r.kar)}">${formatTL(r.kar)}</div></div>`).join('') : '<div class="empty-state">Bu dönemde satış faturası yok.</div>'}
+      <p class="sub" style="margin-top:12px">Maliyet, ürünün alış faturalarındaki ortalama alış fiyatından (KDV hariç) hesaplanır; iade faturaları kârdan düşülür.</p>`;
+    document.getElementById('fkarDonem').addEventListener('change', (e) => { fkarDonem = e.target.value; renderRaporFaturaKar(); });
+    setExcelExport('Fatura_Bazinda_Kar.xlsx', [['Belge No', 'Tarih', 'Cari', 'Ciro (KDV hariç)', 'Maliyet', 'Kâr', 'Marj %', 'Uyarı'], ...rows.map((r) => [r.f.no, formatDate(r.f.date), r.f.cariAdi || '', yuvarla2(r.ciro), yuvarla2(r.maliyet), yuvarla2(r.kar), yuvarla2(r.ciro ? r.kar / r.ciro * 100 : 0), r.bilinmeyen ? 'Maliyeti eksik kalem' : ''])], 'view-rapor-faturakar', { toplam: ['Ciro (KDV hariç)', 'Maliyet', 'Kâr'] });
+  }
+  document.getElementById('rapFaturaKarBody').addEventListener('click', (e) => { const r = e.target.closest('.list-row[data-id]'); if (r) enterFaturaDetail(r.dataset.id); });
+
   function renderRaporAlis() {
     const items = state.faturalar.filter((f) => f.docType === 'fatura' && f.yon === 'alis').sort((a, b) => b.date.localeCompare(a.date));
     const total = items.reduce((s, f) => s + f.genelToplam, 0);
@@ -11897,7 +12035,7 @@ ${satirlar.join('\n')}
   function navIzinli(nav) { if (nav === 'ozet') return true; return menuIzni(nav.indexOf('raporlar') === 0 ? 'raporlar' : nav); }
   function viewIzinli(id) {
     if (yoneticiMi() || id === 'view-ozet') return true;
-    if (id === 'view-ebelge' || id === 'view-kullanicilar' || id === 'view-calisan-yetkileri' || id === 'view-islem-gecmisi' || id === 'view-platform') return false;
+    if (id === 'view-faturaayar' || id === 'view-ebelge' || id === 'view-kullanicilar' || id === 'view-calisan-yetkileri' || id === 'view-islem-gecmisi' || id === 'view-platform') return false;
     if (/^view-(raporlar|rapor-|genel-ozet)/.test(id)) return menuIzni('raporlar');
     if (id === 'view-cari' || id === 'view-cari-detail' || id === 'view-cari-form') return menuIzni(cariFilter === 'tedarikci' ? 'tedarikci' : 'musteri');
     if (/^view-(stok|kategori|marka|depo|fiyat-listesi|katalog-sec|etiket-sec)/.test(id)) return menuIzni('stok');
@@ -11960,6 +12098,7 @@ ${satirlar.join('\n')}
       else if (a === 'tanimlar') enterTanimlar();
       else if (a === 'veri') enterVeriYonetimi();
       else if (a === 'ebelge') enterEBelge();
+      else if (a === 'faturaayar') enterFaturaAyar();
       else if (a === 'kullanicilar') enterKullanicilar();
       else if (a === 'yetkiler') enterCalisanYetkileri();
       else if (a === 'islemgecmisi') enterIslemGecmisi();
@@ -12404,7 +12543,9 @@ ${satirlar.join('\n')}
     if (platformSahibi) platformRozetYukle();
     hesapSilAltGuncelle();
     document.getElementById('ayarlarKullanicilarRow').style.display = currentUserRole === 'yonetici' ? 'flex' : 'none';
-    document.getElementById('ayarlarEBelgeRow').style.display = (currentUserRole === 'yonetici' && platformSahibi) ? 'flex' : 'none';
+    document.getElementById('ayarlarEBelgeRow').style.display = qnbErisim() ? 'flex' : 'none';
+    document.getElementById('ayarlarFaturaAyarRow').style.display = currentUserRole === 'yonetici' ? 'flex' : 'none';
+    qnbDurumYukle();
     document.getElementById('drawerAktifFirmaAdi').textContent = currentSirketAdi;
     document.getElementById('ayarlarAktifFirmaAdi').textContent = currentSirketAdi || 'Aktif firma';
     document.getElementById('headerBarkodBtn').style.display = 'flex';
