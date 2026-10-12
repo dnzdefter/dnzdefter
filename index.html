@@ -2892,7 +2892,9 @@
     b.classList.toggle('hidden', document.getElementById('fBelgeTuru').value !== 'irsaliye');
   }
   document.getElementById('fBelgeTuru').addEventListener('change', sevkBlokGuncelle);
+  let pendingKaynakId = null;
   function enterFaturaForm(preset, editId, fromTeklifler, copySource) {
+    pendingKaynakId = null;
     cameFromTeklifler = !!fromTeklifler;
     editingFaturaId = editId || null;
     const existing = editId ? state.faturalar.find((x) => x.id === editId) : null;
@@ -2943,7 +2945,61 @@
     enterFaturaForm({ docType: f.docType, yon: f.yon, cariMode: f.cariId ? 'kayitli' : 'perakende', presetCariId: f.cariId }, null, false, f);
   }
   // Kopyala: cariye bağlı belgede "aynı müşteri / farklı müşteri" seçeneği sunulur.
+  // ---- Belge zinciri: Teklif → Sipariş → (İrsaliye →) Fatura. İrsaliye atlanıp siparişten doğrudan fatura da kesilebilir. ----
+  function belgeCocuklari(f) { return state.faturalar.filter((x) => x.kaynakId === f.id); }
+  function belgeKaynagi(f) { return f.kaynakId ? state.faturalar.find((x) => x.id === f.kaynakId) : null; }
+  function belgeFaturalandiMi(f) {
+    if (f.docType === 'irsaliye') return !!irsaliyeFaturaDurumu(f);
+    return belgeCocuklari(f).some((c) => (c.docType === 'fatura') || (c.docType === 'irsaliye' && irsaliyeFaturaDurumu(c)));
+  }
+  function belgeKopyala(src, hedefTur) {
+    const items = src.items.map((it) => Object.assign({}, it));
+    let ara = 0, kdv = 0, tev = 0;
+    items.forEach((it) => { const la = it.qty * it.unitPrice, lk = la * (it.vat / 100); ara += la; kdv += lk; if (src.tevkifatli) tev += lk * ((it.tevkifatOrani || 0) / 100); });
+    const dahil = ara + kdv;
+    return { id: genId(), no: nextBelgeNo(hedefTur, src.yon), belgeNo: '', docType: hedefTur, yon: src.yon, cariId: src.cariId, cariAdi: src.cariAdi, date: todayISO(), vade: null, irsaliyeNo: '', fiyatListesiId: src.fiyatListesiId || null, projeId: src.projeId || null, items, notlar: src.notlar || '', araToplam: ara, kdvToplam: kdv, genelToplam: dahil - tev, tevkifatli: !!src.tevkifatli, tevkifatToplam: tev, vergilerDahilToplam: dahil, paraBirimi: src.paraBirimi || 'TL', dovizKuru: src.dovizKuru || null, dovizAraToplam: src.dovizAraToplam || null, dovizKdvToplam: src.dovizKdvToplam || null, dovizGenelToplam: src.dovizGenelToplam || null, durum: hedefTur === 'teklif' ? 'bekliyor' : null, kaynakId: src.id };
+  }
+  function belgeDonustur(src, hedefTur) {
+    const adlar = { siparis: 'sipariş', irsaliye: 'irsaliye', fatura: 'fatura' };
+    const mevcut = belgeCocuklari(src).filter((c) => c.docType === hedefTur);
+    if (mevcut.length && !confirm('Bu belgeden daha önce ' + adlar[hedefTur] + ' oluşturulmuş (' + mevcut.map((c) => c.no).join(', ') + '). Yine de yenisi oluşturulsun mu?')) return;
+    if (hedefTur === 'irsaliye') {
+      // Sevk bilgileri (plaka, şoför…) gerektiği için form açılır; kayıtta kaynak bağı korunur.
+      copyFaturaAsNew(Object.assign({}, src, { docType: 'irsaliye' }));
+      document.getElementById('fBelgeTuru').value = 'irsaliye';
+      taramaYerlesimiGuncelle(); sevkBlokGuncelle();
+      pendingKaynakId = src.id;
+      return;
+    }
+    if (hedefTur === 'fatura' && src.docType === 'siparis') {
+      const bekleyen = belgeCocuklari(src).filter((c) => c.docType === 'irsaliye' && !irsaliyeFaturaDurumu(c));
+      if (bekleyen.length && !confirm('Bu siparişin faturalanmamış irsaliyesi var (' + bekleyen.map((c) => c.no).join(', ') + '). İrsaliyeler üzerinden faturalamak daha doğru olur. Yine de siparişten doğrudan fatura kesilsin mi?')) return;
+    }
+    if (!confirm(src.no + ' belgesinden ' + adlar[hedefTur] + ' oluşturulsun mu?')) return;
+    const yeni = belgeKopyala(src, hedefTur);
+    state.faturalar.push(yeni);
+    if (src.docType === 'teklif' && hedefTur === 'siparis') src.durum = 'onaylandi';
+    if (hedefTur === 'fatura') { applyBelgeEffectsIfFatura(yeni); updateBuyPricesFromFatura(yeni); }
+    saveState(); renderAll();
+    enterFaturaDetail(yeni.id, false);
+  }
+  function belgeZincirHtml(f) {
+    const kaynak = belgeKaynagi(f);
+    const cocuklar = belgeCocuklari(f);
+    const rozet = (x) => `<button type="button" class="btn btn-sm zincir-ac" data-id="${x.id}" style="margin:2px 4px 2px 0">${escapeHtml(x.belgeNo || x.no)} · ${DOC_LABELS[x.docType]}</button>`;
+    const butonlar = [];
+    if (f.docType === 'teklif') butonlar.push(['siparis', '📋 Siparişe çevir']);
+    if (f.docType === 'siparis') { butonlar.push(['irsaliye', '🚚 İrsaliyeye çevir']); butonlar.push(['fatura', '🧾 Faturaya çevir']); }
+    if (!kaynak && !cocuklar.length && !butonlar.length) return '';
+    return `<div style="margin:0 0 12px;padding:10px 12px;border:1px solid var(--line,#e5e7eb);border-radius:12px">
+      ${kaynak ? `<div class="sub" style="margin-bottom:4px">Kaynak: ${rozet(kaynak)}</div>` : ''}
+      ${cocuklar.length ? `<div class="sub" style="margin-bottom:6px">Oluşturulan: ${cocuklar.map(rozet).join('')}</div>` : ''}
+      ${butonlar.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap">${butonlar.map(([t, ad]) => `<button type="button" class="btn btn-primary btn-sm belge-donustur" data-hedef="${t}">${ad}</button>`).join('')}</div>` : ''}
+    </div>`;
+  }
   // ---- İrsaliye → Fatura (tek ya da aynı cariye ait birden çok irsaliyeyi tek faturada birleştirir) ----
+  // Faturada gösterilecek irsaliye numarası: e-İrsaliye olarak gönderildiyse resmî (UBL) numara, değilse defter numarası.
+  function irsRefNo(x) { return (x.qnb && x.qnb.numara) || x.belgeNo || x.no; }
   function irsaliyeFaturaDurumu(ir) {
     const fat = ir.faturaId ? state.faturalar.find((x) => x.id === ir.faturaId) : null;
     return fat || null;
@@ -2977,14 +3033,14 @@
       const items = [];
       secili.forEach((x) => x.items.forEach((it) => {
         const k = Object.assign({}, it);
-        const ref = 'İrsaliye ' + (x.belgeNo || x.no) + ' (' + formatDate(x.date) + ')';
+        const ref = 'İrsaliye ' + irsRefNo(x) + ' (' + formatDate(x.date) + ')';
         k.aciklama = it.aciklama ? it.aciklama + ' · ' + ref : ref;
         items.push(k);
       }));
       let ara = 0, kdv = 0;
       items.forEach((it) => { const la = it.qty * it.unitPrice; ara += la; kdv += la * (it.vat / 100); });
       const genelToplam = ara + kdv;
-      const irsNo = secili.map((x) => x.belgeNo || x.no).join(', ');
+      const irsNo = secili.map((x) => irsRefNo(x)).join(', ');
       const fatura = { id: genId(), no: nextBelgeNo('fatura', f.yon), belgeNo: '', docType: 'fatura', yon: f.yon, cariId: f.cariId, cariAdi: f.cariAdi, date: todayISO(), vade: null, irsaliyeNo: irsNo, fiyatListesiId: null, projeId: f.projeId || null, items, notlar: '', araToplam: ara, kdvToplam: kdv, genelToplam, tevkifatli: false, tevkifatToplam: 0, vergilerDahilToplam: genelToplam, paraBirimi: 'TL', durum: null };
       state.faturalar.push(fatura);
       secili.forEach((x) => { x.faturaId = fatura.id; });
@@ -7632,18 +7688,26 @@ ${satirlar.join('\n')}
     let items = state.faturalar.filter((f) => f.yon === faturaYonFilter).sort((a, b) => b.date.localeCompare(a.date));
     if (faturaFilter !== 'tum') items = items.filter((f) => f.docType === faturaFilter);
     if (!items.length) { list.innerHTML = `<div class="card"><div class="empty-state">Henüz ${faturaYonFilter === 'alis' ? 'alış' : 'satış'} kaydı yok. Yukarıdaki + ile oluşturabilirsin.</div></div>`; return; }
-    list.innerHTML = items.map((f) => `
+    const satirHtml = (f) => `
       <div class="card-flame">
       <div class="list-row" data-id="${f.id}" style="border-bottom:none;padding:13px 14px">
         <div class="main">
           <div class="title">${escapeHtml(f.no)} · ${DOC_LABELS[f.docType] || 'Belge'}</div>
           <div class="sub">${formatDate(f.date)} · ${escapeHtml(f.cariAdi || 'Cari yok')}</div>
           ${f.docType === 'teklif' && f.durum ? `<div class="badge ${TEKLIF_DURUM_CLASS[f.durum]}">${TEKLIF_DURUM_LABEL[f.durum]}</div>` : ''}
+          ${(f.docType === 'irsaliye' || f.docType === 'siparis') && belgeFaturalandiMi(f) ? '<div class="badge pos">Faturalandı</div>' : ((f.docType === 'teklif' || f.docType === 'siparis') && belgeCocuklari(f).length ? '<div class="badge wait">İşlem yapıldı</div>' : '')}
         </div>
         <div class="amt mono">${formatTL(f.genelToplam)}</div>
       </div>
-      </div>
-    `).join('');
+      </div>`;
+    if (faturaFilter !== 'tum') { list.innerHTML = items.map(satirHtml).join(''); return; }
+    // "Tümü": her belge türü kendi başlığı altında gruplanır.
+    const SIRA = [['fatura', 'Faturalar'], ['irsaliye', 'İrsaliyeler'], ['siparis', 'Siparişler'], ['teklif', 'Teklifler'], ['iade', 'İadeler']];
+    list.innerHTML = SIRA.map(([tur, ad]) => {
+      const grup = items.filter((f) => f.docType === tur);
+      if (!grup.length) return '';
+      return `<h2 class="section-title" style="grid-column:1/-1;margin:14px 2px 6px">${ad} <span style="font-weight:400;color:var(--ink-soft);font-size:13px">(${grup.length})</span></h2>` + grup.map(satirHtml).join('');
+    }).join('');
   }
   document.getElementById('faturaFilterChips').addEventListener('click', (e) => {
     const chip = e.target.closest('.chip'); if (!chip) return;
@@ -8849,7 +8913,8 @@ ${satirlar.join('\n')}
       return;
     }
 
-    const fatura = { id: genId(), no: nextBelgeNo(docType, yon), belgeNo, docType, yon, cariId, cariAdi: finalCariAdi, date, vade, irsaliyeNo, sevk, fiyatListesiId, projeId, items: validItems, notlar, araToplam: ara, kdvToplam: kdv, genelToplam, tevkifatli, tevkifatToplam, vergilerDahilToplam, paraBirimi, dovizKuru, dovizAraToplam, dovizKdvToplam, dovizGenelToplam, durum: docType === 'teklif' ? 'bekliyor' : null };
+    const fatura = { id: genId(), no: nextBelgeNo(docType, yon), belgeNo, docType, yon, cariId, cariAdi: finalCariAdi, date, vade, irsaliyeNo, sevk, fiyatListesiId, projeId, items: validItems, notlar, araToplam: ara, kdvToplam: kdv, genelToplam, tevkifatli, tevkifatToplam, vergilerDahilToplam, paraBirimi, dovizKuru, dovizAraToplam, dovizKdvToplam, dovizGenelToplam, durum: docType === 'teklif' ? 'bekliyor' : null, kaynakId: pendingKaynakId || null };
+    pendingKaynakId = null;
     state.faturalar.push(fatura);
     applyBelgeEffectsIfFatura(fatura);
     updateBuyPricesFromFatura(fatura);
@@ -9506,6 +9571,7 @@ ${satirlar.join('\n')}
       ${isBelgeEffectDoc(f) ? (() => { const k = faturaKalanTutar(f), od = faturaOdenenToplam(f); const gec = f.vade && f.vade < todayISO() && k > 0.005; return `<div style="margin-bottom:8px"><span class="badge ${k <= 0.005 ? 'pos' : (od > 0 ? 'wait' : 'zero')}">${k <= 0.005 ? 'Ödendi' : (od > 0 ? 'Kısmen ödendi' : 'Ödenmedi')}</span>${gec ? '<span class="badge neg">Vadesi geçmiş</span>' : ''}</div>`; })() : ''}
       ${f.qnb ? qnbRozetHtml(f) : ''}
       ${f.vade ? `<div class="sub">Vade: ${formatDate(f.vade)}</div>` : ''}
+      ${belgeZincirHtml(f)}
       ${f.irsaliyeNo ? `<div class="sub" style="margin-bottom:10px">İrsaliye No: ${escapeHtml(f.irsaliyeNo)}</div>` : ''}
       ${f.docType === 'irsaliye' ? (() => { const ft = irsaliyeFaturaDurumu(f); return ft ? `<div style="margin-bottom:10px"><span class="badge pos">Faturalandı: ${escapeHtml(ft.belgeNo || ft.no)}</span> <button type="button" class="btn btn-sm irs-fatura-ac" data-id="${ft.id}">Faturayı aç</button></div>` : (f.cariId ? '<div style="margin-bottom:10px"><button type="button" class="btn btn-primary btn-sm irs-fatura-btn">🧾 Faturaya çevir</button></div>' : ''); })() : ''}
       ${f.items.map((it, idx) => `
@@ -9551,6 +9617,8 @@ ${satirlar.join('\n')}
     const qnbBtn = e.target.closest('.qnb-durum-btn');
     if (qnbBtn) { qnbDurumSorgula(f, qnbBtn); return; }
     if (e.target.closest('.irs-fatura-btn')) { irsaliyeFaturayaCevirModal(f); return; }
+    const bd = e.target.closest('.belge-donustur'); if (bd) { belgeDonustur(f, bd.dataset.hedef); return; }
+    const za = e.target.closest('.zincir-ac'); if (za) { enterFaturaDetail(za.dataset.id, false); return; }
     const irsAc = e.target.closest('.irs-fatura-ac');
     if (irsAc) { enterFaturaDetail(irsAc.dataset.id, false); return; }
     const odemeSilBtn = e.target.closest('.odeme-sil-btn');
