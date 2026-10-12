@@ -3367,7 +3367,7 @@ ${satirlar.join('\n')}
     const t = d ? qnbDurumMetni(d) : { m: 'Gönderildi; durum henüz sorgulanmadı.', s: 'wait' };
     return `<div style="margin-bottom:10px"><span class="badge info">${q.tur === 'IRSALIYE' ? 'e-İrsaliye' : 'e-Fatura'}${q.ortam === 'test' ? ' (TEST)' : ''}</span> <span class="badge ${t.s}" style="white-space:normal">${escapeHtml(t.m)}</span>
       ${d && d.resmiBelgeNo ? `<div class="sub" style="margin-top:4px">Resmî no: ${escapeHtml(d.resmiBelgeNo)}</div>` : ''}
-      ${currentUserRole === 'yonetici' ? '<div><button type="button" class="btn btn-sm qnb-durum-btn" style="margin-top:6px">Durumu sorgula</button></div>' : ''}</div>`;
+      ${currentUserRole === 'yonetici' ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><button type="button" class="btn btn-sm qnb-durum-btn">Durumu sorgula</button>' + (q.oid ? '<button type="button" class="btn btn-sm qnb-indir-btn" data-a="pdfac">PDF aç</button><button type="button" class="btn btn-sm qnb-indir-btn" data-a="pdf">PDF indir</button><button type="button" class="btn btn-sm qnb-indir-btn" data-a="xml">XML indir</button>' : '') + '</div>' : ''}</div>`;
   }
   async function qnbDurumSorgula(f, btn) {
     if (!f.qnb || !f.qnb.oid) return;
@@ -9616,6 +9616,14 @@ ${satirlar.join('\n')}
     if (!f) return;
     const qnbBtn = e.target.closest('.qnb-durum-btn');
     if (qnbBtn) { qnbDurumSorgula(f, qnbBtn); return; }
+    const qi = e.target.closest('.qnb-indir-btn');
+    if (qi) {
+      if (!f.qnb || !f.qnb.oid) return;
+      const t0 = qi.textContent; qi.disabled = true; qi.textContent = '…';
+      ebelgeIndir('giden', f.qnb.oid, f.qnb.tur === 'IRSALIYE' ? 'IRSALIYE' : 'FATURA', qi.dataset.a === 'xml' ? 'UBL' : 'PDF', (f.qnb.numara || f.belgeNo || f.no || 'belge'), qi.dataset.a === 'pdfac')
+        .catch((er) => alert('İşlem başarısız: ' + er.message)).finally(() => { qi.disabled = false; qi.textContent = t0; });
+      return;
+    }
     if (e.target.closest('.irs-fatura-btn')) { irsaliyeFaturayaCevirModal(f); return; }
     const bd = e.target.closest('.belge-donustur'); if (bd) { belgeDonustur(f, bd.dataset.hedef); return; }
     const za = e.target.closest('.zincir-ac'); if (za) { enterFaturaDetail(za.dataset.id, false); return; }
