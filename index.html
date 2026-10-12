@@ -3405,6 +3405,129 @@ ${satirlar.join('\n')}
       dosyaIndir(new File([blob], (ad || 'belge') + '.' + uz, { type: dosya.mime }));
     }
   }
+
+  // ---- Gelen e-Faturayı alış faturası olarak kaydet ----
+  const UBL_KODU_BIRIM = { C62: 'Adet', NIU: 'Adet', MTR: 'Metre', MTK: 'M2', MTQ: 'M3', KGM: 'Kg', LTR: 'Lt', TNE: 'Ton', PA: 'Paket', BX: 'Kutu', SET: 'Set', PR: 'Çift', RL: 'Rulo', GRM: 'Gr', CMT: 'Cm', DAY: 'Gün', HUR: 'Saat', MON: 'Ay' };
+  function uNorm(t) { return String(t || '').trim().toLocaleLowerCase('tr-TR').replace(/\s+/g, ' '); }
+  function uCh(el, ad) { if (!el) return null; for (const c of el.children) if (c.localName === ad) return c; return null; }
+  function uYol(el, yol) { let c = el; for (const a of yol.split('/')) { c = uCh(c, a); if (!c) return null; } return c; }
+  function uMetin(el, yol) { const x = uYol(el, yol); return x ? x.textContent.trim() : ''; }
+  function uSayi(t) { const n = parseFloat(String(t || '').replace(',', '.')); return isNaN(n) ? 0 : n; }
+  function gelenUblCoz(xml) {
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    if (doc.getElementsByTagName('parsererror').length) throw new Error('XML okunamadı.');
+    const k = doc.documentElement;
+    const sp = uYol(k, 'AccountingSupplierParty/Party');
+    if (!sp) throw new Error('Satıcı bilgisi bulunamadı.');
+    let vkn = '';
+    Array.from(sp.children).filter((c) => c.localName === 'PartyIdentification').forEach((pi) => { const id = uCh(pi, 'ID'); if (id && /^(VKN|TCKN)$/i.test(id.getAttribute('schemeID') || '') && !vkn) vkn = id.textContent.trim(); });
+    let ad = uMetin(sp, 'PartyName/Name');
+    if (!ad) { const pr = uYol(sp, 'Person'); if (pr) ad = (uMetin(pr, 'FirstName') + ' ' + uMetin(pr, 'FamilyName')).trim(); }
+    const adr = uYol(sp, 'PostalAddress');
+    const adres = adr ? [uMetin(adr, 'StreetName'), uMetin(adr, 'BuildingNumber'), uMetin(adr, 'CitySubdivisionName'), uMetin(adr, 'CityName')].filter(Boolean).join(' ') : '';
+    const satici = { vkn, ad, vd: uMetin(sp, 'PartyTaxScheme/TaxScheme/Name'), adres, tel: uMetin(sp, 'Contact/Telephone'), mail: uMetin(sp, 'Contact/ElectronicMail') };
+    const para = (uCh(uYol(k, 'LegalMonetaryTotal'), 'PayableAmount') || { getAttribute: () => '' }).getAttribute('currencyID') || uMetin(k, 'DocumentCurrencyCode') || 'TRY';
+    const kalemler = Array.from(k.children).filter((c) => c.localName === 'InvoiceLine').map((l) => {
+      const qEl = uCh(l, 'InvoicedQuantity');
+      const qty = uSayi(qEl && qEl.textContent), kod = qEl ? (qEl.getAttribute('unitCode') || '') : '';
+      const urun = uCh(l, 'Item');
+      const lineAra = uSayi(uMetin(l, 'LineExtensionAmount'));
+      let vat = 0;
+      const tt = uCh(l, 'TaxTotal');
+      if (tt) Array.from(tt.children).filter((c) => c.localName === 'TaxSubtotal').forEach((ts) => { if (uMetin(ts, 'TaxCategory/TaxScheme/TaxTypeCode') === '0015' || !vat) { const pc = uMetin(ts, 'Percent'); if (pc !== '') vat = uSayi(pc); } });
+      return {
+        name: uMetin(urun, 'Name') || uMetin(urun, 'Description') || 'Kalem',
+        saticiKodu: uMetin(urun, 'SellersItemIdentification/ID'), barkod: uMetin(urun, 'StandardItemIdentification/ID') || uMetin(urun, 'BuyersItemIdentification/ID'),
+        unit: UBL_KODU_BIRIM[kod] || 'Adet', qty, vat,
+        unitPrice: qty ? Math.round((lineAra / qty) * 10000) / 10000 : 0
+      };
+    }).filter((x) => x.qty > 0);
+    const tev = !!(uCh(k, 'WithholdingTaxTotal'));
+    return {
+      ettn: uMetin(k, 'UUID'), belgeNo: uMetin(k, 'ID'), tarih: uMetin(k, 'IssueDate'), para, satici, kalemler, tevkifat: tev,
+      odenecek: uSayi(uMetin(k, 'LegalMonetaryTotal/PayableAmount')), notlar: Array.from(k.children).filter((c) => c.localName === 'Note').map((c) => c.textContent.trim()).filter(Boolean).join(' | ')
+    };
+  }
+  function gelenStokEsle(kalem) {
+    const ad = uNorm(kalem.name);
+    const aktif = state.stok.filter((s) => (s.kind || 'urun') !== 'hizmet');
+    return aktif.find((s) => (s.gelenAdlari || []).some((a) => uNorm(a) === ad))
+      || aktif.find((s) => uNorm(s.name) === ad)
+      || (kalem.barkod && aktif.find((s) => s.barcode && s.barcode === kalem.barkod))
+      || (kalem.saticiKodu && aktif.find((s) => s.productCode && s.productCode === kalem.saticiKodu))
+      || null;
+  }
+  function gelenCariBul(sat) {
+    const v = (sat.vkn || '').trim();
+    return (v && state.cariler.find((c) => (c.taxNo || '').trim() === v)) || state.cariler.find((c) => c.type === 'tedarikci' && uNorm(c.name) === uNorm(sat.ad)) || null;
+  }
+  async function gelenFaturaKaydetAc(b) {
+    if (state.faturalar.some((f) => f.gelenEttn && f.gelenEttn === b.ettn)) { alert('Bu fatura zaten alış faturası olarak kaydedilmiş.'); return; }
+    const d = await qnbCagri('belgeIndir', { yon: 'gelen', kimlik: b.ettn, belgeTuru: 'FATURA', belgeFormati: 'UBL' });
+    if (d.hata) throw new Error(d.hata);
+    const dosya = (d.dosyalar || []).find((x) => /xml/i.test(x.mime)) || (d.dosyalar || [])[0];
+    if (!dosya) throw new Error('QNB dosya göndermedi.');
+    const bin = atob(dosya.b64), by = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) by[i] = bin.charCodeAt(i);
+    const u = gelenUblCoz(new TextDecoder('utf-8').decode(by));
+    if (!u.ettn) u.ettn = b.ettn;
+    if (u.para !== 'TRY' && u.para !== 'TL') { alert('Bu fatura ' + u.para + ' cinsinden. Şimdilik sadece TL faturalar otomatik kaydedilir; alış faturasını elle girmen gerekir.'); return; }
+    if (!u.kalemler.length) { alert('Faturada kalem bulunamadı.'); return; }
+    const cari = gelenCariBul(u.satici);
+    let ara = 0, kdv = 0;
+    const satirlar = u.kalemler.map((kl) => {
+      const st = gelenStokEsle(kl); ara += kl.qty * kl.unitPrice; kdv += kl.qty * kl.unitPrice * kl.vat / 100;
+      return { kl, st };
+    });
+    const toplam = Math.round((ara + kdv) * 100) / 100;
+    const fark = Math.abs(toplam - u.odenecek) > 0.05;
+    openModal(`
+      <h3>Alış Faturası Olarak Kaydet</h3>
+      <div class="sub" style="margin-top:-6px">${escapeHtml(u.satici.ad)} · ${escapeHtml(u.belgeNo)} · ${escapeHtml(u.tarih)}</div>
+      <div class="sub">${cari ? 'Mevcut cari: <b>' + escapeHtml(cari.name) + '</b>' : 'Yeni tedarikçi cari oluşturulacak'}</div>
+      <div style="margin:10px 0">${satirlar.map((x) => `<div style="padding:7px 0;border-bottom:1px solid var(--line)">
+        <div style="font-weight:600;font-size:13.5px">${escapeHtml(x.kl.name)}</div>
+        <div class="sub">${x.kl.qty} ${escapeHtml(x.kl.unit)} × ${formatTL(x.kl.unitPrice)} · KDV %${x.kl.vat}</div>
+        <div class="sub" style="color:${x.st ? 'var(--pos, #1a7f4b)' : 'var(--warn, #b26a00)'}">${x.st ? '✓ Stoğa eklenecek: ' + escapeHtml(x.st.name) : '+ Yeni ürün oluşturulup stoğa eklenecek'}</div></div>`).join('')}</div>
+      <div style="display:flex;justify-content:space-between;font-weight:700"><span>Genel toplam</span><span>${formatTL(toplam)}</span></div>
+      ${fark ? `<p style="color:var(--neg,#b3261e);font-size:12px">Uyarı: hesaplanan toplam (${formatTL(toplam)}) faturadaki ödenecek tutardan (${formatTL(u.odenecek)}) farklı${u.tevkifat ? ' (tevkifatlı fatura olabilir)' : ''}. Kaydettikten sonra kontrol et.</p>` : ''}
+      <div style="display:flex;gap:8px;margin-top:12px"><button type="button" class="btn" id="gelenIptal" style="flex:1">Vazgeç</button><button type="button" class="btn btn-primary" id="gelenKaydet" style="flex:2">Kaydet ve Stoğa Ekle</button></div>`);
+    document.getElementById('gelenIptal').addEventListener('click', closeModal);
+    document.getElementById('gelenKaydet').addEventListener('click', () => { closeModal(); gelenFaturaKaydet(u, satirlar.map((x) => x.kl)); });
+  }
+  function gelenFaturaKaydet(u, kalemler) {
+    if (state.faturalar.some((f) => f.gelenEttn && f.gelenEttn === u.ettn)) return;
+    let cari = gelenCariBul(u.satici);
+    if (!cari) {
+      cari = { id: genId(), type: 'tedarikci', name: u.satici.ad || 'Bilinmeyen Tedarikçi', address: u.satici.adres, phone: u.satici.tel, email: u.satici.mail, taxOffice: u.satici.vd, taxNo: u.satici.vkn, currency: 'TL', hareketler: [], etiketler: [], aktiviteler: [] };
+      state.cariler.push(cari);
+    }
+    const tarih = u.tarih || new Date().toISOString().slice(0, 10);
+    let yeni = 0, esli = 0, ara = 0, kdv = 0;
+    const items = kalemler.map((kl) => {
+      let st = gelenStokEsle(kl);
+      if (st) esli++; else {
+        yeni++;
+        st = { id: genId(), name: kl.name, kind: 'urun', satisBirimi: kl.unit, alisBirimi: kl.unit, unit: kl.unit, donusumOrani: 1, quantity: 0, minStock: 0, variants: [],
+          sellPrice: 0, sellCurrency: 'TL', sellVat: kl.vat, sellVatIncluded: 'haric', buyPrice: kl.unitPrice, buyCurrency: 'TL', buyVat: kl.vat, buyVatIncluded: 'haric', buyDiscount: 0,
+          categoryId: null, subCategoryId: null, brandId: null, photo: null, depoId: null, category: '', brand: '', barcode: kl.barkod || '', productCode: kl.saticiKodu || '' };
+        state.stok.push(st);
+      }
+      st.gelenAdlari = st.gelenAdlari || [];
+      if (!st.gelenAdlari.some((a) => uNorm(a) === uNorm(kl.name))) st.gelenAdlari.push(kl.name);
+      ara += kl.qty * kl.unitPrice; kdv += kl.qty * kl.unitPrice * kl.vat / 100;
+      return { stokId: st.id, name: st.name, unit: st.satisBirimi || kl.unit, qty: kl.qty, unitPrice: kl.unitPrice, vat: kl.vat };
+    });
+    ara = Math.round(ara * 100) / 100; kdv = Math.round(kdv * 100) / 100;
+    const toplam = Math.round((ara + kdv) * 100) / 100;
+    const fatura = { id: genId(), no: nextBelgeNo('fatura', 'alis'), belgeNo: u.belgeNo, docType: 'fatura', yon: 'alis', cariId: cari.id, cariAdi: cari.name, date: tarih, vade: '', irsaliyeNo: '', sevk: '', fiyatListesiId: null, projeId: null,
+      items, notlar: 'e-Fatura (QNB gelen) · ETTN: ' + u.ettn + (u.notlar ? '\n' + u.notlar : ''), araToplam: ara, kdvToplam: kdv, genelToplam: toplam, tevkifatli: false, tevkifatToplam: 0, vergilerDahilToplam: toplam,
+      paraBirimi: 'TL', dovizKuru: null, dovizAraToplam: null, dovizKdvToplam: null, dovizGenelToplam: null, durum: null, kaynakId: null, gelenEttn: u.ettn };
+    state.faturalar.push(fatura);
+    applyBelgeEffectsIfFatura(fatura);
+    updateBuyPricesFromFatura(fatura);
+    saveState(); renderAll(); renderEBelge();
+    alert('Alış faturası kaydedildi (' + fatura.no + ').\n' + esli + ' kalem mevcut ürüne eklendi, ' + yeni + ' yeni ürün oluşturuldu. Stok ve cari güncellendi.');
+  }
   function ebelgeTutar(b) { return b.tutar ? escapeHtml(b.tutar + ' ' + (b.para || '')) : ''; }
   function renderEBelge() {
     const body = document.getElementById('ebelgeBody'); if (!body) return;
@@ -3424,8 +3547,9 @@ ${satirlar.join('\n')}
           <button type="button" class="btn btn-sm eb-gel" data-i="${i}" data-f="PDF" data-ac="1">Aç / Yazdır</button>
           <button type="button" class="btn btn-sm eb-gel" data-i="${i}" data-f="PDF">PDF indir</button>
           <button type="button" class="btn btn-sm eb-gel" data-i="${i}" data-f="UBL">XML indir</button>
+          ${tur === 'FATURA' ? (state.faturalar.some((f) => f.gelenEttn && f.gelenEttn === b.ettn) ? '<span class="badge pos">Alış faturası olarak kaydedildi</span>' : `<button type="button" class="btn btn-sm btn-primary eb-kaydet" data-i="${i}">Alış faturası olarak kaydet</button>`) : ''}
         </div></div>`).join('') + '</div>';
-      h += '<p class="sub" style="padding:8px 4px">Not: Gelen belge senin adına işlenmemiş "bilgi" amaçlıdır; alış faturasına aktarma ayrı bir adım olacak.</p>';
+      h += '<p class="sub" style="padding:8px 4px">Not: Gelen belge "Alış faturası olarak kaydet" denene kadar defterine işlenmez.</p>';
     }
     body.innerHTML = h;
   }
@@ -3465,6 +3589,13 @@ ${satirlar.join('\n')}
         if (d.hata) alert('QNB: ' + d.hata); else ebelgeGelen[tur] = d.belgeler || [];
       } catch (er) { alert('Getirilemedi: ' + er.message); }
       renderEBelge(); return;
+    }
+    const kb = e.target.closest('.eb-kaydet');
+    if (kb) {
+      const b = (ebelgeGelen.FATURA || [])[Number(kb.dataset.i)]; if (!b || !b.ettn) return;
+      const t0 = kb.textContent; kb.disabled = true; kb.textContent = 'Okunuyor…';
+      try { await gelenFaturaKaydetAc(b); } catch (er) { alert('Kaydedilemedi: ' + er.message); }
+      kb.disabled = false; kb.textContent = t0; return;
     }
     const gb = e.target.closest('.eb-gel');
     if (gb) {
@@ -9658,6 +9789,8 @@ ${satirlar.join('\n')}
     const s = state.stok.find((x) => x.id === stokId);
     if (!s) return;
     it.stokId = s.id;
+    s.gelenAdlari = s.gelenAdlari || [];
+    if (!s.gelenAdlari.some((a) => uNorm(a) === uNorm(it.name))) s.gelenAdlari.push(it.name);
     applyStokLinkEffect(f, it, s);
     saveState(); renderAll();
     renderFaturaDetail();
