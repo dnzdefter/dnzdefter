@@ -3618,19 +3618,43 @@ ${satirlar.join('\n')}
     if (!confirm('Kayıtlı QNB bilgileri silinsin mi? Silince bu firma e-Fatura gönderemez.')) return;
     try { await qnbCagri('ayarSil'); qnbAyarBilgi = null; qnbTanimli = false; await qnbDurumYukle(); faAlanlariDoldur(); } catch (er) { alert('Silinemedi: ' + er.message); }
   });
+  let ebelgeAralik = { mod: 'hepsi', bas: '', bit: '' }, ebelgeGTur = 'hepsi';
+  function ebTarihKey(v) { const t = String(v || '').trim(); let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[1] + m[2] + m[3]; m = t.match(/^(\d{2})[.\/](\d{2})[.\/](\d{4})/); return m ? m[3] + m[2] + m[1] : ''; }
+  function ebAralikSinir() {
+    const n = new Date(), y = n.getFullYear(), ay = n.getMonth(), k = (d) => d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+    const m = ebelgeAralik.mod;
+    if (m === 'buay') return [k(new Date(y, ay, 1)), k(new Date(y, ay + 1, 0))];
+    if (m === 'gecenay') return [k(new Date(y, ay - 1, 1)), k(new Date(y, ay, 0))];
+    if (m === 'yil') return [y + '0101', y + '1231'];
+    if (m === 'ozel') return [(ebelgeAralik.bas || '').replace(/-/g, '') || '00000000', (ebelgeAralik.bit || '').replace(/-/g, '') || '99999999'];
+    return ['00000000', '99999999'];
+  }
+  function ebTarihUygun(v) { if (ebelgeAralik.mod === 'hepsi') return true; const k = ebTarihKey(v); if (!k) return false; const [b, e] = ebAralikSinir(); return k >= b && k <= e; }
+  function ebFiltreHtml() {
+    const c = (id, ad) => `<button type="button" class="btn btn-sm eb-tf${ebelgeAralik.mod === id ? ' btn-primary' : ''}" data-m="${id}">${ad}</button>`;
+    let h = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px">' + c('hepsi', 'Hepsi') + c('buay', 'Bu ay') + c('gecenay', 'Geçen ay') + c('yil', 'Bu yıl') + c('ozel', 'İki tarih arası') + '</div>';
+    if (ebelgeAralik.mod === 'ozel') h += `<div style="display:flex;gap:8px;margin:0 0 10px"><input type="date" id="ebBas" value="${escapeHtml(ebelgeAralik.bas)}" style="flex:1;padding:10px;border-radius:12px;border:1px solid var(--line)"><input type="date" id="ebBit" value="${escapeHtml(ebelgeAralik.bit)}" style="flex:1;padding:10px;border-radius:12px;border:1px solid var(--line)"></div>`;
+    return h;
+  }
   function ebelgeTutar(b) { return b.tutar ? escapeHtml(b.tutar + ' ' + (b.para || '')) : ''; }
   function renderEBelge() {
     const body = document.getElementById('ebelgeBody'); if (!body) return;
     document.querySelectorAll('#ebelgeSeg button').forEach((b) => b.classList.toggle('active', b.dataset.s === ebelgeSekme));
-    if (ebelgeSekme === 'giden') { body.innerHTML = ebelgeGidenHtml(); return; }
+    if (ebelgeSekme === 'giden') { body.innerHTML = ebFiltreHtml() + ebelgeGidenHtml(); return; }
     const tur = ebelgeSekme === 'gelenIrsaliye' ? 'IRSALIYE' : 'FATURA';
     const liste = ebelgeGelen[tur];
     const baslik = tur === 'IRSALIYE' ? 'Gelen e-İrsaliyeler' : 'Gelen e-Faturalar';
-    let h = `<p class="sub" style="padding:0 4px;margin:0 0 10px">${baslik} QNB'den çekilir (en fazla 100 adet). Önce "QNB'den getir"e bas.</p>
+    let h = `<p class="sub" style="padding:0 4px;margin:0 0 10px">${baslik} QNB'den çekilir (hepsi getirilir, yeniden eskiye sıralanır). Önce "QNB'den getir"e bas.</p>
       <div class="fab-row"><button class="btn btn-primary btn-block" id="ebelgeGetir">${liste ? 'Yenile' : 'QNB\'den getir'}</button></div>`;
+    h += ebFiltreHtml();
+    const gorunen = liste ? liste.filter((b) => ebTarihUygun(b.tarih)) : liste;
     if (liste && !liste.length) h += '<div class="card"><div class="sub">Bu tarafta gelen belge yok.</div></div>';
-    if (liste && liste.length) {
-      h += '<div class="card">' + liste.map((b, i) => `<div style="padding:10px 0;border-bottom:1px solid var(--line)">
+    else if (liste && !gorunen.length) h += '<div class="card"><div class="sub">Seçilen tarih aralığında belge yok.</div></div>';
+    if (liste && gorunen.length) {
+      const tKey = (b) => { const t = String(b.tarih || '').trim(); let m = t.match(/^(\d{4})-(\d{2})-(\d{2})(.*)$/); if (m) return m[1] + m[2] + m[3] + m[4]; m = t.match(/^(\d{2})[.\/](\d{2})[.\/](\d{4})(.*)$/); return m ? m[3] + m[2] + m[1] + m[4] : t; };
+      const sira = liste.map((b, i) => i).filter((i) => ebTarihUygun(liste[i].tarih)).sort((x, y) => tKey(liste[y]).localeCompare(tKey(liste[x])) || String(liste[y].belgeNo || '').localeCompare(String(liste[x].belgeNo || '')));
+      h += '<input type="search" id="ebelgeAra" placeholder="Ara: firma adı, VKN veya fatura no" autocomplete="off" style="width:100%;margin:10px 0;padding:12px;border-radius:12px;border:1px solid var(--line);font-size:15px">';
+      h += '<div class="card" id="ebelgeListe">' + sira.map((i) => { const b = liste[i]; return `<div class="eb-satir" data-q="${escapeHtml([b.saticiUnvan, b.gonderenVkn, b.saticiVkn, b.belgeNo, b.ettn].join(' ').toLocaleLowerCase('tr'))}" style="padding:10px 0;border-bottom:1px solid var(--line)">
         <div style="font-weight:600">${escapeHtml(b.saticiUnvan || b.gonderenVkn || 'Gönderen bilinmiyor')}</div>
         <div class="sub">${escapeHtml(b.belgeNo || '')} · ${escapeHtml(String(b.tarih || '').slice(0, 10))} ${ebelgeTutar(b) ? '· ' + ebelgeTutar(b) : ''}</div>
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
@@ -3638,15 +3662,17 @@ ${satirlar.join('\n')}
           <button type="button" class="btn btn-sm eb-gel" data-i="${i}" data-f="PDF">PDF indir</button>
           <button type="button" class="btn btn-sm eb-gel" data-i="${i}" data-f="UBL">XML indir</button>
           ${tur === 'FATURA' ? (state.faturalar.some((f) => f.gelenEttn && f.gelenEttn === b.ettn) ? '<span class="badge pos">Alış faturası olarak kaydedildi</span>' : `<button type="button" class="btn btn-sm btn-primary eb-kaydet" data-i="${i}">Alış faturası olarak kaydet</button>`) : ''}
-        </div></div>`).join('') + '</div>';
+        </div></div>`; }).join('') + '<div class="sub eb-yok" style="display:none;padding:10px 0">Eşleşen belge yok.</div></div>';
       h += '<p class="sub" style="padding:8px 4px">Not: Gelen belge "Alış faturası olarak kaydet" denene kadar defterine işlenmez.</p>';
     }
     body.innerHTML = h;
   }
   function ebelgeGidenHtml() {
-    const l = (state.faturalar || []).filter((f) => f.qnb && (f.qnb.oid || f.qnb.tur === 'EARSIV')).sort((a, b) => String(b.qnb.gonderimZamani || '').localeCompare(String(a.qnb.gonderimZamani || '')));
-    if (!l.length) return '<div class="card"><div class="sub">Henüz QNB üzerinden gönderilmiş belge yok. Fatura/irsaliye sayfasından Paylaş → e-Fatura/e-İrsaliye XML → "QNB\'ye gönder".</div></div>';
-    return '<div class="card">' + l.map((f) => {
+    const l = (state.faturalar || []).filter((f) => f.qnb && (f.qnb.oid || f.qnb.tur === 'EARSIV')).filter((f) => ebTarihUygun(f.date) && (ebelgeGTur === 'hepsi' || (ebelgeGTur === 'EARSIV' ? f.qnb.tur === 'EARSIV' : ebelgeGTur === 'IRSALIYE' ? f.qnb.tur === 'IRSALIYE' : (f.qnb.tur !== 'EARSIV' && f.qnb.tur !== 'IRSALIYE')))).sort((a, b) => String(b.qnb.gonderimZamani || '').localeCompare(String(a.qnb.gonderimZamani || '')));
+    const gt = (id, ad) => `<button type="button" class="btn btn-sm eb-gt${ebelgeGTur === id ? ' btn-primary' : ''}" data-t="${id}">${ad}</button>`;
+    const gtHtml = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px">' + gt('hepsi', 'Tümü') + gt('FATURA', 'e-Fatura') + gt('IRSALIYE', 'e-İrsaliye') + gt('EARSIV', 'e-Arşiv') + '</div>';
+    if (!l.length) return gtHtml + '<div class="card"><div class="sub">Bu seçimde QNB üzerinden gönderilmiş belge yok. Fatura/irsaliye sayfasından Paylaş → e-Fatura/e-İrsaliye XML → "QNB\'ye gönder".</div></div>';
+    return gtHtml + '<input type="search" id="ebelgeAra" placeholder="Ara: firma adı, VKN veya fatura no" autocomplete="off" style="width:100%;margin:0 0 10px;padding:12px;border-radius:12px;border:1px solid var(--line);font-size:15px"><div class="card" id="ebelgeListe">' + l.map((f) => {
       const q = f.qnb, tur = q.tur === 'IRSALIYE' ? 'e-İrsaliye' : q.tur === 'EARSIV' ? 'e-Arşiv' : 'e-Fatura';
       const d = q.sonDurum ? qnbDurumMetni(q.sonDurum).m : (q.tur === 'EARSIV' ? 'Kesildi' : 'Durum sorgulanmadı');
       const no = (q.sonDurum && q.sonDurum.resmiBelgeNo) || q.faturaNo || q.numara || '';
@@ -3656,12 +3682,14 @@ ${satirlar.join('\n')}
            <button type="button" class="btn btn-sm eb-gid" data-id="${f.id}" data-a="pdfac">Aç / Yazdır</button>
            <button type="button" class="btn btn-sm eb-gid" data-id="${f.id}" data-a="pdf">PDF</button>
            <button type="button" class="btn btn-sm eb-gid" data-id="${f.id}" data-a="xml">XML</button>`;
-      return `<div style="padding:10px 0;border-bottom:1px solid var(--line)">
+      const cr = f.cariId ? state.cariler.find((x) => x.id === f.cariId) : null;
+      const qs = [f.cariAdi, cr && cr.taxNo, cr && cr.vkn, no, f.belgeNo, f.no].join(' ').toLocaleLowerCase('tr');
+      return `<div class="eb-satir" data-q="${escapeHtml(qs)}" style="padding:10px 0;border-bottom:1px solid var(--line)">
         <div style="font-weight:600">${escapeHtml(f.cariAdi || 'Perakende')} <span class="badge info">${tur}${q.ortam === 'test' ? ' (TEST)' : ''}</span></div>
         <div class="sub">${escapeHtml(no || f.belgeNo || f.no || '')} · ${escapeHtml(formatDate(f.date))}</div>
         <div class="sub">${escapeHtml(d)}</div>
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">${btn}</div></div>`;
-    }).join('') + `</div>
+    }).join('') + `<div class="sub eb-yok" style="display:none;padding:10px 0">Eşleşen belge yok.</div></div>
     <div class="card" style="margin-top:10px"><div style="font-weight:600;margin-bottom:4px">İptal / iade hakkında</div>
       <div class="sub">e-Fatura ve e-İrsaliye, GİB'e ulaştıktan sonra iptal edilemez. Hatalı ya da iade edilen e-Fatura için <b>iade / düzeltme faturası</b> kesilir (uygulamadaki "İade Al" ile). e-Arşiv faturasının iptali QNB e-Arşiv servisinden yapılır; bu çağrının dokümanı henüz elimde yok, bu yüzden uygulamaya eklenmedi.</div></div>`;
   }
@@ -3669,14 +3697,40 @@ ${satirlar.join('\n')}
     const b = e.target.closest('button[data-s]'); if (!b) return;
     ebelgeSekme = b.dataset.s; renderEBelge();
   });
+  document.getElementById('ebelgeBody').addEventListener('change', (e) => {
+    if (!e.target) return;
+    if (e.target.id === 'ebBas') { ebelgeAralik.bas = e.target.value; renderEBelge(); }
+    else if (e.target.id === 'ebBit') { ebelgeAralik.bit = e.target.value; renderEBelge(); }
+  });
+  document.getElementById('ebelgeBody').addEventListener('click', (e) => {
+    const tf = e.target.closest('.eb-tf'); if (tf) { ebelgeAralik.mod = tf.dataset.m; renderEBelge(); return; }
+    const gt = e.target.closest('.eb-gt'); if (gt) { ebelgeGTur = gt.dataset.t; renderEBelge(); }
+  });
+  document.getElementById('ebelgeBody').addEventListener('input', (e) => {
+    if (!e.target || e.target.id !== 'ebelgeAra') return;
+    const q = e.target.value.trim().toLocaleLowerCase('tr'); let n = 0;
+    document.querySelectorAll('#ebelgeListe .eb-satir').forEach((r) => { const g = !q || r.dataset.q.indexOf(q) >= 0; r.style.display = g ? '' : 'none'; if (g) n++; });
+    const y = document.querySelector('#ebelgeListe .eb-yok'); if (y) y.style.display = n ? 'none' : '';
+  });
   document.getElementById('ebelgeBody').addEventListener('click', async (e) => {
     const g = e.target.closest('#ebelgeGetir');
     if (g) {
       const tur = ebelgeSekme === 'gelenIrsaliye' ? 'IRSALIYE' : 'FATURA';
       g.disabled = true; g.textContent = 'Getiriliyor…';
       try {
-        const d = await qnbCagri('gelenListe', { belgeTuru: tur });
-        if (d.hata) alert('QNB: ' + d.hata); else ebelgeGelen[tur] = d.belgeler || [];
+        let tum = [], sonSira = 0, hata = null;
+        for (let sayfa = 0; sayfa < 30; sayfa++) {
+          g.textContent = 'Getiriliyor… (' + tum.length + ')';
+          const d = await qnbCagri('gelenListe', { belgeTuru: tur, sonSira: String(sonSira) });
+          if (d.hata) { hata = d.hata; break; }
+          const l = d.belgeler || [];
+          const yeniSira = l.reduce((m, x) => Math.max(m, Number(x.sira) || 0), 0);
+          const var0 = new Set(tum.map((x) => x.ettn));
+          l.forEach((x) => { if (!var0.has(x.ettn)) tum.push(x); });
+          if (l.length < 100 || yeniSira <= sonSira) break;
+          sonSira = yeniSira;
+        }
+        if (hata && !tum.length) alert('QNB: ' + hata); else { ebelgeGelen[tur] = tum; if (hata) alert('Bir kısmı getirildi, sonra hata: ' + hata); }
       } catch (er) { alert('Getirilemedi: ' + er.message); }
       renderEBelge(); return;
     }
