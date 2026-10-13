@@ -3429,6 +3429,52 @@ ${satirlar.join('\n')}
     }
   }
 
+  // Faturanın QNB'deki resmi (e-Fatura / e-İrsaliye / e-Arşiv) karşılığı varsa kaynağını döndürür
+  function ebelgeKaynak(f) {
+    if (!f) return null;
+    if (f.gelenEttn) return { yon: 'gelen', kimlik: f.gelenEttn, tur: 'FATURA', ad: String(f.belgeNo || f.no || 'e-fatura'), etiket: 'e-Fatura' };
+    const q = f.qnb;
+    if (q && q.tur === 'EARSIV' && q.url) return { url: q.url, ad: String(q.faturaNo || f.belgeNo || f.no || 'e-arsiv'), etiket: 'e-Arşiv' };
+    if (q && q.oid) return { yon: 'giden', kimlik: q.oid, tur: q.tur === 'IRSALIYE' ? 'IRSALIYE' : 'FATURA', ad: String(q.numara || f.belgeNo || f.no || 'belge'), etiket: q.tur === 'IRSALIYE' ? 'e-İrsaliye' : 'e-Fatura' };
+    return null;
+  }
+  // Hangi çıktı? (uygulama çıktısı mı, QNB'deki resmi belge mi) — kaynak yoksa doğrudan uygulama çıktısı
+  function belgeCiktiSor(f, baslik, cb) {
+    const k = ebelgeKaynak(f);
+    if (!k) { cb('uygulama', null); return; }
+    openModal(`<h3>${escapeHtml(baslik)}</h3>
+      <p class="sub" style="margin:0 0 12px">Bu belgenin QNB'de resmi ${escapeHtml(k.etiket)} karşılığı var. Hangisi?</p>
+      <div class="modal-actions" style="flex-direction:column;gap:8px;align-items:stretch">
+        <button class="btn btn-primary" id="bcEbelge">🧾 ${escapeHtml(k.etiket)} (resmi belge)</button>
+        <button class="btn" id="bcUyg">📄 Uygulama çıktısı</button>
+        <button class="btn" id="bcIptal">Vazgeç</button></div>`);
+    document.getElementById('bcEbelge').onclick = () => { closeModal(); cb('ebelge', k); };
+    document.getElementById('bcUyg').onclick = () => { closeModal(); cb('uygulama', k); };
+    document.getElementById('bcIptal').onclick = closeModal;
+  }
+  async function ebelgeYazdirAc(k) {
+    if (k.url) { const w = window.open(k.url, '_blank'); if (!w) location.href = k.url; return; }
+    const w = window.open('', '_blank');
+    try {
+      const d = await qnbCagri('belgeIndir', { yon: k.yon, kimlik: k.kimlik, belgeTuru: k.tur, belgeFormati: 'PDF' });
+      if (d.hata) throw new Error(d.hata);
+      const dosya = (d.dosyalar || [])[0]; if (!dosya) throw new Error('QNB dosya göndermedi.');
+      const url = URL.createObjectURL(b64Blob(dosya.b64, dosya.mime));
+      if (w) w.location.href = url; else location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 120000);
+    } catch (er) { if (w) w.close(); alert('Resmi belge açılamadı: ' + er.message); }
+  }
+  async function ebelgePaylas(k, f) {
+    if (k.url) { try { await navigator.share({ title: k.ad, url: k.url }); } catch (er) { if (!er || er.name !== 'AbortError') window.open(k.url, '_blank'); } return; }
+    try {
+      const d = await qnbCagri('belgeIndir', { yon: k.yon, kimlik: k.kimlik, belgeTuru: k.tur, belgeFormati: 'PDF' });
+      if (d.hata) throw new Error(d.hata);
+      const dosya = (d.dosyalar || [])[0]; if (!dosya) throw new Error('QNB dosya göndermedi.');
+      const file = new File([b64Blob(dosya.b64, dosya.mime)], k.ad.replace(/[^\w.-]+/g, '_') + '.pdf', { type: 'application/pdf' });
+      await pdfDosyasiniPaylas(file, k.etiket + ' ' + k.ad, (f && f.cariAdi) || '');
+    } catch (er) { alert('Resmi belge paylaşılamadı: ' + er.message); }
+  }
+
   // ---- Gelen e-Faturayı alış faturası olarak kaydet ----
   const UBL_KODU_BIRIM = { C62: 'Adet', NIU: 'Adet', MTR: 'Metre', MTK: 'M2', MTQ: 'M3', KGM: 'Kg', LTR: 'Lt', TNE: 'Ton', PA: 'Paket', BX: 'Kutu', SET: 'Set', PR: 'Çift', RL: 'Rulo', GRM: 'Gr', CMT: 'Cm', DAY: 'Gün', HUR: 'Saat', MON: 'Ay' };
   function uNorm(t) { return String(t || '').trim().toLocaleLowerCase('tr-TR').replace(/\s+/g, ' '); }
@@ -3619,7 +3665,7 @@ ${satirlar.join('\n')}
     try { await qnbCagri('ayarSil'); qnbAyarBilgi = null; qnbTanimli = false; await qnbDurumYukle(); faAlanlariDoldur(); } catch (er) { alert('Silinemedi: ' + er.message); }
   });
   let ebelgeAralik = { mod: 'hepsi', bas: '', bit: '' }, ebelgeGTur = 'hepsi';
-  function ebTarihKey(v) { const t = String(v || '').trim(); let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[1] + m[2] + m[3]; m = t.match(/^(\d{2})[.\/](\d{2})[.\/](\d{4})/); return m ? m[3] + m[2] + m[1] : ''; }
+  function ebTarihKey(v) { const t = String(v || '').trim(); let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[1] + m[2] + m[3]; m = t.match(/^(\d{2})[.\/](\d{2})[.\/](\d{4})/); if (m) return m[3] + m[2] + m[1]; m = t.match(/^(\d{8})/); return m ? m[1] : ''; }
   function ebAralikSinir() {
     const n = new Date(), y = n.getFullYear(), ay = n.getMonth(), k = (d) => d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
     const m = ebelgeAralik.mod;
@@ -3629,6 +3675,7 @@ ${satirlar.join('\n')}
     if (m === 'ozel') return [(ebelgeAralik.bas || '').replace(/-/g, '') || '00000000', (ebelgeAralik.bit || '').replace(/-/g, '') || '99999999'];
     return ['00000000', '99999999'];
   }
+  function ebTarihGoster(v) { const k = ebTarihKey(v); return k ? k.slice(6, 8) + '.' + k.slice(4, 6) + '.' + k.slice(0, 4) : String(v || '').slice(0, 10); }
   function ebTarihUygun(v) { if (ebelgeAralik.mod === 'hepsi') return true; const k = ebTarihKey(v); if (!k) return false; const [b, e] = ebAralikSinir(); return k >= b && k <= e; }
   function ebFiltreHtml() {
     const c = (id, ad) => `<button type="button" class="btn btn-sm eb-tf${ebelgeAralik.mod === id ? ' btn-primary' : ''}" data-m="${id}">${ad}</button>`;
@@ -3653,10 +3700,10 @@ ${satirlar.join('\n')}
     if (liste && gorunen.length) {
       const tKey = (b) => { const t = String(b.tarih || '').trim(); let m = t.match(/^(\d{4})-(\d{2})-(\d{2})(.*)$/); if (m) return m[1] + m[2] + m[3] + m[4]; m = t.match(/^(\d{2})[.\/](\d{2})[.\/](\d{4})(.*)$/); return m ? m[3] + m[2] + m[1] + m[4] : t; };
       const sira = liste.map((b, i) => i).filter((i) => ebTarihUygun(liste[i].tarih)).sort((x, y) => tKey(liste[y]).localeCompare(tKey(liste[x])) || String(liste[y].belgeNo || '').localeCompare(String(liste[x].belgeNo || '')));
-      h += '<input type="search" id="ebelgeAra" placeholder="Ara: firma adı, VKN veya fatura no" autocomplete="off" style="width:100%;margin:10px 0;padding:12px;border-radius:12px;border:1px solid var(--line);font-size:15px">';
+      h += '<input type="text" inputmode="search" enterkeyhint="search" autocorrect="off" autocapitalize="off" spellcheck="false" name="ebelge-filtre" id="ebelgeAra" placeholder="Ara: firma adı, VKN veya fatura no" autocomplete="off" style="width:100%;margin:10px 0;padding:12px;border-radius:12px;border:1px solid var(--line);font-size:15px">';
       h += '<div class="card" id="ebelgeListe">' + sira.map((i) => { const b = liste[i]; return `<div class="eb-satir" data-q="${escapeHtml([b.saticiUnvan, b.gonderenVkn, b.saticiVkn, b.belgeNo, b.ettn].join(' ').toLocaleLowerCase('tr'))}" style="padding:10px 0;border-bottom:1px solid var(--line)">
         <div style="font-weight:600">${escapeHtml(b.saticiUnvan || b.gonderenVkn || 'Gönderen bilinmiyor')}</div>
-        <div class="sub">${escapeHtml(b.belgeNo || '')} · ${escapeHtml(String(b.tarih || '').slice(0, 10))} ${ebelgeTutar(b) ? '· ' + ebelgeTutar(b) : ''}</div>
+        <div class="sub">${escapeHtml(b.belgeNo || '')} · ${escapeHtml(ebTarihGoster(b.tarih))} ${ebelgeTutar(b) ? '· ' + ebelgeTutar(b) : ''}</div>
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
           <button type="button" class="btn btn-sm eb-gel" data-i="${i}" data-f="PDF" data-ac="1">Aç / Yazdır</button>
           <button type="button" class="btn btn-sm eb-gel" data-i="${i}" data-f="PDF">PDF indir</button>
@@ -3672,7 +3719,7 @@ ${satirlar.join('\n')}
     const gt = (id, ad) => `<button type="button" class="btn btn-sm eb-gt${ebelgeGTur === id ? ' btn-primary' : ''}" data-t="${id}">${ad}</button>`;
     const gtHtml = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px">' + gt('hepsi', 'Tümü') + gt('FATURA', 'e-Fatura') + gt('IRSALIYE', 'e-İrsaliye') + gt('EARSIV', 'e-Arşiv') + '</div>';
     if (!l.length) return gtHtml + '<div class="card"><div class="sub">Bu seçimde QNB üzerinden gönderilmiş belge yok. Fatura/irsaliye sayfasından Paylaş → e-Fatura/e-İrsaliye XML → "QNB\'ye gönder".</div></div>';
-    return gtHtml + '<input type="search" id="ebelgeAra" placeholder="Ara: firma adı, VKN veya fatura no" autocomplete="off" style="width:100%;margin:0 0 10px;padding:12px;border-radius:12px;border:1px solid var(--line);font-size:15px"><div class="card" id="ebelgeListe">' + l.map((f) => {
+    return gtHtml + '<input type="text" inputmode="search" enterkeyhint="search" autocorrect="off" autocapitalize="off" spellcheck="false" name="ebelge-filtre" id="ebelgeAra" placeholder="Ara: firma adı, VKN veya fatura no" autocomplete="off" style="width:100%;margin:0 0 10px;padding:12px;border-radius:12px;border:1px solid var(--line);font-size:15px"><div class="card" id="ebelgeListe">' + l.map((f) => {
       const q = f.qnb, tur = q.tur === 'IRSALIYE' ? 'e-İrsaliye' : q.tur === 'EARSIV' ? 'e-Arşiv' : 'e-Fatura';
       const d = q.sonDurum ? qnbDurumMetni(q.sonDurum).m : (q.tur === 'EARSIV' ? 'Kesildi' : 'Durum sorgulanmadı');
       const no = (q.sonDurum && q.sonDurum.resmiBelgeNo) || q.faturaNo || q.numara || '';
@@ -3945,7 +3992,7 @@ ${satirlar.join('\n')}
         ${(f.docType === 'fatura' && f.yon === 'satis') ? '<button class="btn" id="plUbl">🧾 e-Fatura XML (UBL-TR)</button>' : ''}
         ${(f.docType === 'irsaliye' && f.yon === 'satis') ? '<button class="btn" id="plUbi">🚚 e-İrsaliye XML (UBL-TR)</button>' : ''}
         <button class="btn" id="plIptal">Vazgeç</button></div>`);
-    document.getElementById('plPdf').onclick = () => { closeModal(); setTimeout(() => shareFatura(f), 300); };
+    document.getElementById('plPdf').onclick = () => { closeModal(); setTimeout(() => belgeCiktiSor(f, 'Paylaş', (c, k) => { if (c === 'ebelge') ebelgePaylas(k, f); else shareFatura(f); }), 300); };
     document.getElementById('plMail').onclick = () => {
       closeModal();
       const mailtoAc = () => { location.href = 'mailto:' + encodeURIComponent((cari && cari.email) || '').replace('%40', '@') + '?subject=' + encodeURIComponent(printDocTitle(f) + ' ' + belgeNo) + '&body=' + encodeURIComponent(metin); };
@@ -5096,11 +5143,18 @@ ${satirlar.join('\n')}
       backToCariList();
     }
   });
+  // Cari silinirken geçmiş belgelerde isim kalsın (fatura, kasa hareketi, çek/senet)
+  function cariAdSnapshot(c) {
+    state.faturalar.forEach((f) => { if (f.cariId === c.id && !f.cariAdi) f.cariAdi = c.name; });
+    state.transactions.forEach((t) => { if (t.cariId === c.id && !t.cariAdi) t.cariAdi = c.name; });
+    (state.cekSenet || []).forEach((k) => { if (k.cariId === c.id && !k.cariAdi) k.cariAdi = c.name; });
+  }
   document.getElementById('cfDeleteBtn').addEventListener('click', () => {
     if (!editingCariId) return;
     const c = state.cariler.find((x) => x.id === editingCariId);
     if (!yoneticiKontrolSil()) return;
-    if (!c || !confirm(`"${c.name}" adlı cariyi silmek istiyor musun? Hareket geçmişi de silinir.`)) return;
+    if (!c || !confirm(`"${c.name}" adlı cariyi silmek istiyor musun? Faturaları, ödemeleri ve ürün satış/alış geçmişi SİLİNMEZ (isim kayıtlarda kalır); sadece cari kartı silinir.`)) return;
+    cariAdSnapshot(c);
     state.cariler = state.cariler.filter((x) => x.id !== editingCariId);
     saveState(); renderAllCariSelects();
     backToCariList();
@@ -5427,7 +5481,8 @@ ${satirlar.join('\n')}
       else if (action === 'duzenle') enterCariForm(c.id);
       else if (action === 'sil') {
         if (!yoneticiKontrolSil()) return;
-        if (!confirm(`"${c.name}" adlı cariyi silmek istiyor musun? Hareket geçmişi de silinir.`)) return;
+        if (!confirm(`"${c.name}" adlı cariyi silmek istiyor musun? Faturaları, ödemeleri ve ürün satış/alış geçmişi SİLİNMEZ (isim kayıtlarda kalır); sadece cari kartı silinir.`)) return;
+        cariAdSnapshot(c);
         state.cariler = state.cariler.filter((x) => x.id !== c.id);
         saveState(); renderAllCariSelects();
         backToCariList();
@@ -6900,13 +6955,12 @@ ${satirlar.join('\n')}
       else if (action === 'transfer') openStokTransferModal(s);
       else if (action === 'sil') {
         const baglıFaturaSayisi = state.faturalar.reduce((n, f) => n + f.items.filter((it) => it.stokId === s.id).length, 0);
-        const uyari = baglıFaturaSayisi ? `"${s.name}" kaydını silmek istiyor musun? Bu ürüne bağlı ${baglıFaturaSayisi} fatura kalemi var — silince bunlar "bağlantısız" hale gelecek, istersen sonra başka bir ürüne "Stoğa Bağla" ile yeniden bağlayabilirsin.` : `"${s.name}" kaydını silmek istiyor musun?`;
+        const uyari = baglıFaturaSayisi ? `"${s.name}" kaydını silmek istiyor musun? Bu ürüne bağlı ${baglıFaturaSayisi} fatura kalemi var. Faturalar, müşteri/tedarikçi hareketleri ve stok hareket geçmişi SİLİNMEZ, sadece ürün kartı silinir (kalemler "bağlantısız" olur, istersen sonra "Stoğa Bağla" ile başka ürüne bağlarsın).` : `"${s.name}" kaydını silmek istiyor musun?`;
         if (!yoneticiKontrolSil()) return;
         if (!confirm(uyari)) return;
         state.faturalar.forEach((f) => {
           f.items.forEach((it) => { if (it.stokId === s.id) it.stokId = ''; });
         });
-        state.stokHareketleri = (state.stokHareketleri || []).filter((h) => h.stokId !== s.id);
         state.stok = state.stok.filter((x) => x.id !== s.id);
         saveState(); enterStok();
       }
@@ -7436,7 +7490,7 @@ ${satirlar.join('\n')}
     const s = state.stok.find((x) => x.id === editingStokId);
     if (!s) return;
     const baglıFaturaSayisi = state.faturalar.reduce((n, f) => n + f.items.filter((it) => it.stokId === editingStokId).length, 0);
-    const uyari = baglıFaturaSayisi ? `"${s.name}" kaydını silmek istiyor musun? Bu ürüne bağlı ${baglıFaturaSayisi} fatura kalemi var — silince bunlar "bağlantısız" hale gelecek, istersen sonra başka bir ürüne "Stoğa Bağla" ile yeniden bağlayabilirsin.` : `"${s.name}" kaydını silmek istiyor musun?`;
+    const uyari = baglıFaturaSayisi ? `"${s.name}" kaydını silmek istiyor musun? Bu ürüne bağlı ${baglıFaturaSayisi} fatura kalemi var. Faturalar, müşteri/tedarikçi hareketleri ve stok hareket geçmişi SİLİNMEZ, sadece ürün kartı silinir (kalemler "bağlantısız" olur, istersen sonra "Stoğa Bağla" ile başka ürüne bağlarsın).` : `"${s.name}" kaydını silmek istiyor musun?`;
     if (!yoneticiKontrolSil()) return;
     if (!confirm(uyari)) return;
     // Bu ürüne bağlı fatura kalemlerinin bağlantısını temizle — yoksa silindikten sonra o kalemler
@@ -7445,8 +7499,7 @@ ${satirlar.join('\n')}
     state.faturalar.forEach((f) => {
       f.items.forEach((it) => { if (it.stokId === editingStokId) it.stokId = ''; });
     });
-    // Bu ürüne ait stok hareketi kayıtları da artık var olmayan bir ürüne referans verdiği için temizlenir.
-    state.stokHareketleri = (state.stokHareketleri || []).filter((h) => h.stokId !== editingStokId);
+    // Stok hareketleri (alınan/satılan geçmişi) SİLİNMEZ; kayıtlarda ürün adı zaten saklı.
     state.stok = state.stok.filter((x) => x.id !== editingStokId);
     saveState();
     enterStok();
@@ -7738,7 +7791,9 @@ ${satirlar.join('\n')}
     const h = state.hesaplar.find((x) => x.id === currentKasaDetailId);
     if (!h) return;
     if (!yoneticiKontrolSil()) return;
-    if (!confirm(`"${h.name}" hesabını silmek istiyor musun? Hesap hareketleri silinir; bu hesaba bağlı gelir/gider/ödeme kayıtları kalır ama artık bir hesaba bağlı olmaz.`)) return;
+    if (!confirm(`"${h.name}" hesabını silmek istiyor musun? Faturalar, cari hareketleri ve geçmiş ödeme/tahsilat kayıtları SİLİNMEZ (hesap adı kayıtlarda kalır); sadece bu hesap kartı silinir.`)) return;
+    state.faturalar.forEach((f) => { (f.odemeler || []).forEach((o) => { if (o.hesapId === h.id && !o.hesapAdi) o.hesapAdi = h.name; (o.parcalar || []).forEach((p) => { if (p.hesapId === h.id && !p.hesapAdi) p.hesapAdi = h.name; }); }); });
+    state.transactions.forEach((t) => { if (t.hesapId === h.id && !t.hesapAdi) t.hesapAdi = h.name; });
     state.hesaplar = state.hesaplar.filter((x) => x.id !== h.id);
     state.transactions.forEach((t) => { if (t.hesapId === h.id) t.hesapId = null; });
     state.krediler.forEach((k) => { (k.odemeler || []).forEach((o) => { if (o.hesapId === h.id) o.hesapId = null; }); });
@@ -9823,7 +9878,7 @@ ${satirlar.join('\n')}
     const cari = f.cariId ? state.cariler.find((x) => x.id === f.cariId) : null;
     const action = btn.dataset.a;
     if (action === 'paylas') paylasMenusu(f);
-    else if (action === 'yazdir') printFatura(f);
+    else if (action === 'yazdir') belgeCiktiSor(f, 'Yazdır', (c, k) => { if (c === 'ebelge') ebelgeYazdirAc(k); else if (c) printFatura(f); });
     else if (action === 'duzenle') enterFaturaForm(null, f.id, cameFromTeklifler);
     else if (action === 'kopyala') kopyalaMenusu(f);
     else if (action === 'cariye-git') { if (cari) enterCariDetail(cari.id); }
