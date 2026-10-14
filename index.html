@@ -3405,6 +3405,7 @@ ${satirlar.join('\n')}
   // ---- e-Belgeler ekranı: gelen / giden belgeleri gör, indir, yazdır ----
   let ebelgeSekme = 'gelenFatura';
   const ebelgeGelen = { FATURA: null, IRSALIYE: null };
+  let ebelgeGelenSirket = null;
   function enterEBelge() { if (!qnbErisim()) return; showView('view-ebelge', { showBack: true, onBack: enterAyarlar }); setDrawerActive('ayarlar'); renderEBelge(); }
   function b64Blob(b64, mime) {
     const bin = atob(b64), a = new Uint8Array(bin.length);
@@ -3689,6 +3690,7 @@ ${satirlar.join('\n')}
     document.querySelectorAll('#ebelgeSeg button').forEach((b) => b.classList.toggle('active', b.dataset.s === ebelgeSekme));
     if (ebelgeSekme === 'giden') { body.innerHTML = ebFiltreHtml() + ebelgeGidenHtml(); return; }
     const tur = ebelgeSekme === 'gelenIrsaliye' ? 'IRSALIYE' : 'FATURA';
+    if (ebelgeGelenSirket !== currentSirketId) { ebelgeGelen.FATURA = null; ebelgeGelen.IRSALIYE = null; }
     const liste = ebelgeGelen[tur];
     const baslik = tur === 'IRSALIYE' ? 'Gelen e-İrsaliyeler' : 'Gelen e-Faturalar';
     let h = `<p class="sub" style="padding:0 4px;margin:0 0 10px">${baslik} QNB'den çekilir (hepsi getirilir, yeniden eskiye sıralanır). Önce "QNB'den getir"e bas.</p>
@@ -3777,7 +3779,7 @@ ${satirlar.join('\n')}
           if (l.length < 100 || yeniSira <= sonSira) break;
           sonSira = yeniSira;
         }
-        if (hata && !tum.length) alert('QNB: ' + hata); else { ebelgeGelen[tur] = tum; if (hata) alert('Bir kısmı getirildi, sonra hata: ' + hata); }
+        if (hata && !tum.length) alert('QNB: ' + hata); else { ebelgeGelen[tur] = tum; ebelgeGelenSirket = currentSirketId; if (hata) alert('Bir kısmı getirildi, sonra hata: ' + hata); }
       } catch (er) { alert('Getirilemedi: ' + er.message); }
       renderEBelge(); return;
     }
@@ -12752,7 +12754,12 @@ ${satirlar.join('\n')}
   function sonOturumuOku() {
     try { return JSON.parse(localStorage.getItem('dnz_son_oturum')); } catch (e) { return null; }
   }
+  // Firma değişince/çıkışta bir önceki firmaya ait e-Belge (QNB) önbelleği ve ayar bilgisi bellekte KALMASIN
+  function firmaOnbellekleriniSifirla() {
+    try { ebelgeGelen.FATURA = null; ebelgeGelen.IRSALIYE = null; ebelgeGelenSirket = null; ebelgeSekme = 'gelenFatura'; ebelgeAralik = { mod: 'hepsi', bas: '', bit: '' }; ebelgeGTur = 'hepsi'; qnbTanimli = false; qnbAyarBilgi = null; } catch (e) { /* henüz tanımlanmadıysa sorun değil */ }
+  }
   async function selectSirketAndEnter(sirketId, sirketAdi) {
+    if (currentSirketId !== sirketId) firmaOnbellekleriniSifirla();
     currentSirketId = sirketId;
     currentSirketAdi = sirketAdi;
     // currentUserRole, get_my_membership'ten gelen İLK/eski firmanın rolünü tutuyordu — firma
@@ -13008,6 +13015,7 @@ ${satirlar.join('\n')}
         showSirketSecScreen();
       }
     } else {
+      firmaOnbellekleriniSifirla();
       appStarted = false;
       currentOwnerId = null;
       currentUserRole = null;
