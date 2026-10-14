@@ -1905,12 +1905,61 @@
   // çağrıldığında bununla karşılaştırılıp SADECE değişen (eklenen/düzenlenen/silinen) kayıtlar
   // gönderilir. { faturalar: Map(id -> JSON string), ... }
   let sonSenkronSnapshot = {};
+  let sonMiscObj = null;          // sunucuyla son senkron "diğer" (hesaplar, ayarlar...) bölümü — 3'lü birleştirmede taban
+  let disaridanBirlesti = false;  // kayıt sırasında başka cihazın değişikliği araya karıştıysa ekranı yenilemek için
+  // ---- 3'lü birleştirme (taban / bizim / sunucudaki) ----
+  // İki cihaz aynı kaydı farklı yerlerinden değiştirdiyse (ör. aynı müşteriye iki ayrı tahsilat, aynı ürünün
+  // satışı, iki ayrı kasa hareketi) kayıtlardan HİÇBİRİ ezilmez: kimlikli listeler (hareketler, kalemler)
+  // kimliğe göre birleşir, stok miktarı "fark" olarak eklenir, aynı alanı ikisi birden değiştirdiyse bizimki kazanır.
+  const M3_FARK_ANAHTARLARI = new Set(['quantity', 'qty']);
+  function m3Esit(a, b) { return stabilJson(a) === stabilJson(b); }
+  function m3Nesne(x) { return x !== null && typeof x === 'object' && !Array.isArray(x); }
+  function merge3(base, yerel, sunucu, anahtar) {
+    if (m3Esit(yerel, base)) return sunucu;
+    if (m3Esit(sunucu, base)) return yerel;
+    if (m3Esit(yerel, sunucu)) return yerel;
+    if (yerel === undefined) return sunucu;
+    if (sunucu === undefined) return yerel;
+    if (typeof yerel === 'number' && typeof sunucu === 'number' && typeof base === 'number' && M3_FARK_ANAHTARLARI.has(anahtar)) return Math.round((sunucu + (yerel - base)) * 1000) / 1000;
+    if (Array.isArray(yerel) && Array.isArray(sunucu)) {
+      const b = Array.isArray(base) ? base : [];
+      const hepsi = b.concat(yerel, sunucu);
+      if (hepsi.length && hepsi.every((x) => m3Nesne(x) && x.id !== undefined)) {
+        const mb = new Map(b.map((x) => [x.id, x])), my = new Map(yerel.map((x) => [x.id, x]));
+        const out = [], gor = new Set();
+        sunucu.forEach((sx) => {
+          gor.add(sx.id);
+          if (my.has(sx.id)) out.push(merge3(mb.get(sx.id), my.get(sx.id), sx));
+          else if (mb.has(sx.id)) { if (!m3Esit(sx, mb.get(sx.id))) out.push(sx); } // biz sildik; sunucuda değişmediyse silinir
+          else out.push(sx); // başka cihaz ekledi
+        });
+        yerel.forEach((yx) => {
+          if (gor.has(yx.id)) return;
+          if (mb.has(yx.id)) { if (!m3Esit(yx, mb.get(yx.id))) out.push(yx); } // başka cihaz sildi; biz değiştirmediysek silinir
+          else out.push(yx); // biz ekledik
+        });
+        return out;
+      }
+      return yerel;
+    }
+    if (m3Nesne(yerel) && m3Nesne(sunucu)) {
+      const b = m3Nesne(base) ? base : {};
+      const out = {};
+      new Set(Object.keys(yerel).concat(Object.keys(sunucu), Object.keys(b))).forEach((k) => {
+        const r = merge3(b[k], yerel[k], sunucu[k], k);
+        if (r !== undefined) out[k] = r;
+      });
+      return out;
+    }
+    return yerel;
+  }
+  function kayitIcerigiDegistir(hedef, yeni) { Object.keys(hedef).forEach((k) => { delete hedef[k]; }); Object.assign(hedef, yeni); }
   function koleksiyonSnapshotAl(entity) {
     const map = new Map();
     (state[entity] || []).forEach((rec) => { if (rec && rec.id) map.set(rec.id, JSON.stringify(rec)); });
     return map;
   }
-  function tumSnapshotlariAl() { BUYUK_KOLEKSIYONLAR.forEach((e) => { sonSenkronSnapshot[e] = koleksiyonSnapshotAl(e); }); }
+  function tumSnapshotlariAl() { BUYUK_KOLEKSIYONLAR.forEach((e) => { sonSenkronSnapshot[e] = koleksiyonSnapshotAl(e); }); try { sonMiscObj = JSON.parse(JSON.stringify(miscStateOlustur())); } catch (er) { sonMiscObj = null; } }
   // state'in geri kalanı (5 büyük koleksiyon HARİÇ) — defter_state.data'ya bu gider, artık küçük kalır.
   function miscStateOlustur() {
     const kopya = Object.assign({}, state);
@@ -1919,6 +1968,28 @@
   }
   // Tek bir büyük koleksiyonu son senkron anlık görüntüsüyle karşılaştırıp SADECE değişen kayıtları
   // defter_records'a yazar/siler. Hiç değişiklik yoksa hiçbir ağ isteği yapmaz.
+  const BELGE_NO_RE = /^([A-Z]{2})-(\d{1,6})$/;
+  async function belgeNoCakismasiniCoz(yeniIdler, kayitMap, yeni) {
+    const adaylar = yeniIdler.map((id) => kayitMap.get(id)).filter((f) => f && f.no && BELGE_NO_RE.test(String(f.no)));
+    if (!adaylar.length) return;
+    const { data: var0, error } = await sb.from('defter_records').select('id, no:data->>no').eq('sirket_id', currentSirketId).eq('entity', 'faturalar').in('data->>no', adaylar.map((f) => f.no));
+    if (error || !var0 || !var0.length) return;
+    const cakisan = new Set(var0.filter((r) => !yeniIdler.includes(r.id)).map((r) => r.no));
+    if (!cakisan.size) return;
+    let maks = 0;
+    state.faturalar.forEach((f) => { const m = String(f.no || '').match(BELGE_NO_RE); if (m) maks = Math.max(maks, Number(m[2])); });
+    for (const pre of new Set(adaylar.filter((f) => cakisan.has(f.no)).map((f) => f.no.slice(0, 2)))) {
+      const { data: tum } = await sb.from('defter_records').select('no:data->>no').eq('sirket_id', currentSirketId).eq('entity', 'faturalar').like('data->>no', pre + '-%').limit(5000);
+      (tum || []).forEach((r) => { const m = String(r.no || '').match(BELGE_NO_RE); if (m) maks = Math.max(maks, Number(m[2])); });
+    }
+    adaylar.filter((f) => cakisan.has(f.no)).forEach((f) => {
+      maks++;
+      const eskiNo = f.no, yeniNo = f.no.slice(0, 2) + '-' + String(maks).padStart(4, '0');
+      f.no = yeniNo; if (f.belgeNo === eskiNo) f.belgeNo = yeniNo;
+      yeni.set(f.id, JSON.stringify(f));
+      disaridanBirlesti = true;
+    });
+  }
   async function buyukKoleksiyonSenkronEt(entity) {
     const yeni = koleksiyonSnapshotAl(entity);
     const eski = sonSenkronSnapshot[entity] || new Map();
@@ -1929,6 +2000,25 @@
     if (!degisenIdler.length && !silinenIdler.length) return; // bu koleksiyonda değişiklik yok
     if (degisenIdler.length) {
       const kayitMap = new Map((state[entity] || []).map((r) => [r.id, r]));
+      // Daha önce senkron olmuş (düzenlenen) kayıtlar için sunucudaki güncel halini çek: başka cihaz bu arada
+      // değiştirdiyse ezmeden birleştir.
+      const duzenlenen = degisenIdler.filter((id) => eski.has(id));
+      for (let i = 0; i < duzenlenen.length; i += 100) {
+        const parca = duzenlenen.slice(i, i + 100);
+        const { data: svRows, error: svErr } = await sb.from('defter_records').select('id, data').eq('sirket_id', currentSirketId).eq('entity', entity).in('id', parca);
+        if (svErr) throw svErr;
+        (svRows || []).forEach((sr) => {
+          let taban; try { taban = JSON.parse(eski.get(sr.id)); } catch (er) { return; }
+          if (m3Esit(sr.data, taban)) return; // sunucuda değişmemiş — bizimki olduğu gibi gider
+          const yerelKayit = kayitMap.get(sr.id); if (!yerelKayit) return;
+          const birlesik = merge3(taban, JSON.parse(JSON.stringify(yerelKayit)), sr.data);
+          kayitIcerigiDegistir(yerelKayit, birlesik);
+          yeni.set(sr.id, JSON.stringify(yerelKayit));
+          disaridanBirlesti = true;
+        });
+      }
+      // Yeni eklenen faturalarda belge numarası başka cihazla çakıştıysa bir sonraki boş numaraya al
+      if (entity === 'faturalar') await belgeNoCakismasiniCoz(degisenIdler.filter((id) => !eski.has(id)), kayitMap, yeni);
       const rows = degisenIdler.map((id) => ({ sirket_id: currentSirketId, entity, id, data: kayitMap.get(id), updated_at: new Date().toISOString() }));
       const { error } = await sb.from('defter_records').upsert(rows);
       if (error) throw error;
@@ -2025,6 +2115,40 @@
   let state = { transactions: [], cariler: [], stok: [], faturalar: [], hesaplar: [], cekSenet: [], calisanlar: [], hatirlatmalar: [], notlar: [], stokHareketleri: [], kurlar: {}, kategoriler: [], markalar: [], depolar: [], krediler: [], demirbaslar: [], projeler: [], fiyatListeleri: [], sirketBilgileri: {}, tanimlar: {}, tekrarlamaSablonlari: [], firsatlar: [] };
   function emptyState() { return { transactions: [], cariler: [], stok: [], faturalar: [], hesaplar: [], cekSenet: [], calisanlar: [], hatirlatmalar: [], notlar: [], stokHareketleri: [], kurlar: {}, kategoriler: [], markalar: [], depolar: [], krediler: [], demirbaslar: [], projeler: [], fiyatListeleri: [], sirketBilgileri: {}, tanimlar: {}, tekrarlamaSablonlari: [], firsatlar: [] }; }
 
+  // Senkron "taban"ı (sunucuyla son eşleşen hal) yerel önbelleğe de yazıyoruz: uygulama kapanıp açılsa bile,
+  // çevrimdışıyken yapılan ve sunucuya gitmemiş değişiklikler neyin değiştiğini bilerek gönderilebilsin.
+  let tabanSunucudanBekle = false;
+  function tabanKaydet() {
+    if (!currentSirketId) return;
+    try {
+      const snap = {};
+      BUYUK_KOLEKSIYONLAR.forEach((e) => { snap[e] = Array.from((sonSenkronSnapshot[e] || new Map()).entries()); });
+      cacheSet('base_' + currentSirketId, { snap, misc: sonMiscObj });
+    } catch (e) { /* yok say */ }
+  }
+  function tabanGeriYukle(k) {
+    sonSenkronSnapshot = {};
+    BUYUK_KOLEKSIYONLAR.forEach((e) => { sonSenkronSnapshot[e] = new Map((k.snap && k.snap[e]) || []); });
+    sonMiscObj = k.misc || null;
+  }
+  function tabanVeridenAl(veri) {
+    sonSenkronSnapshot = {};
+    BUYUK_KOLEKSIYONLAR.forEach((e) => { const m = new Map(); (veri[e] || []).forEach((r) => { if (r && r.id) m.set(r.id, JSON.stringify(r)); }); sonSenkronSnapshot[e] = m; });
+    const misc = Object.assign({}, veri); BUYUK_KOLEKSIYONLAR.forEach((e) => { delete misc[e]; });
+    try { sonMiscObj = JSON.parse(JSON.stringify(misc)); } catch (e) { sonMiscObj = null; }
+  }
+  async function sunucuVerisiniGetir(sid) {
+    const [{ data, error }, buyukKayitlar] = await Promise.all([
+      sb.from('defter_state').select('data').eq('sirket_id', sid).maybeSingle(),
+      tumBuyukKayitlariGetir()
+    ]);
+    if (error) throw error;
+    const misc = (data && data.data && Object.keys(data.data).length) ? data.data : null;
+    const buyukVeri = {}; BUYUK_KOLEKSIYONLAR.forEach((e) => { buyukVeri[e] = []; });
+    buyukKayitlar.forEach((row) => { if (buyukVeri[row.entity]) buyukVeri[row.entity].push(row.data); });
+    if (!misc && !Object.values(buyukVeri).some((a) => a.length)) return null;
+    return Object.assign({}, emptyState(), misc || {}, buyukVeri);
+  }
   async function loadState() {
     if (!currentSirketId) { state = emptyState(); migrateState(); tumSnapshotlariAl(); return; }
     const cacheKey = 'sirket_' + currentSirketId;
@@ -2032,6 +2156,8 @@
     // 1) Önce YEREL önbellekten yükle (varsa) — ağ beklemeden, anında. Uygulama çevrimdışıyken de
     // (daha önce en az bir kez açıldıysa) bu sayede normal çalışır.
     if (cached && cached.data) state = cached.data;
+    let tabanKullan = false;
+    const tabanKaydi = (cached && cached.dirty) ? await cacheGet('base_' + currentSirketId) : null;
     try {
       if (!navigator.onLine) throw new Error('offline');
       const [{ data, error }, buyukKayitlar] = await Promise.all([
@@ -2051,6 +2177,9 @@
           // sunucu verisiyle EZME. Yerel değişiklik zaten bir sonraki senkronizasyonda (flushSaveState /
           // "online" olayı ile) otomatik gönderilecek.
           state = cached.data;
+          pendingSyncDirty = true; // bu açılışta da gönderilecek (önceden unutuluyordu)
+          tabanKullan = true;
+          if (tabanKaydi) tabanGeriYukle(tabanKaydi); else tabanVeridenAl(sunucuVeri);
         } else {
           // Yerelde bekleyen bir değişiklik yok — sunucudaki (başka bir cihazdan gelmiş olabilecek en
           // güncel) veriyi güvenle kullanabiliriz.
@@ -2059,6 +2188,8 @@
         }
       } else if (!cached) {
         state = emptyState(); // ne yerelde ne sunucuda veri var — gerçekten yeni bir firma
+      } else if (cached.dirty) {
+        pendingSyncDirty = true; tabanKullan = true; tabanVeridenAl({}); // sunucu boş: yerelin hepsi yeni
       }
     } catch (e) {
       if (!cached) {
@@ -2071,12 +2202,20 @@
       } else {
         // Çevrimdışıyız ama önbellekte veri VAR — onu kullanmaya devam ediyoruz, uygulama normal çalışır.
         console.warn('Sunucudan güncel veri alınamadı, önbellek kullanılıyor', e);
+        if (cached.dirty) {
+          // Çevrimdışı açıldı ve sunucuya gitmemiş değişiklikler var — bağlantı gelince gönderilecek.
+          pendingSyncDirty = true;
+          if (tabanKaydi) { tabanGeriYukle(tabanKaydi); tabanKullan = true; }
+          else { tabanSunucudanBekle = true; }
+        }
       }
     }
     migrateState();
     // Yüklenen (ya da önbellekten gelen) haliyle "senkron" kabul et — bir sonraki saveState() çağrısı
     // her şeyi yeniden göndermeye çalışmasın, sadece BUNDAN SONRA değişenleri.
-    tumSnapshotlariAl();
+    // İSTİSNA: sunucuya gitmemiş yerel değişiklik varsa taban, değişikliklerden ÖNCEKİ halidir (yukarıda
+    // ayarlandı) — yoksa o değişiklikler "zaten gönderilmiş" sayılıp sonsuza dek gönderilmezdi.
+    if (!tabanKullan) { tumSnapshotlariAl(); if (!tabanSunucudanBekle) tabanKaydet(); }
   }
   let migrasyonTemizlikYapti = false;
   // Depo "public" iken kaydedilmiş tam bağlantıları (".../public/defter-media/{yol}") sadece {yol}'a
@@ -2301,8 +2440,13 @@
   }
   // Bağlantı geldiğinde (veya periyodik olarak, "online" olayı bazı tarayıcı/ağ geçişlerinde güvenilir
   // tetiklenmediği için) bekleyen bir değişiklik varsa otomatik olarak yeniden dener.
-  function baglantiGelinceGonder() {
-    if (pendingSyncDirty && navigator.onLine) flushSaveState();
+  async function baglantiGelinceGonder() {
+    if (!(pendingSyncDirty && navigator.onLine)) return;
+    if (tabanSunucudanBekle) {
+      try { const sv = await sunucuVerisiniGetir(currentSirketId); if (sv) tabanVeridenAl(sv); else tabanVeridenAl({}); tabanSunucudanBekle = false; }
+      catch (e) { return; } // henüz ulaşılamadı — sonraki turda
+    }
+    flushSaveState();
   }
   window.addEventListener('online', baglantiGelinceGonder);
   onlineRetryTimer = setInterval(baglantiGelinceGonder, 15000);
@@ -2312,14 +2456,35 @@
     try {
       if (!currentSirketId) { if (!sessiz) setSaveBanner('', null); return; }
       if (!navigator.onLine) throw new Error('offline'); // gereksiz bir ağ denemesi başlatmadan önce kısa yoldan çık
-      const { error } = await sb.from('defter_state').upsert({ sirket_id: currentSirketId, user_id: currentOwnerId, data: miscStateOlustur(), updated_at: new Date().toISOString() });
+      let miscGonder = miscStateOlustur();
+      {
+        // Başka cihaz "diğer" bölümü (hesaplar, çek/senet, ayarlar...) bu arada değiştirdiyse ezmeden birleştir.
+        const { data: svMisc, error: svErr } = await sb.from('defter_state').select('data').eq('sirket_id', currentSirketId).maybeSingle();
+        if (svErr) throw svErr;
+        const sm = svMisc && svMisc.data;
+        if (sm && Object.keys(sm).length && sonMiscObj && !m3Esit(sm, sonMiscObj)) {
+          const birlesik = merge3(sonMiscObj, JSON.parse(JSON.stringify(miscGonder)), sm);
+          Object.keys(birlesik).forEach((k) => { state[k] = birlesik[k]; });
+          miscGonder = miscStateOlustur();
+          disaridanBirlesti = true;
+        }
+      }
+      const { error } = await sb.from('defter_state').upsert({ sirket_id: currentSirketId, user_id: currentOwnerId, data: miscGonder, updated_at: new Date().toISOString() });
       if (error) throw error;
+      try { sonMiscObj = JSON.parse(JSON.stringify(miscGonder)); } catch (er) { /* yok say */ }
       // 5 büyük koleksiyon (fatura/cari/ürün/gelir-gider/stok hareketi) ayrı ayrı, SADECE değişen
       // kayıtlarla senkronize edilir — bkz. yukarıdaki "BÜYÜK KOLEKSİYONLAR" bloğu.
       for (const entity of BUYUK_KOLEKSIYONLAR) { await buyukKoleksiyonSenkronEt(entity); }
-      pendingSyncDirty = false;
+      if (disaridanBirlesti) {
+        disaridanBirlesti = false;
+        const act0 = document.querySelector('.view.active');
+        if (!(act0 && /form|urun-arama/.test(act0.id))) setTimeout(() => { try { renderAll(); } catch (er) { /* önemsiz */ } }, 0);
+      }
+      pendingSyncDirty = !!saveDebouncePending; // kayıt sürerken yeni değişiklik geldiyse hâlâ gönderilecek bir şey var
+      tabanKaydet();
+      setTimeout(() => { try { sunucuMarkerGuncelle(); } catch (e) { /* önemsiz */ } }, 0);
       saveIsSilent = true; // BAŞARILI oldu — bir sonraki pencere yeniden "sessiz" varsayımıyla başlayabilir
-      cacheSet('sirket_' + currentSirketId, { data: state, updatedAt: new Date().toISOString(), dirty: false });
+      cacheSet('sirket_' + currentSirketId, { data: state, updatedAt: new Date().toISOString(), dirty: !!saveDebouncePending });
       const statusEl = document.getElementById('veriStatus');
       if (statusEl) statusEl.textContent = '';
       if (pendingSaves === 1 && !sessiz) {
@@ -8011,8 +8176,11 @@ ${satirlar.join('\n')}
   const TEKLIF_DURUM_CLASS = { bekliyor: 'wait', onaylandi: 'pos', reddedildi: 'neg' };
   function nextBelgeNo(docType, yon) {
     const prefix = docType === 'teklif' ? 'TK' : docType === 'siparis' ? 'SP' : docType === 'irsaliye' ? 'IR' : docType === 'iade' ? (yon === 'satis' ? 'SI' : 'AI') : (yon === 'satis' ? 'SF' : 'AF');
-    const count = state.faturalar.filter((f) => f.docType === docType).length + 1;
-    return prefix + '-' + String(count).padStart(4, '0');
+    // Sıradaki numara = mevcut en büyük numara + 1 (eskiden belge SAYISI + 1'di: silinen belge varsa ya da iki cihaz
+    // aynı anda numara alırsa aynı numara çıkabiliyordu).
+    let maks = 0;
+    state.faturalar.forEach((f) => { if (f.docType !== docType) return; const m = String(f.no || '').match(/^[A-Z]{2}-(\d{1,6})$/); if (m) maks = Math.max(maks, Number(m[1])); });
+    return prefix + '-' + String(maks + 1).padStart(4, '0');
   }
   function renderFaturaList() {
     const list = document.getElementById('faturaList');
@@ -13085,6 +13253,90 @@ ${satirlar.join('\n')}
   }
   setInterval(bostaKontrol, 30000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) bostaKontrol(); });
+
+  // ================= CİHAZLAR ARASI OTOMATİK GÜNCELLEME =================
+  // Bir cihazda yapılan değişiklik sunucuya kaydedilir; diğer cihaz bunu sayfayı yenilemeden alsın
+  // diye açıkken ~20 sn'de bir, uygulamaya dönünce ve internet gelince sunucuya BAKAR. Önce ucuz bir
+  // "işaret" (son değişiklik zamanı + kayıt sayısı) karşılaştırılır; değişmişse veri çekilir.
+  // Kullanıcının elinde kaydedilmemiş değişiklik varsa, bir form/pencere açıksa ya da bir alana
+  // yazıyorsa ASLA dokunmaz (yazdığı şey kaybolmasın).
+  let sonSunucuMarker = null, tazeleniyor = false;
+  function stabilJson(v) {
+    if (Array.isArray(v)) return '[' + v.map(stabilJson).join(',') + ']';
+    if (v && typeof v === 'object') return '{' + Object.keys(v).sort().filter((k) => v[k] !== undefined).map((k) => JSON.stringify(k) + ':' + stabilJson(v[k])).join(',') + '}';
+    return JSON.stringify(v === undefined ? null : v);
+  }
+  async function sunucuMarkerAl() {
+    const [a, b] = await Promise.all([
+      sb.from('defter_state').select('updated_at').eq('sirket_id', currentSirketId).maybeSingle(),
+      sb.from('defter_records').select('updated_at', { count: 'exact' }).eq('sirket_id', currentSirketId).order('updated_at', { ascending: false }).limit(1)
+    ]);
+    if (a.error || b.error) throw (a.error || b.error);
+    return String((a.data && a.data.updated_at) || '') + '|' + String((b.data && b.data[0] && b.data[0].updated_at) || '') + '|' + String(b.count);
+  }
+  async function sunucuMarkerGuncelle() { if (currentSirketId && navigator.onLine) sonSunucuMarker = await sunucuMarkerAl(); }
+  function tazelemeUygunMu() {
+    if (!appStarted || TAKIP_TOKEN || !currentSirketId || !navigator.onLine || document.hidden) return false;
+    if (pendingSyncDirty || saveDebouncePending || pendingSaves > 0) return false;
+    if (!modalOverlay.classList.contains('hidden')) return false;
+    const act = document.querySelector('.view.active');
+    if (act && /form|urun-arama|faturaayar/.test(act.id)) return false;
+    const ae = document.activeElement;
+    if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return false;
+    return true;
+  }
+  async function sunucudanTazele() {
+    if (tazeleniyor || !tazelemeUygunMu()) return;
+    tazeleniyor = true;
+    const sid = currentSirketId;
+    try {
+      const marker = await sunucuMarkerAl();
+      if (marker === sonSunucuMarker) return;
+      const [{ data, error }, buyukKayitlar] = await Promise.all([
+        sb.from('defter_state').select('data').eq('sirket_id', sid).maybeSingle(),
+        tumBuyukKayitlariGetir()
+      ]);
+      if (error) throw error;
+      if (sid !== currentSirketId || !tazelemeUygunMu()) return; // bu arada durum değişti — sonraki turda tekrar
+      const misc = (data && data.data && Object.keys(data.data).length) ? data.data : null;
+      if (!misc && !buyukKayitlar.length) { sonSunucuMarker = marker; return; }
+      const buyukVeri = {};
+      BUYUK_KOLEKSIYONLAR.forEach((e) => { buyukVeri[e] = []; });
+      buyukKayitlar.forEach((row) => { if (buyukVeri[row.entity]) buyukVeri[row.entity].push(row.data); });
+      const sunucuVeri = Object.assign({}, emptyState(), misc || {}, buyukVeri);
+      let farkli = false;
+      for (const e of BUYUK_KOLEKSIYONLAR) {
+        const yerel = state[e] || [], sv = sunucuVeri[e] || [];
+        if (yerel.length !== sv.length) { farkli = true; break; }
+        const ym = new Map(yerel.map((r) => [r.id, stabilJson(r)]));
+        if (sv.some((r) => ym.get(r.id) !== stabilJson(r))) { farkli = true; break; }
+      }
+      if (!farkli) {
+        const sm = Object.assign({}, sunucuVeri); BUYUK_KOLEKSIYONLAR.forEach((e) => { delete sm[e]; });
+        farkli = stabilJson(sm) !== stabilJson(miscStateOlustur());
+      }
+      sonSunucuMarker = marker;
+      if (!farkli) return;
+      state = sunucuVeri;
+      migrateState();
+      tumSnapshotlariAl();
+      tabanKaydet();
+      cacheSet('sirket_' + sid, { data: state, updatedAt: new Date().toISOString(), dirty: false });
+      renderAll();
+      const act = document.querySelector('.view.active');
+      try {
+        if (act && act.id === 'view-fatura-detail') { if (state.faturalar.some((x) => x.id === currentFaturaDetailId)) renderFaturaDetail(); else backToFaturaList(); }
+        else if (act && act.id === 'view-kasa-detail') { if (state.hesaplar.some((x) => x.id === currentKasaDetailId)) renderKasaDetail(); else enterKasa(); }
+      } catch (er) { /* detay yenilenemedi — liste zaten güncel */ }
+      setSaveBanner('Başka cihazdan güncellendi ✓', 'ok');
+      setTimeout(() => { if (pendingSaves === 0) setSaveBanner('', null); }, 1800);
+    } catch (e) { /* ağ hatası — sessizce sonraki turda dene */ }
+    finally { tazeleniyor = false; }
+  }
+  setInterval(sunucudanTazele, 20000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) sunucudanTazele(); });
+  window.addEventListener('focus', sunucudanTazele);
+  window.addEventListener('online', sunucudanTazele);
 
   async function init() {
     if (TAKIP_TOKEN) { takipSayfasiGoster(TAKIP_TOKEN); return; }
