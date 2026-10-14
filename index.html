@@ -12831,6 +12831,7 @@ ${satirlar.join('\n')}
     document.getElementById('headerFaturaEkleBtn').style.display = 'flex';
     await loadState();
     renderAll();
+    senkronKanaliKur();
     setDrawerActive('ozet');
     tumImzaliUrlleriYenile(); // arka planda — mevcut fotoğrafların gösterilebilmesi için imzalı bağlantıları çözer
     eskiFotograflariStorageyeTasi(); // arka planda, ekranı bloklamadan — bkz. fonksiyon tanımı
@@ -12924,7 +12925,7 @@ ${satirlar.join('\n')}
   }
   // Firma değişince/çıkışta bir önceki firmaya ait e-Belge (QNB) önbelleği ve ayar bilgisi bellekte KALMASIN
   function firmaOnbellekleriniSifirla() {
-    try { ebelgeGelen.FATURA = null; ebelgeGelen.IRSALIYE = null; ebelgeGelenSirket = null; ebelgeSekme = 'gelenFatura'; ebelgeAralik = { mod: 'hepsi', bas: '', bit: '' }; ebelgeGTur = 'hepsi'; qnbTanimli = false; qnbAyarBilgi = null; } catch (e) { /* henüz tanımlanmadıysa sorun değil */ }
+    try { senkronKanaliKapat(); ebelgeGelen.FATURA = null; ebelgeGelen.IRSALIYE = null; ebelgeGelenSirket = null; ebelgeSekme = 'gelenFatura'; ebelgeAralik = { mod: 'hepsi', bas: '', bit: '' }; ebelgeGTur = 'hepsi'; qnbTanimli = false; qnbAyarBilgi = null; } catch (e) { /* henüz tanımlanmadıysa sorun değil */ }
   }
   async function selectSirketAndEnter(sirketId, sirketAdi) {
     if (currentSirketId !== sirketId) firmaOnbellekleriniSifirla();
@@ -13286,7 +13287,9 @@ ${satirlar.join('\n')}
     return true;
   }
   async function sunucudanTazele() {
-    if (tazeleniyor || !tazelemeUygunMu()) return;
+    if (!appStarted || TAKIP_TOKEN || !currentSirketId) return;
+    if (tazeleniyor) return 'mesgul';
+    if (!tazelemeUygunMu()) return document.hidden ? undefined : 'mesgul';
     tazeleniyor = true;
     const sid = currentSirketId;
     try {
@@ -13297,7 +13300,7 @@ ${satirlar.join('\n')}
         tumBuyukKayitlariGetir()
       ]);
       if (error) throw error;
-      if (sid !== currentSirketId || !tazelemeUygunMu()) return; // bu arada durum değişti — sonraki turda tekrar
+      if (sid !== currentSirketId || !tazelemeUygunMu()) return 'mesgul'; // bu arada durum değişti — sonraki turda tekrar
       const misc = (data && data.data && Object.keys(data.data).length) ? data.data : null;
       if (!misc && !buyukKayitlar.length) { sonSunucuMarker = marker; return; }
       const buyukVeri = {};
@@ -13332,6 +13335,29 @@ ${satirlar.join('\n')}
       setTimeout(() => { if (pendingSaves === 0) setSaveBanner('', null); }, 1800);
     } catch (e) { /* ağ hatası — sessizce sonraki turda dene */ }
     finally { tazeleniyor = false; }
+  }
+  // ANINDA senkron: Supabase Realtime. Başka cihaz bir kaydı kaydettiği/sildiği anda sunucu bu cihaza haber verir;
+  // haber gelince (kısa bir bekleyişle) yukarıdaki güvenli güncelleme çalışır. Meşgulsek (kayıt sürüyor, form açık,
+  // bir alana yazılıyor) kısa aralıklarla tekrar dener. 20 sn'lik yoklama ise bağlantı kopmalarına karşı yedek.
+  let senkronKanal = null, tazeleZamanlayici = null;
+  function tazeleYakinda(ms) {
+    clearTimeout(tazeleZamanlayici);
+    tazeleZamanlayici = setTimeout(async () => { const r = await sunucudanTazele(); if (r === 'mesgul') tazeleYakinda(2000); }, ms);
+  }
+  function senkronKanaliKapat() {
+    clearTimeout(tazeleZamanlayici);
+    if (senkronKanal) { try { sb.removeChannel(senkronKanal); } catch (e) { /* yok say */ } senkronKanal = null; }
+  }
+  function senkronKanaliKur() {
+    senkronKanaliKapat();
+    if (!currentSirketId || TAKIP_TOKEN) return;
+    const sid = currentSirketId;
+    try {
+      senkronKanal = sb.channel('defter-' + sid)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'defter_records', filter: 'sirket_id=eq.' + sid }, () => tazeleYakinda(400))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'defter_state', filter: 'sirket_id=eq.' + sid }, () => tazeleYakinda(400))
+        .subscribe((durum) => { if (durum === 'SUBSCRIBED') tazeleYakinda(600); }); // bağlanınca/yeniden bağlanınca kaçırılanları yakala
+    } catch (e) { /* Realtime kurulamazsa 20 sn'lik yoklama devreye girer */ }
   }
   setInterval(sunucudanTazele, 20000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) sunucudanTazele(); });
