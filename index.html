@@ -527,6 +527,53 @@
   .badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
   .menu-row > div:not(.icon-circle) { min-width: 0; overflow-wrap: anywhere; }
   .list-row .main { min-width: 0; overflow-wrap: anywhere; }
+
+  /* ================= GERÇEKÇİ, RENKLİ BUTONLAR ================= */
+  /* Düğmeler derinlikli (üstte parlak yansıma, altta kenar gölgesi, basınca çöker). Renk, düğmenin işine göre
+     otomatik verilir (bkz. butonTonla): Kaydet=yeşil, Sil=kırmızı, Yazdır/PDF=mor, Paylaş/Gönder=turkuaz,
+     Düzenle/Kopyala=turuncu, diğer ana işlemler=mavi, Vazgeç/diğerleri=açık nötr. */
+  .btn {
+    --t1: #FFFFFF; --t2: #E4ECF7; --tk: #BFD0E6; --tg: rgba(11,37,69,0.18);
+    background: linear-gradient(180deg, var(--t1) 0%, var(--t2) 100%);
+    border: 1px solid var(--tk);
+    border-bottom-width: 2px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 -2px 0 rgba(11,37,69,0.06) inset, 0 5px 12px var(--tg);
+    text-shadow: 0 1px 0 rgba(255,255,255,0.7);
+    letter-spacing: 0.01em;
+    transition: transform .08s ease, box-shadow .12s ease, filter .12s ease;
+  }
+  .btn::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 52%; background: linear-gradient(180deg, rgba(255,255,255,0.45), rgba(255,255,255,0)); pointer-events: none; border-radius: inherit; }
+  .btn:hover { filter: brightness(1.04); }
+  .btn:active { transform: translateY(1px) scale(0.985); box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset, 0 2px 5px var(--tg); filter: brightness(0.97); }
+  .btn:focus-visible { outline: 3px solid rgba(58,161,255,0.5); outline-offset: 2px; }
+  .btn[data-tone]:not([data-tone="notr"]), .btn.btn-primary {
+    color: #fff; text-shadow: 0 1px 1px rgba(0,0,0,0.30);
+    background: linear-gradient(180deg, var(--t1) 0%, var(--t2) 100%);
+    border: 1px solid var(--tk); border-bottom-width: 2px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.55) inset, 0 -2px 0 rgba(0,0,0,0.14) inset, 0 7px 16px var(--tg);
+  }
+  .btn[data-tone="mavi"], .btn.btn-primary:not([data-tone]) { --t1: #57B7FF; --t2: #1C7FDB; --tk: #1466B5; --tg: rgba(28,127,219,0.42); }
+  .btn[data-tone="yesil"] { --t1: #34D69A; --t2: #0E9C6B; --tk: #0B7F56; --tg: rgba(14,156,107,0.40); }
+  .btn[data-tone="kirmizi"] { --t1: #FF7478; --t2: #D63339; --tk: #AE242A; --tg: rgba(214,51,57,0.38); }
+  .btn[data-tone="turuncu"] { --t1: #FFC04D; --t2: #E58A00; --tk: #B96D00; --tg: rgba(229,138,0,0.40); }
+  .btn[data-tone="mor"] { --t1: #9A89FF; --t2: #5C46E3; --tk: #4733B8; --tg: rgba(92,70,227,0.40); }
+  .btn[data-tone="turkuaz"] { --t1: #3CD6DE; --t2: #0E94A8; --tk: #0B7686; --tg: rgba(14,148,168,0.40); }
+  .btn[data-tone="notr"] { color: var(--ink); }
+  .btn:disabled { filter: grayscale(0.4); opacity: .55; }
+  .btn:disabled:active { transform: none; }
+  .btn-danger:not([data-tone]) { color: var(--expense); }
+
+  .icon-btn { background: linear-gradient(180deg, #FFFFFF, #E4ECF7); border: 1px solid #BFD0E6; border-bottom-width: 2px; box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 4px 10px rgba(11,37,69,0.18); transition: transform .08s ease, box-shadow .12s ease; }
+  .icon-btn:active { transform: translateY(1px) scale(0.96); box-shadow: 0 2px 4px rgba(11,37,69,0.18); }
+
+  .chip { background: linear-gradient(180deg, #FFFFFF, #E9F0FA); border: 1px solid #C4D3E6; border-bottom-width: 2px; box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 3px 8px rgba(11,37,69,0.12); font-weight: 600; }
+  .chip.active { background: linear-gradient(180deg, #57B7FF, #1C7FDB); border-color: #1466B5; color: #fff; text-shadow: 0 1px 1px rgba(0,0,0,0.28); box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset, 0 -2px 0 rgba(0,0,0,0.12) inset, 0 6px 14px rgba(28,127,219,0.38); }
+  .segmented { border: 1px solid #BFD0E6; box-shadow: 0 2px 6px rgba(11,37,69,0.10) inset; background: #E4ECF7; padding: 2px; gap: 2px; border-radius: 12px; }
+  .segmented button { border-radius: 10px; background: transparent; }
+  .segmented button.active { background: linear-gradient(180deg, #57B7FF, #1C7FDB); color: #fff; text-shadow: 0 1px 1px rgba(0,0,0,0.28); box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset, 0 3px 8px rgba(28,127,219,0.38); }
+  .auth-login-btn { background: linear-gradient(180deg, #57B7FF, #1C7FDB); border: 1px solid #1466B5; border-bottom-width: 2px; box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset, 0 -2px 0 rgba(0,0,0,0.14) inset, 0 10px 22px rgba(28,127,219,0.42); text-shadow: 0 1px 1px rgba(0,0,0,0.28); }
+  .scanner-bar .btn { background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.3); color: #fff; box-shadow: none; text-shadow: none; }
+  .scanner-bar .btn::after { display: none; }
 </style>
 </head>
 <body>
@@ -13363,6 +13410,38 @@ ${satirlar.join('\n')}
   document.addEventListener('visibilitychange', () => { if (!document.hidden) sunucudanTazele(); });
   window.addEventListener('focus', sunucudanTazele);
   window.addEventListener('online', sunucudanTazele);
+
+  // ---- Düğmelere işine göre renk ver (CSS'teki data-tone ile eşleşir) ----
+  function butonTonu(el) {
+    const t = String(el.textContent || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('tr');
+    if (!t) return null;
+    if (/^(vazgeç|kapat|geri|hayır|tamam$|bırak|sonra)/.test(t)) return 'notr';
+    if (/(^|\s)(sil|silinsin|kaldır|reddet|iptal et|sıfırla)(\s|$|…|\.)|kayıtlı bilgileri sil|işlemi sil|hesabı sil/.test(t)) return 'kirmizi';
+    if (/(kaydet|onayla|kabul|uygula|tahsilat|ödeme yap|tahsil|kaydedildi|aktif et|bağlantıyı test)/.test(t)) return 'yesil';
+    if (/(yazdır|pdf|xml|excel|indir|ekstre|makbuz|çıktı)/.test(t)) return 'mor';
+    if (/(paylaş|gönder|e-posta|sms|mail|whatsapp|bağlantı|link|qnb)/.test(t)) return 'turkuaz';
+    if (/(düzenle|kopyala|değiştir|taşı|transfer|sayım|manuel|çevir)/.test(t)) return 'turuncu';
+    return (el.classList.contains('btn-primary')) ? 'mavi' : (el.classList.contains('btn-danger') ? 'kirmizi' : 'notr');
+  }
+  function butonTonla(kok) {
+    try {
+      const liste = [];
+      if (kok.nodeType === 1) { if (kok.matches && kok.matches('.btn')) liste.push(kok); if (kok.querySelectorAll) kok.querySelectorAll('.btn').forEach((b) => liste.push(b)); }
+      liste.forEach((b) => {
+        if (b.dataset.tone !== undefined || b.closest('.scanner-bar')) return;
+        const ton = butonTonu(b); if (ton) b.dataset.tone = ton;
+      });
+    } catch (e) { /* görünüm süsü — hata olursa sessizce geç */ }
+  }
+  (function () {
+    let bekleyen = [], zamanlayici = null;
+    const isle = () => { zamanlayici = null; const l = bekleyen; bekleyen = []; l.forEach(butonTonla); };
+    new MutationObserver((muts) => {
+      muts.forEach((m) => m.addedNodes.forEach((n) => { if (n.nodeType === 1) bekleyen.push(n); }));
+      if (bekleyen.length && !zamanlayici) zamanlayici = requestAnimationFrame(isle);
+    }).observe(document.body, { childList: true, subtree: true });
+    butonTonla(document.body);
+  })();
 
   async function init() {
     if (TAKIP_TOKEN) { takipSayfasiGoster(TAKIP_TOKEN); return; }
